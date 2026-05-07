@@ -1,17 +1,8 @@
 import type { ReactNode } from "react";
-import { BarChart3, Bell, GitBranch, Plus, ShieldCheck } from "lucide-react";
 import { auth } from "@/auth";
 import { KublauLogo } from "@/components/ui/logo";
 import { SidebarNav } from "@/components/feature/sidebar-nav";
 import { UserMenu } from "@/components/feature/user-menu";
-
-const NAV = [
-  { href: "/notifications", label: "Notificaciones", icon: Bell },
-  { href: "/metrics", label: "Métricas", icon: BarChart3 },
-  { href: "/flows", label: "Flujos", icon: GitBranch },
-  { href: "/creation", label: "Crear", icon: Plus },
-  { href: "/qa", label: "QA", icon: ShieldCheck },
-] as const;
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const session = await auth();
@@ -24,7 +15,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
           <KublauLogo />
         </div>
         <div className="flex-1">
-          <SidebarNav items={[...NAV]} />
+          <SidebarNav />
         </div>
         {email && <UserMenu email={email} />}
       </aside>

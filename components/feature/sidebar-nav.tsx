@@ -2,21 +2,27 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { BarChart3, Bell, GitBranch, Plus, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { LucideIcon } from "lucide-react";
 
-interface NavItem {
-  href: "/notifications" | "/metrics" | "/flows" | "/creation" | "/qa";
-  label: string;
-  icon: LucideIcon;
-}
+/**
+ * Sidebar navigation. Self-contained because icon component references can't
+ * cross the Server → Client boundary as serializable props.
+ */
+const NAV = [
+  { href: "/notifications", label: "Notificaciones", icon: Bell },
+  { href: "/metrics", label: "Métricas", icon: BarChart3 },
+  { href: "/flows", label: "Flujos", icon: GitBranch },
+  { href: "/creation", label: "Crear", icon: Plus },
+  { href: "/qa", label: "QA", icon: ShieldCheck },
+] as const;
 
-export function SidebarNav({ items }: { items: NavItem[] }) {
+export function SidebarNav() {
   const pathname = usePathname();
 
   return (
     <nav className="space-y-0.5">
-      {items.map(({ href, label, icon: Icon }) => {
+      {NAV.map(({ href, label, icon: Icon }) => {
         const isActive = pathname === href || pathname.startsWith(`${href}/`);
         return (
           <Link
