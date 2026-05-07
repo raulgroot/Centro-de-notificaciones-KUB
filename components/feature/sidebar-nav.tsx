@@ -24,7 +24,6 @@ interface SidebarNavProps {
 /**
  * Collapsible sidebar. Default state is collapsed (icons only).
  * Hovering anywhere on the sidebar expands it with smooth animation.
- * Mouse leave returns it to collapsed.
  */
 export function SidebarNav({ email, signOutAction }: SidebarNavProps) {
   const [expanded, setExpanded] = useState(false);
@@ -36,32 +35,26 @@ export function SidebarNav({ email, signOutAction }: SidebarNavProps) {
       onMouseLeave={() => setExpanded(false)}
       className={cn(
         "bg-brand-600 flex shrink-0 flex-col text-white shadow-sm transition-[width] duration-200 ease-out",
-        expanded ? "w-56" : "w-16",
+        expanded ? "w-60" : "w-16",
       )}
     >
-      {/* Logo */}
-      <div
-        className={cn(
-          "flex h-16 items-center border-b border-white/10",
-          expanded ? "px-4" : "justify-center px-2",
-        )}
+      {/* Logo — fixed height + same horizontal anchor in both states so the
+          icon does not "jump" when the sidebar expands. */}
+      <Link
+        href="/notifications"
+        className="flex h-16 items-center gap-3 overflow-hidden border-b border-white/10 pr-4 pl-[14px] text-white"
+        aria-label="Inicio"
       >
-        <Link
-          href="/notifications"
-          className="flex items-center gap-2 text-white"
-          aria-label="Inicio"
+        <KublauIcon className="h-8 w-8 shrink-0 [&>path]:fill-white" />
+        <span
+          className={cn(
+            "text-2xl font-bold tracking-tight whitespace-nowrap transition-opacity duration-150",
+            expanded ? "opacity-100" : "pointer-events-none opacity-0",
+          )}
         >
-          <KublauIcon className="h-7 w-auto shrink-0 [&>path]:fill-white" />
-          <span
-            className={cn(
-              "text-base font-bold tracking-tight whitespace-nowrap transition-opacity duration-150",
-              expanded ? "opacity-100" : "pointer-events-none opacity-0",
-            )}
-          >
-            kublau
-          </span>
-        </Link>
-      </div>
+          kublau
+        </span>
+      </Link>
 
       {/* Nav */}
       <nav className={cn("flex-1 space-y-1 py-4", expanded ? "px-3" : "px-2")}>
@@ -73,8 +66,8 @@ export function SidebarNav({ email, signOutAction }: SidebarNavProps) {
               href={href}
               title={!expanded ? label : undefined}
               className={cn(
-                "flex items-center gap-3 rounded-md text-sm font-medium transition",
-                expanded ? "px-3 py-2" : "h-10 justify-center",
+                "flex h-10 items-center gap-3 overflow-hidden rounded-md text-sm font-medium transition",
+                expanded ? "px-3" : "justify-center",
                 isActive
                   ? "text-brand-600 bg-white shadow-sm"
                   : "text-white/85 hover:bg-white/10 hover:text-white",
