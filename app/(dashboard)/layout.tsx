@@ -1,11 +1,12 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Bell, GitBranch, Plus, ShieldCheck } from "lucide-react";
+import { BarChart3, Bell, GitBranch, Plus, ShieldCheck } from "lucide-react";
 import { auth } from "@/auth";
 import { UserMenu } from "@/components/feature/user-menu";
 
 const NAV = [
   { href: "/notifications", label: "Notificaciones", icon: Bell },
+  { href: "/metrics", label: "Métricas", icon: BarChart3 },
   { href: "/flows", label: "Flujos", icon: GitBranch },
   { href: "/creation", label: "Crear", icon: Plus },
   { href: "/qa", label: "QA", icon: ShieldCheck },
