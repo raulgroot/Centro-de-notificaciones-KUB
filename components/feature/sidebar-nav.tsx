@@ -33,8 +33,11 @@ export function SidebarNav({ email, signOutAction }: SidebarNavProps) {
     <aside
       onMouseEnter={() => setExpanded(true)}
       onMouseLeave={() => setExpanded(false)}
+      style={{
+        background: "linear-gradient(180deg, #1280ff 0%, #006bff 35%, #0059d9 100%)",
+      }}
       className={cn(
-        "bg-brand-600 flex shrink-0 flex-col text-white shadow-sm transition-[width] duration-200 ease-out",
+        "flex shrink-0 flex-col text-white shadow-sm transition-[width] duration-200 ease-out",
         expanded ? "w-60" : "w-16",
       )}
     >
