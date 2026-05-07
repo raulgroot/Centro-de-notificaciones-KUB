@@ -1,6 +1,8 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Bell, GitBranch, Plus, ShieldCheck } from "lucide-react";
+import { auth } from "@/auth";
+import { UserMenu } from "@/components/feature/user-menu";
 
 const NAV = [
   { href: "/notifications", label: "Notificaciones", icon: Bell },
@@ -9,7 +11,10 @@ const NAV = [
   { href: "/qa", label: "QA", icon: ShieldCheck },
 ] as const;
 
-export default function DashboardLayout({ children }: { children: ReactNode }) {
+export default async function DashboardLayout({ children }: { children: ReactNode }) {
+  const session = await auth();
+  const email = session?.user?.email ?? "";
+
   return (
     <div className="flex min-h-screen w-full">
       <aside className="flex w-60 shrink-0 flex-col border-r border-neutral-200 bg-neutral-50 p-4">
@@ -19,7 +24,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         >
           Kublau · Notis
         </Link>
-        <nav className="space-y-1">
+        <nav className="flex-1 space-y-1">
           {NAV.map(({ href, label, icon: Icon }) => (
             <Link
               key={href}
@@ -31,6 +36,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             </Link>
           ))}
         </nav>
+        {email && <UserMenu email={email} />}
       </aside>
       <main className="flex-1 overflow-y-auto p-8">{children}</main>
     </div>
