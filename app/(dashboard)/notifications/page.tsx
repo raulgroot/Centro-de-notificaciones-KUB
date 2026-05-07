@@ -2,7 +2,6 @@ import { kublauNotificationSource } from "@/lib/adapters/clickhouse-kublau/notif
 import { NotificationFilters } from "@/components/feature/notification-filters";
 import { NotificationRow } from "@/components/feature/notification-row";
 import { Pagination } from "@/components/feature/pagination";
-import { PageHeader } from "@/components/feature/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -46,43 +45,44 @@ export default async function NotificationsPage({ searchParams }: { searchParams
   ]);
 
   return (
-    <div>
-      <PageHeader
-        title="Notificaciones"
-        description={`${total.toLocaleString("es-MX")} notificaciones · fuente: Kublau`}
-      />
+    <div className="space-y-6">
+      <header className="flex items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Notificaciones</h1>
+          <p className="mt-1 text-sm text-neutral-500">
+            {total.toLocaleString("es-MX")} notificaciones · fuente: Kublau
+          </p>
+        </div>
+      </header>
 
-      <div className="space-y-4">
+      <section className="overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm">
         <NotificationFilters
           facets={facets}
           current={{ search, product, movement, clientType, debit, employee, hasTheme }}
         />
 
-        <section className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
-          <header className="grid grid-cols-12 gap-4 border-b border-neutral-200 bg-neutral-50/60 px-5 py-2.5 text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
-            <div className="col-span-5">Asunto / Theme</div>
-            <div className="col-span-2">Producto</div>
-            <div className="col-span-2">Flags</div>
-            <div className="col-span-2">Última actualización</div>
-            <div className="col-span-1" />
-          </header>
+        <header className="grid grid-cols-12 gap-4 border-b border-neutral-200 px-5 py-2.5 text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+          <div className="col-span-6">Asunto / Theme</div>
+          <div className="col-span-4">Etiquetas</div>
+          <div className="col-span-1 text-right">Actualizada</div>
+          <div className="col-span-1" />
+        </header>
 
-          {notifications.length === 0 ? (
-            <div className="p-16 text-center text-sm text-neutral-500">
-              Sin resultados. Prueba ajustando los filtros.
-            </div>
-          ) : (
-            notifications.map((n) => <NotificationRow key={n.id} n={n} />)
-          )}
+        {notifications.length === 0 ? (
+          <div className="p-16 text-center text-sm text-neutral-500">
+            Sin resultados. Prueba ajustando los filtros.
+          </div>
+        ) : (
+          notifications.map((n) => <NotificationRow key={n.id} n={n} />)
+        )}
 
-          <Pagination
-            total={total}
-            limit={PAGE_SIZE}
-            offset={offset}
-            baseQuery={{ search, product, movement, clientType, debit, employee, hasTheme }}
-          />
-        </section>
-      </div>
+        <Pagination
+          total={total}
+          limit={PAGE_SIZE}
+          offset={offset}
+          baseQuery={{ search, product, movement, clientType, debit, employee, hasTheme }}
+        />
+      </section>
     </div>
   );
 }
