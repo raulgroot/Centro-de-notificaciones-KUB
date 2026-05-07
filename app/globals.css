@@ -6,8 +6,8 @@
   --color-brand-500: #339aff;
   --color-brand-600: #006bff;
   --color-brand-700: #0052cc;
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
 }
 
 :root {
@@ -18,5 +18,5 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-feature-settings: "cv11", "ss01";
+  font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
