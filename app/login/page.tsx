@@ -1,6 +1,7 @@
 import { signIn } from "@/auth";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { KublauLogo } from "@/components/ui/logo";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -11,7 +12,6 @@ const ERROR_MESSAGES: Record<string, string> = {
 };
 
 export default async function LoginPage({ searchParams }: { searchParams: SearchParams }) {
-  // If already logged in, send straight to the dashboard.
   const session = await auth();
   if (session?.user) redirect("/notifications");
 
@@ -21,37 +21,43 @@ export default async function LoginPage({ searchParams }: { searchParams: Search
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-neutral-50 p-6">
-      <div className="w-full max-w-sm rounded-lg border border-neutral-200 bg-white p-8 shadow-sm">
-        <div className="mb-1 text-xs font-semibold tracking-wider text-neutral-500 uppercase">
-          Kublau · Notis
+      <div className="w-full max-w-md">
+        <div className="mb-8 flex justify-center">
+          <KublauLogo className="scale-110" />
         </div>
-        <h1 className="mb-2 text-xl font-bold tracking-tight">Centro de Notificaciones</h1>
-        <p className="mb-6 text-sm text-neutral-600">
-          Acceso restringido a miembros del equipo Kublau.
-        </p>
 
-        {errorMessage && (
-          <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            {errorMessage}
-          </div>
-        )}
+        <div className="rounded-xl border border-neutral-200 bg-white p-8 shadow-sm">
+          <h1 className="text-xl font-bold tracking-tight text-neutral-900">
+            Centro de Notificaciones
+          </h1>
+          <p className="mt-1 text-sm text-neutral-600">
+            Acceso restringido a miembros del equipo Kublau.
+          </p>
 
-        <form
-          action={async () => {
-            "use server";
-            await signIn("google", { redirectTo: "/notifications" });
-          }}
-        >
-          <button
-            type="submit"
-            className="flex w-full items-center justify-center gap-2 rounded-md border border-neutral-300 bg-white px-4 py-2.5 text-sm font-medium text-neutral-900 shadow-sm transition hover:bg-neutral-50"
+          {errorMessage && (
+            <div className="mt-5 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {errorMessage}
+            </div>
+          )}
+
+          <form
+            className="mt-6"
+            action={async () => {
+              "use server";
+              await signIn("google", { redirectTo: "/notifications" });
+            }}
           >
-            <GoogleIcon />
-            Iniciar sesión con Google
-          </button>
-        </form>
+            <button
+              type="submit"
+              className="flex w-full items-center justify-center gap-2.5 rounded-md border border-neutral-300 bg-white px-4 py-2.5 text-sm font-medium text-neutral-900 shadow-sm transition hover:bg-neutral-50"
+            >
+              <GoogleIcon />
+              Iniciar sesión con Google
+            </button>
+          </form>
+        </div>
 
-        <p className="mt-6 text-xs text-neutral-400">
+        <p className="mt-6 text-center text-xs text-neutral-500">
           Solo @kublau.com. Si tu correo no funciona, avísale al admin.
         </p>
       </div>

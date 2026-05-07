@@ -1,15 +1,23 @@
 import { signOut } from "@/auth";
 import { LogOut } from "lucide-react";
+import { Avatar } from "@/components/ui/avatar";
 
 export function UserMenu({ email }: { email: string }) {
-  const initial = email.charAt(0).toUpperCase();
+  const local = email.split("@")[0] ?? email;
+  // "raul.robles" → "Raul Robles", "rrobles" → "Rrobles", etc.
+  const displayName =
+    local
+      .split(/[._-]/)
+      .filter(Boolean)
+      .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
+      .join(" ") || email;
+
   return (
-    <div className="mt-auto flex items-center gap-2 border-t border-neutral-200 pt-4">
-      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-neutral-900 text-xs font-semibold text-white">
-        {initial}
-      </div>
-      <div className="flex-1 overflow-hidden text-xs">
-        <div className="truncate text-neutral-700">{email}</div>
+    <div className="mt-2 flex items-center gap-3 border-t border-neutral-200 px-2 pt-4">
+      <Avatar email={email} size="md" />
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-medium text-neutral-900">{displayName}</div>
+        <div className="truncate text-xs text-neutral-500">{email}</div>
       </div>
       <form
         action={async () => {
@@ -20,7 +28,7 @@ export function UserMenu({ email }: { email: string }) {
         <button
           type="submit"
           aria-label="Cerrar sesión"
-          className="rounded p-1.5 text-neutral-500 transition hover:bg-neutral-200 hover:text-neutral-900"
+          className="rounded p-1.5 text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-700"
         >
           <LogOut className="h-4 w-4" />
         </button>

@@ -4,7 +4,6 @@ interface PaginationProps {
   total: number;
   limit: number;
   offset: number;
-  /** Current searchParams without `offset` (we'll add it). */
   baseQuery: Record<string, string | undefined>;
 }
 
@@ -13,6 +12,8 @@ export function Pagination({ total, limit, offset, baseQuery }: PaginationProps)
   const currentPage = Math.floor(offset / limit) + 1;
   const prevOffset = Math.max(0, offset - limit);
   const nextOffset = offset + limit;
+  const hasPrev = offset > 0;
+  const hasNext = nextOffset < total;
 
   const buildHref = (newOffset: number) => {
     const sp = new URLSearchParams();
@@ -24,35 +25,30 @@ export function Pagination({ total, limit, offset, baseQuery }: PaginationProps)
     return qs ? `/notifications?${qs}` : "/notifications";
   };
 
+  const btn = "rounded-md border px-3 py-1.5 text-sm font-medium transition";
+  const enabled = "border-neutral-300 text-neutral-700 hover:bg-neutral-100";
+  const disabled = "border-neutral-200 text-neutral-300";
+
   return (
-    <nav className="flex items-center justify-between border-t border-neutral-100 px-4 py-3 text-sm">
+    <nav className="flex items-center justify-between border-t border-neutral-100 px-5 py-3 text-sm">
       <span className="text-neutral-500">
-        Página {currentPage} de {totalPages} · {total} notificación{total === 1 ? "" : "es"}
+        Página <span className="font-semibold text-neutral-700">{currentPage}</span> de {totalPages}{" "}
+        · {total.toLocaleString("es-MX")} notificación{total === 1 ? "" : "es"}
       </span>
       <div className="flex gap-2">
-        {offset > 0 ? (
-          <Link
-            href={buildHref(prevOffset)}
-            className="rounded-md border border-neutral-300 px-3 py-1 hover:bg-neutral-100"
-          >
+        {hasPrev ? (
+          <Link href={buildHref(prevOffset)} className={`${btn} ${enabled}`}>
             ← Anterior
           </Link>
         ) : (
-          <span className="rounded-md border border-neutral-200 px-3 py-1 text-neutral-300">
-            ← Anterior
-          </span>
+          <span className={`${btn} ${disabled}`}>← Anterior</span>
         )}
-        {nextOffset < total ? (
-          <Link
-            href={buildHref(nextOffset)}
-            className="rounded-md border border-neutral-300 px-3 py-1 hover:bg-neutral-100"
-          >
+        {hasNext ? (
+          <Link href={buildHref(nextOffset)} className={`${btn} ${enabled}`}>
             Siguiente →
           </Link>
         ) : (
-          <span className="rounded-md border border-neutral-200 px-3 py-1 text-neutral-300">
-            Siguiente →
-          </span>
+          <span className={`${btn} ${disabled}`}>Siguiente →</span>
         )}
       </div>
     </nav>
