@@ -32,6 +32,11 @@ export const authConfig = {
       return session;
     },
     authorized({ auth, request }) {
+      // In local development, bypass auth so design previews and quick testing
+      // don't require logging in. Production (Vercel) sets NODE_ENV=production
+      // automatically — gating stays fully active there.
+      if (process.env.NODE_ENV !== "production") return true;
+
       const isLoggedIn = !!auth?.user;
       const { pathname } = request.nextUrl;
       // Public routes

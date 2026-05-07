@@ -1,19 +1,24 @@
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 /**
- * Kublau brand logo. Renders the icon (lightning K) inline + "kublau" wordmark.
- * The full official SVG (icon + wordmark) also lives at `/public/kublau-logo.svg`.
+ * Kublau brand logo — full lockup (icon + wordmark) rendered from
+ * `/public/kublau-logo.svg`. Original brand colors preserved.
  */
 export function KublauLogo({ className }: { className?: string }) {
   return (
-    <div className={cn("flex items-center gap-2.5", className)}>
-      <KublauIcon className="h-7 w-auto" />
-      <span className="text-lg font-bold tracking-tight text-neutral-900">kublau</span>
-    </div>
+    <Image
+      src="/kublau-logo.svg"
+      alt="Kublau"
+      width={1781}
+      height={475}
+      priority
+      className={cn("h-7 w-auto", className)}
+    />
   );
 }
 
-/** Icon-only variant (the lightning K). */
+/** Icon-only variant (lightning K) for compact placements. */
 export function KublauIcon({ className }: { className?: string }) {
   return (
     <svg
