@@ -1,18 +1,17 @@
 import { unstable_cache } from "next/cache";
-import { kublauNotificationSource } from "@/lib/adapters/clickhouse-kublau/notification-source";
+import { supabaseNotificationSource as notifs } from "@/lib/adapters/supabase/notification-source";
 import { NotificationFilters } from "@/components/feature/notification-filters";
 import { NotificationRow } from "@/components/feature/notification-row";
 import { Pagination } from "@/components/feature/pagination";
 
 export const dynamic = "force-dynamic";
 
-/** Facets are computed from DISTINCT queries — heavy and almost never change.
- *  Cache for 5 minutes. */
-const getCachedFacets = unstable_cache(
-  () => kublauNotificationSource.facets(),
-  ["notification-facets-v1"],
-  { revalidate: 300, tags: ["facets"] },
-);
+/** Facets queried from cached Supabase. Still cached locally for 5 min to
+ *  avoid hitting Postgres on every request. */
+const getCachedFacets = unstable_cache(() => notifs.facets(), ["notification-facets-v2"], {
+  revalidate: 300,
+  tags: ["facets"],
+});
 
 const PAGE_SIZE = 50;
 
@@ -48,8 +47,8 @@ export default async function NotificationsPage({ searchParams }: { searchParams
   };
 
   const [notifications, total, facets] = await Promise.all([
-    kublauNotificationSource.list(filter),
-    kublauNotificationSource.count(filter),
+    notifs.list(filter),
+    notifs.count(filter),
     getCachedFacets(),
   ]);
 

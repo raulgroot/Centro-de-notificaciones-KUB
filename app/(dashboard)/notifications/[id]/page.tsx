@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { kublauNotificationSource } from "@/lib/adapters/clickhouse-kublau/notification-source";
+import { supabaseNotificationSource as notifs } from "@/lib/adapters/supabase/notification-source";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +11,7 @@ type Params = Promise<{ id: string }>;
 
 export default async function NotificationDetailPage({ params }: { params: Params }) {
   const { id } = await params;
-  const n = await kublauNotificationSource.getById(id);
+  const n = await notifs.getById(id);
   if (!n) notFound();
 
   return (

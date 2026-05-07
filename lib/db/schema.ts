@@ -1,14 +1,66 @@
-import { pgTable, text, timestamp, integer, jsonb, uuid, varchar } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  text,
+  timestamp,
+  integer,
+  jsonb,
+  uuid,
+  varchar,
+  boolean,
+  index,
+} from "drizzle-orm/pg-core";
 
 /**
  * App-owned schema. Lives in our Supabase Postgres (NOT Kublau).
- * Stores everything the source-of-truth Kublau warehouse can't hold for us:
- * versioning, flows, integration links, QA notes.
+ * Stores: a hot cache of Kublau notifications (synced periodically),
+ * versioning, flows, integration links, QA notes, sync history.
  */
 
 /**
+ * Hot cache of Kublau's `blazer_query_401`. The app reads from here for speed.
+ * A scheduled sync (Vercel Cron) keeps this in step with Kublau every hour.
+ * `synced_at` records when each row was last refreshed.
+ */
+export const notificationsCache = pgTable(
+  "notifications_cache",
+  {
+    id: varchar("id", { length: 255 }).primaryKey(),
+    themeName: text("theme_name").notNull().default(""),
+    subject: text("subject").notNull().default(""),
+    smsText: text("sms_text"),
+    products: jsonb("products").$type<string[]>().notNull().default([]),
+    movements: jsonb("movements").$type<string[]>().notNull().default([]),
+    clientTypes: jsonb("client_types").$type<string[]>().notNull().default([]),
+    isDebit: boolean("is_debit").notNull().default(false),
+    isEmployee: boolean("is_employee").notNull().default(false),
+    hasTheme: boolean("has_theme").notNull().default(false),
+    updatedAtKublau: timestamp("updated_at_kublau", { withTimezone: true }),
+    themeLink: text("theme_link"),
+    templateLink: text("template_link"),
+    lastMailTo: text("last_mail_to"),
+    htmlBody: text("html_body"),
+    lastSentAt: timestamp("last_sent_at", { withTimezone: true }),
+    postmarkUrl: text("postmark_url"),
+    syncedAt: timestamp("synced_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    updatedIdx: index("notifications_cache_updated_idx").on(table.updatedAtKublau),
+  }),
+);
+
+/** Tracks each sync run (success/failure, count, timing). */
+export const syncRuns = pgTable("sync_runs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  kind: varchar("kind", { length: 32 }).notNull(), // "cron" | "manual"
+  startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+  rowsSynced: integer("rows_synced"),
+  error: text("error"),
+});
+
+/**
  * Append-only versioning. Every save creates a new row.
- * The "current" version of a Kublau notification is the row with the highest
+ * The "current" version of a notification is the row with the highest
  * `version_number` for that `kublau_notification_id`.
  */
 export const notificationVersions = pgTable("notification_versions", {
