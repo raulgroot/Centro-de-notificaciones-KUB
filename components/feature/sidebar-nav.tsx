@@ -22,7 +22,7 @@ interface SidebarNavProps {
 }
 
 /**
- * Collapsible sidebar. Default state is collapsed (icons only).
+ * Collapsible sidebar. Default state is collapsed (icons only as 40×40 squares).
  * Hovering anywhere on the sidebar expands it with smooth animation.
  */
 export function SidebarNav({ email, signOutAction }: SidebarNavProps) {
@@ -38,79 +38,73 @@ export function SidebarNav({ email, signOutAction }: SidebarNavProps) {
         expanded ? "w-60" : "w-16",
       )}
     >
-      {/* Logo — fixed height + same horizontal anchor in both states so the
-          icon does not "jump" when the sidebar expands. */}
+      {/* Logo */}
       <Link
         href="/notifications"
-        className="flex h-16 items-center gap-3 overflow-hidden border-b border-white/10 pr-4 pl-[14px] text-white"
+        className={cn(
+          "flex h-16 items-center gap-3 overflow-hidden border-b border-white/10 text-white",
+          expanded ? "px-4" : "justify-center px-0",
+        )}
         aria-label="Inicio"
       >
         <KublauIcon className="h-8 w-8 shrink-0 [&>path]:fill-white" />
-        <span
-          className={cn(
-            "text-2xl font-bold tracking-tight whitespace-nowrap transition-opacity duration-150",
-            expanded ? "opacity-100" : "pointer-events-none opacity-0",
-          )}
-        >
-          kublau
-        </span>
+        {expanded && (
+          <span className="text-2xl font-bold tracking-tight whitespace-nowrap">kublau</span>
+        )}
       </Link>
 
-      {/* Nav */}
-      <nav className={cn("flex-1 space-y-1 py-4", expanded ? "px-3" : "px-2")}>
-        {NAV.map(({ href, label, icon: Icon }) => {
-          const isActive = pathname === href || pathname.startsWith(`${href}/`);
-          return (
-            <Link
-              key={href}
-              href={href}
-              title={!expanded ? label : undefined}
-              className={cn(
-                "flex h-10 items-center gap-3 overflow-hidden rounded-md text-sm font-medium transition",
-                expanded ? "px-3" : "justify-center",
-                isActive
-                  ? "text-brand-600 bg-white shadow-sm"
-                  : "text-white/85 hover:bg-white/10 hover:text-white",
-              )}
-            >
-              <Icon className={cn("h-5 w-5 shrink-0", isActive && "text-brand-600")} />
-              <span
-                className={cn(
-                  "truncate transition-opacity duration-150",
-                  expanded ? "opacity-100" : "pointer-events-none w-0 opacity-0",
-                )}
-              >
-                {label}
-              </span>
-            </Link>
-          );
-        })}
+      {/* Nav — each item is a 40×40 square when collapsed, centered. */}
+      <nav className="flex-1 py-4">
+        <ul className="space-y-1.5">
+          {NAV.map(({ href, label, icon: Icon }) => {
+            const isActive = pathname === href || pathname.startsWith(`${href}/`);
+            return (
+              <li key={href} className={cn("flex", expanded ? "px-3" : "justify-center")}>
+                <Link
+                  href={href}
+                  title={!expanded ? label : undefined}
+                  className={cn(
+                    "flex items-center rounded-md text-sm font-medium transition",
+                    expanded ? "h-10 w-full gap-3 px-3" : "h-10 w-10 justify-center",
+                    isActive
+                      ? "text-brand-600 bg-white shadow-sm"
+                      : "text-white/85 hover:bg-white/10 hover:text-white",
+                  )}
+                >
+                  <Icon className={cn("h-5 w-5 shrink-0", isActive && "text-brand-600")} />
+                  {expanded && <span className="truncate">{label}</span>}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
       </nav>
 
       {/* User */}
       {email && (
-        <div className={cn("border-t border-white/10 py-3", expanded ? "px-3" : "px-2")}>
+        <div className={cn("border-t border-white/10 py-3", expanded ? "px-3" : "px-3")}>
           <div className={cn("flex items-center gap-2.5", !expanded && "justify-center")}>
             <Avatar email={email} size="md" className="border border-white/20" />
-            <div
-              className={cn(
-                "min-w-0 flex-1 transition-opacity duration-150",
-                expanded ? "opacity-100" : "pointer-events-none w-0 opacity-0",
-              )}
-            >
-              <div className="truncate text-xs font-semibold text-white">{prettyName(email)}</div>
-              <div className="truncate text-[11px] text-white/60">{email}</div>
-            </div>
-            {expanded && signOutAction && (
-              <form action={signOutAction}>
-                <button
-                  type="submit"
-                  aria-label="Cerrar sesión"
-                  className="rounded p-1.5 text-white/70 transition hover:bg-white/10 hover:text-white"
-                >
-                  <LogOut className="h-4 w-4" />
-                </button>
-              </form>
+            {expanded && (
+              <>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-xs font-semibold text-white">
+                    {prettyName(email)}
+                  </div>
+                  <div className="truncate text-[11px] text-white/60">{email}</div>
+                </div>
+                {signOutAction && (
+                  <form action={signOutAction}>
+                    <button
+                      type="submit"
+                      aria-label="Cerrar sesión"
+                      className="rounded p-1.5 text-white/70 transition hover:bg-white/10 hover:text-white"
+                    >
+                      <LogOut className="h-4 w-4" />
+                    </button>
+                  </form>
+                )}
+              </>
             )}
           </div>
         </div>
