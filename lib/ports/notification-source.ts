@@ -23,6 +23,8 @@ export interface NotificationRecord {
   updatedAt: Date | null;
   themeLink: string | null;
   templateLink: string | null;
+  templatePreviewLink: string | null;
+  sendTime: string | null;
   lastMailTo: string | null;
   htmlBody: string | null;
   lastSentAt: Date | null;

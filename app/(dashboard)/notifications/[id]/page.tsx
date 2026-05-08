@@ -1,11 +1,11 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { supabaseNotificationSource as notifs } from "@/lib/adapters/supabase/notification-source";
-import { ArrowLeft, ExternalLink } from "lucide-react";
+import { ArrowLeft, ExternalLink, Eye } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-const dateFmt = new Intl.DateTimeFormat("es-MX", { dateStyle: "long", timeStyle: "short" });
+const dateFmt = new Intl.DateTimeFormat("es-MX", { dateStyle: "long" });
 
 type Params = Promise<{ id: string }>;
 
@@ -13,6 +13,8 @@ export default async function NotificationDetailPage({ params }: { params: Param
   const { id } = await params;
   const n = await notifs.getById(id);
   if (!n) notFound();
+
+  const previewLink = n.templatePreviewLink ?? n.templateLink;
 
   return (
     <div className="space-y-6">
@@ -24,111 +26,104 @@ export default async function NotificationDetailPage({ params }: { params: Param
         Volver
       </Link>
 
-      <header className="border-b border-neutral-200 pb-6">
-        <h1 className="text-2xl font-bold tracking-tight text-neutral-900">
-          {n.subject || "(sin asunto)"}
-        </h1>
-        <p className="mt-1 text-sm text-neutral-600">{n.themeName}</p>
+      <header className="flex items-start justify-between gap-4 border-b border-neutral-200 pb-6">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-neutral-900">
+            {n.subject || "(sin asunto)"}
+          </h1>
+          <p className="mt-1 text-sm text-neutral-600">{n.themeName}</p>
+        </div>
+        {previewLink && (
+          <a
+            href={previewLink}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="bg-brand-600 hover:bg-brand-700 inline-flex shrink-0 items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white transition"
+          >
+            <Eye className="h-4 w-4" />
+            Ver preview en Kublau
+          </a>
+        )}
       </header>
 
-      <div className="grid grid-cols-12 gap-6">
-        <aside className="col-span-12 space-y-5 lg:col-span-4">
-          <Card>
-            <DetailField label="ID">
-              <code className="font-mono text-xs">{n.id}</code>
-            </DetailField>
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+        <Card>
+          <div className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+            Identificación
+          </div>
+          <DetailField label="ID">
+            <code className="font-mono text-xs break-all">{n.id}</code>
+          </DetailField>
+          <DetailField label="Productos">
+            <Tags values={n.products} />
+          </DetailField>
+          <DetailField label="Movimientos">
+            <Tags values={n.movements} />
+          </DetailField>
+          <DetailField label="Tipos de cliente">
+            <Tags values={n.clientTypes} />
+          </DetailField>
+        </Card>
 
-            <DetailField label="Productos">
-              <Tags values={n.products} />
-            </DetailField>
-
-            <DetailField label="Movimientos">
-              <Tags values={n.movements} />
-            </DetailField>
-
-            <DetailField label="Tipos de cliente">
-              <Tags values={n.clientTypes} />
-            </DetailField>
-
-            <DetailField label="Flags">
-              <div className="flex flex-wrap gap-1.5">
-                {n.isDebit && <Pill tone="amber">débito</Pill>}
-                {n.isEmployee && <Pill tone="violet">empleado</Pill>}
-                {n.hasTheme ? (
-                  <Pill tone="emerald">con theme</Pill>
-                ) : (
-                  <Pill tone="red">sin theme</Pill>
-                )}
-              </div>
-            </DetailField>
-          </Card>
-
-          <Card>
-            <DetailField label="SMS">
-              {n.smsText ? (
-                <p className="rounded-md bg-neutral-50 p-2.5 text-xs text-neutral-700">
-                  {n.smsText}
-                </p>
+        <Card>
+          <div className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+            Configuración
+          </div>
+          <DetailField label="Flags">
+            <div className="flex flex-wrap gap-1.5">
+              {n.isDebit && <Pill tone="amber">débito</Pill>}
+              {n.isEmployee && <Pill tone="violet">empleado</Pill>}
+              {n.hasTheme ? (
+                <Pill tone="emerald">con theme</Pill>
               ) : (
-                <span className="text-sm text-neutral-400">Sin texto SMS</span>
+                <Pill tone="red">sin theme</Pill>
               )}
-            </DetailField>
-
-            <DetailField label="Última actualización (Kublau)">
-              <span className="text-sm">{n.updatedAt ? dateFmt.format(n.updatedAt) : "—"}</span>
-            </DetailField>
-
-            <DetailField label="Último envío">
-              <span className="text-sm">{n.lastSentAt ? dateFmt.format(n.lastSentAt) : "—"}</span>
-            </DetailField>
-
-            <DetailField label="Último destinatario">
-              {n.lastMailTo ? (
-                <code className="text-xs">{n.lastMailTo}</code>
-              ) : (
+              {!n.isDebit && !n.isEmployee && n.hasTheme && (
                 <span className="text-sm text-neutral-400">—</span>
               )}
-            </DetailField>
-          </Card>
-
-          {(n.themeLink || n.templateLink || n.postmarkUrl) && (
-            <Card>
-              <div className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
-                Enlaces
-              </div>
-              <div className="mt-3 flex flex-col gap-2">
-                {n.themeLink && (
-                  <ExternalLinkRow href={n.themeLink} label="Theme/trigger en Kublau" />
-                )}
-                {n.templateLink && n.templateLink !== n.themeLink && (
-                  <ExternalLinkRow href={n.templateLink} label="Template en Kublau" />
-                )}
-                {n.postmarkUrl && <ExternalLinkRow href={n.postmarkUrl} label="Postmark" />}
-              </div>
-            </Card>
-          )}
-        </aside>
-
-        <section className="col-span-12 lg:col-span-8">
-          <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
-              Preview HTML del último mail
-            </h2>
-          </div>
-          {n.htmlBody ? (
-            <iframe
-              srcDoc={n.htmlBody}
-              title="Preview"
-              sandbox=""
-              className="h-[800px] w-full rounded-lg border border-neutral-200 bg-white"
-            />
-          ) : (
-            <div className="rounded-lg border border-dashed border-neutral-300 bg-white p-16 text-center text-sm text-neutral-500">
-              Esta notificación todavía no tiene un envío registrado con HTML.
             </div>
-          )}
-        </section>
+          </DetailField>
+          <DetailField label="Hora de envío">
+            <span className="text-sm">{n.sendTime ?? "—"}</span>
+          </DetailField>
+          <DetailField label="Última actualización">
+            <span className="text-sm">{n.updatedAt ? dateFmt.format(n.updatedAt) : "—"}</span>
+          </DetailField>
+        </Card>
+
+        <Card>
+          <div className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+            Mensajería
+          </div>
+          <DetailField label="Asunto del correo">
+            <p className="text-sm text-neutral-800">{n.subject || "—"}</p>
+          </DetailField>
+          <DetailField label="Texto SMS">
+            {n.smsText ? (
+              <p className="rounded-md bg-neutral-50 p-2.5 text-xs text-neutral-700">{n.smsText}</p>
+            ) : (
+              <span className="text-sm text-neutral-400">Sin texto SMS</span>
+            )}
+          </DetailField>
+        </Card>
       </div>
+
+      {(n.themeLink || n.templateLink || n.templatePreviewLink) && (
+        <Card>
+          <div className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+            Enlaces a Kublau
+          </div>
+          <div className="mt-3 flex flex-col gap-2">
+            {n.themeLink && <ExternalLinkRow href={n.themeLink} label="Theme / trigger" />}
+            {n.templateLink && n.templateLink !== n.themeLink && (
+              <ExternalLinkRow href={n.templateLink} label="Editar template" />
+            )}
+            {n.templatePreviewLink && (
+              <ExternalLinkRow href={n.templatePreviewLink} label="Preview del template" />
+            )}
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

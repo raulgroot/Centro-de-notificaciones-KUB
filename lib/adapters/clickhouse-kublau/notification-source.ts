@@ -89,6 +89,8 @@ const mapRow = (row: RawRow): NotificationRecord => ({
   updatedAt: toDate(row.updatedAt),
   themeLink: nullIfEmpty(row.themeLink),
   templateLink: nullIfEmpty(row.templateLink),
+  templatePreviewLink: null,
+  sendTime: null,
   lastMailTo: nullIfEmpty(row.lastMailTo),
   htmlBody: nullIfEmpty(row.htmlBody),
   lastSentAt: toDate(row.lastSentAt),

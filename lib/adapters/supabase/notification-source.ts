@@ -32,6 +32,8 @@ const mapRow = (row: CacheRow): NotificationRecord => ({
   updatedAt: row.updatedAtKublau,
   themeLink: row.themeLink,
   templateLink: row.templateLink,
+  templatePreviewLink: row.templatePreviewLink,
+  sendTime: row.sendTime,
   lastMailTo: row.lastMailTo,
   htmlBody: row.htmlBody,
   lastSentAt: row.lastSentAt,
