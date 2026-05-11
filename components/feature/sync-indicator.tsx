@@ -1,6 +1,7 @@
 import { revalidatePath } from "next/cache";
 import { RefreshCw } from "lucide-react";
-import { runSync, getLastSyncedAt } from "@/lib/sync/notifications";
+import { runSync } from "@/lib/sync/notifications";
+import { getLastSyncedAt } from "@/lib/adapters/supabase/notification-source";
 
 const dateFmt = new Intl.RelativeTimeFormat("es-MX", { numeric: "auto" });
 

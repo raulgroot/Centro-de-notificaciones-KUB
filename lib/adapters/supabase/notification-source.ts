@@ -1,14 +1,17 @@
 /**
- * NotificationSource backed by our Supabase cache (`notifications_cache`).
- * This is what the app reads in normal operation — fast (~50ms) and resilient
- * to Kublau outages. The Kublau adapter is reserved for sync + QA.
+ * NotificationSource backed by Supabase via the JS client (HTTPS, not Postgres TCP).
  *
- * See `docs/adr/0005-supabase-cache.md` (TODO).
+ * Why HTTPS instead of Drizzle: Vercel Functions can't reach Supabase's direct
+ * Postgres endpoint when it's IPv6-only (which is the default on free tier).
+ * The Supabase JS client goes over the REST API (PostgREST) which is always
+ * reachable. ~50-150ms per query — still much faster than ClickHouse.
+ *
+ * Drizzle + Postgres remain useful for migrations and one-off scripts (run
+ * locally where IPv6 works) but are not used at runtime.
  */
 
-import { and, asc, count, desc, eq, ilike, or, sql } from "drizzle-orm";
-import { getDb } from "@/lib/db/client";
-import { notificationsCache } from "@/lib/db/schema";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { supabaseAdminEnv } from "@/lib/env";
 import type {
   NotificationFacets,
   NotificationFilter,
@@ -16,127 +19,128 @@ import type {
   NotificationSource,
 } from "@/lib/ports/notification-source";
 
-type CacheRow = typeof notificationsCache.$inferSelect;
+let _client: SupabaseClient | null = null;
+function client(): SupabaseClient {
+  if (_client) return _client;
+  const env = supabaseAdminEnv();
+  _client = createClient(env.url, env.serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  return _client;
+}
+
+interface CacheRow {
+  id: string;
+  theme_name: string;
+  subject: string;
+  sms_text: string | null;
+  products: string[];
+  movements: string[];
+  client_types: string[];
+  is_debit: boolean;
+  is_employee: boolean;
+  has_theme: boolean;
+  updated_at_kublau: string | null;
+  theme_link: string | null;
+  template_link: string | null;
+  template_preview_link: string | null;
+  send_time: string | null;
+  last_mail_to: string | null;
+  html_body: string | null;
+  last_sent_at: string | null;
+  postmark_url: string | null;
+}
 
 const mapRow = (row: CacheRow): NotificationRecord => ({
   id: row.id,
-  themeName: row.themeName,
+  themeName: row.theme_name,
   subject: row.subject,
-  smsText: row.smsText,
-  products: row.products,
-  movements: row.movements,
-  clientTypes: row.clientTypes,
-  isDebit: row.isDebit,
-  isEmployee: row.isEmployee,
-  hasTheme: row.hasTheme,
-  updatedAt: row.updatedAtKublau,
-  themeLink: row.themeLink,
-  templateLink: row.templateLink,
-  templatePreviewLink: row.templatePreviewLink,
-  sendTime: row.sendTime,
-  lastMailTo: row.lastMailTo,
-  htmlBody: row.htmlBody,
-  lastSentAt: row.lastSentAt,
-  postmarkUrl: row.postmarkUrl,
+  smsText: row.sms_text,
+  products: row.products ?? [],
+  movements: row.movements ?? [],
+  clientTypes: row.client_types ?? [],
+  isDebit: row.is_debit,
+  isEmployee: row.is_employee,
+  hasTheme: row.has_theme,
+  updatedAt: row.updated_at_kublau ? new Date(row.updated_at_kublau) : null,
+  themeLink: row.theme_link,
+  templateLink: row.template_link,
+  templatePreviewLink: row.template_preview_link,
+  sendTime: row.send_time,
+  lastMailTo: row.last_mail_to,
+  htmlBody: row.html_body,
+  lastSentAt: row.last_sent_at ? new Date(row.last_sent_at) : null,
+  postmarkUrl: row.postmark_url,
 });
 
-function buildWhere(filter: NotificationFilter) {
-  const clauses = [] as Array<ReturnType<typeof eq> | ReturnType<typeof or>>;
-
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function applyFilters(query: any, filter: NotificationFilter): any {
+  let q = query;
   if (filter.search) {
-    const term = `%${filter.search}%`;
-    const c = or(
-      ilike(notificationsCache.subject, term),
-      ilike(notificationsCache.themeName, term),
-    );
-    if (c) clauses.push(c);
+    const t = `%${filter.search}%`;
+    q = q.or(`subject.ilike.${t},theme_name.ilike.${t}`);
   }
-  // jsonb array contains: use the @> operator
-  if (filter.product) {
-    clauses.push(sql`${notificationsCache.products} @> ${JSON.stringify([filter.product])}::jsonb`);
-  }
-  if (filter.movement) {
-    clauses.push(
-      sql`${notificationsCache.movements} @> ${JSON.stringify([filter.movement])}::jsonb`,
-    );
-  }
-  if (filter.clientType) {
-    clauses.push(
-      sql`${notificationsCache.clientTypes} @> ${JSON.stringify([filter.clientType])}::jsonb`,
-    );
-  }
-  if (typeof filter.isDebit === "boolean") {
-    clauses.push(eq(notificationsCache.isDebit, filter.isDebit));
-  }
-  if (typeof filter.isEmployee === "boolean") {
-    clauses.push(eq(notificationsCache.isEmployee, filter.isEmployee));
-  }
-  if (typeof filter.hasTheme === "boolean") {
-    clauses.push(eq(notificationsCache.hasTheme, filter.hasTheme));
-  }
-
-  return clauses.length > 0 ? and(...clauses) : undefined;
+  if (filter.product) q = q.contains("products", [filter.product]);
+  if (filter.movement) q = q.contains("movements", [filter.movement]);
+  if (filter.clientType) q = q.contains("client_types", [filter.clientType]);
+  if (typeof filter.isDebit === "boolean") q = q.eq("is_debit", filter.isDebit);
+  if (typeof filter.isEmployee === "boolean") q = q.eq("is_employee", filter.isEmployee);
+  if (typeof filter.hasTheme === "boolean") q = q.eq("has_theme", filter.hasTheme);
+  return q;
 }
 
 export const supabaseNotificationSource: NotificationSource = {
   async list(filter: NotificationFilter = {}): Promise<NotificationRecord[]> {
-    const db = getDb();
-    const where = buildWhere(filter);
     const limit = Math.min(Math.max(filter.limit ?? 50, 1), 500);
     const offset = Math.max(filter.offset ?? 0, 0);
 
-    const rows = await db
-      .select()
-      .from(notificationsCache)
-      .where(where)
-      .orderBy(desc(notificationsCache.updatedAtKublau), asc(notificationsCache.id))
-      .limit(limit)
-      .offset(offset);
+    let q = client()
+      .from("notifications_cache")
+      .select("*")
+      .order("updated_at_kublau", { ascending: false, nullsFirst: false })
+      .order("id", { ascending: true })
+      .range(offset, offset + limit - 1);
 
-    return rows.map(mapRow);
+    q = applyFilters(q, filter);
+    const { data, error } = await q;
+    if (error) throw new Error(`Supabase list error: ${error.message}`);
+    return (data as CacheRow[]).map(mapRow);
   },
 
   async getById(id: string): Promise<NotificationRecord | null> {
-    const db = getDb();
-    const [row] = await db
-      .select()
-      .from(notificationsCache)
-      .where(eq(notificationsCache.id, id))
-      .limit(1);
-    return row ? mapRow(row) : null;
+    const { data, error } = await client()
+      .from("notifications_cache")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+    if (error) throw new Error(`Supabase getById error: ${error.message}`);
+    return data ? mapRow(data as CacheRow) : null;
   },
 
   async count(filter: NotificationFilter = {}): Promise<number> {
-    const db = getDb();
-    const where = buildWhere(filter);
-    const [row] = await db.select({ n: count() }).from(notificationsCache).where(where);
-    return row?.n ?? 0;
+    let q = client().from("notifications_cache").select("id", { count: "exact", head: true });
+    q = applyFilters(q, filter);
+    const { count, error } = await q;
+    if (error) throw new Error(`Supabase count error: ${error.message}`);
+    return count ?? 0;
   },
 
   async facets(): Promise<NotificationFacets> {
-    const db = getDb();
-    // Use jsonb_array_elements_text to flatten the arrays and SELECT DISTINCT.
-    const result = await db.execute<{ kind: string; v: string }>(sql`
-      SELECT 'product' AS kind, value AS v
-        FROM ${notificationsCache}, jsonb_array_elements_text(${notificationsCache.products})
-      UNION
-      SELECT 'movement', value
-        FROM ${notificationsCache}, jsonb_array_elements_text(${notificationsCache.movements})
-      UNION
-      SELECT 'clientType', value
-        FROM ${notificationsCache}, jsonb_array_elements_text(${notificationsCache.clientTypes})
-    `);
+    // Pull all rows' array columns and aggregate client-side.
+    // ~767 rows × 3 small arrays = trivial.
+    const { data, error } = await client()
+      .from("notifications_cache")
+      .select("products,movements,client_types");
+    if (error) throw new Error(`Supabase facets error: ${error.message}`);
 
     const products = new Set<string>();
     const movements = new Set<string>();
     const clientTypes = new Set<string>();
-    for (const row of result) {
-      if (!row.v) continue;
-      if (row.kind === "product") products.add(row.v);
-      else if (row.kind === "movement") movements.add(row.v);
-      else if (row.kind === "clientType") clientTypes.add(row.v);
+    for (const row of data as Array<Pick<CacheRow, "products" | "movements" | "client_types">>) {
+      for (const v of row.products ?? []) if (v) products.add(v);
+      for (const v of row.movements ?? []) if (v) movements.add(v);
+      for (const v of row.client_types ?? []) if (v) clientTypes.add(v);
     }
-
     return {
       products: [...products].sort(),
       movements: [...movements].sort(),
@@ -145,7 +149,19 @@ export const supabaseNotificationSource: NotificationSource = {
   },
 
   async listTables(): Promise<string[]> {
-    // N/A for the Supabase cache adapter.
     return ["notifications_cache"];
   },
 };
+
+/** Last-synced timestamp for the sync indicator. */
+export async function getLastSyncedAt(): Promise<Date | null> {
+  const { data, error } = await client()
+    .from("sync_runs")
+    .select("finished_at")
+    .not("finished_at", "is", null)
+    .order("finished_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) return null;
+  return data?.finished_at ? new Date(data.finished_at) : null;
+}
