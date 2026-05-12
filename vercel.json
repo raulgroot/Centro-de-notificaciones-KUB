@@ -4,11 +4,18 @@
     {
       "path": "/api/sync",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/refresh-metrics",
+      "schedule": "0 6 * * *"
     }
   ],
   "functions": {
     "app/api/sync/route.ts": {
       "maxDuration": 300
+    },
+    "app/api/refresh-metrics/route.ts": {
+      "maxDuration": 60
     }
   }
 }

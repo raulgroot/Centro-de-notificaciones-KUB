@@ -117,3 +117,30 @@ export const qaNotes = pgTable("qa_notes", {
   resolved: jsonb("resolved").default({ at: null, by: null }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+/**
+ * Snapshots of the metrics dataset (everything we pull from Kublau ClickHouse
+ * to compute insights). The /metrics page reads the latest row instead of
+ * hitting ClickHouse directly — so a Kublau outage doesn't take the page down.
+ *
+ * Refreshed by:
+ *  - the daily Vercel cron at 06:00 UTC
+ *  - a manual "Refrescar" button in the UI (POST /api/refresh-metrics)
+ *
+ * `data` holds the raw ClickHouse responses as JSON; the app re-runs insight
+ * computation on read. This way bug-fixes in the insight rules apply immediately
+ * to historic snapshots without re-pulling Kublau.
+ */
+export const metricsSnapshots = pgTable(
+  "metrics_snapshots",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    snapshottedAt: timestamp("snapshotted_at", { withTimezone: true }).defaultNow().notNull(),
+    data: jsonb("data").notNull(),
+    rowsCount: integer("rows_count"),
+    msTaken: integer("ms_taken"),
+  },
+  (table) => ({
+    atIdx: index("metrics_snapshots_at_idx").on(table.snapshottedAt),
+  }),
+);

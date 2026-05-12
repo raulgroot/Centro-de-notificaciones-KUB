@@ -223,3 +223,65 @@ export const kublauNotificationSource: NotificationSource = {
     return data.data.map((row) => row.name);
   },
 };
+
+/**
+ * Lightweight row for catalog-wide analyses (zombies, QA queue, subject
+ * patterns). Excludes the heavy `htmlBody` column so we can pull all ~767
+ * templates in a single query without bloat.
+ *
+ * Note: `MOMENTO EN QUE SE ENVIA` doesn't exist in ClickHouse `blazer_query_401`
+ * — that column lives in the CSV-fed Supabase cache. The send-time distribution
+ * insight pulls from there separately.
+ */
+export interface TemplateAnalysisRow {
+  id: string;
+  themeName: string;
+  subject: string;
+  updatedAt: Date | null;
+  lastSentAt: Date | null;
+  hasTheme: boolean;
+}
+
+/** Returns every template in `blazer_query_401` with the columns needed for insights. */
+export async function listTemplatesForAnalysis(): Promise<TemplateAnalysisRow[]> {
+  const client = getClickhouseClient();
+  const result = await client.query({
+    query: `
+      SELECT
+        id,
+        \`NOMBRE DE THEME/TRIGGER\`                AS themeName,
+        \`ASUNTO DEL CORREO\`                      AS subject,
+        \`ULTIMA ACTUALIZACIÓN\`                   AS updatedAt,
+        \`FECHA DE ENVIO\`                         AS lastSentAt,
+        \`CON THEME\`                              AS hasThemeFlag
+      FROM ${TABLE}
+    `,
+    format: "JSON",
+  });
+  const data = (await result.json()) as {
+    data: Array<{
+      id: string;
+      themeName: string;
+      subject: string;
+      updatedAt: string | null;
+      lastSentAt: string | null;
+      hasThemeFlag: string;
+    }>;
+  };
+  return data.data.map((r) => ({
+    id: r.id,
+    themeName: r.themeName,
+    subject: r.subject,
+    updatedAt: r.updatedAt ? new Date(r.updatedAt) : null,
+    lastSentAt: parseKublauTimestamp(r.lastSentAt),
+    hasTheme: r.hasThemeFlag?.toUpperCase() === "SI",
+  }));
+}
+
+const parseKublauTimestamp = (raw: string | null): Date | null => {
+  if (!raw) return null;
+  // "2026-05-11 19:33:12 UTC" → ISO
+  const iso = raw.replace(" UTC", "Z").replace(" ", "T");
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : d;
+};

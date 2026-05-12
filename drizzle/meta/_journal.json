@@ -15,6 +15,13 @@
       "when": 1778193922429,
       "tag": "0001_yielding_luckman",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1778553167771,
+      "tag": "0002_classy_magma",
+      "breakpoints": true
     }
   ]
 }

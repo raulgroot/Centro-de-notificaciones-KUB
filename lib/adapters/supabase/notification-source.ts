@@ -165,3 +165,27 @@ export async function getLastSyncedAt(): Promise<Date | null> {
   if (error) return null;
   return data?.finished_at ? new Date(data.finished_at) : null;
 }
+
+/** How many templates have been modified in Kublau since the given date. */
+export async function countRecentlyUpdated(since: Date): Promise<number> {
+  const { count, error } = await client()
+    .from("notifications_cache")
+    .select("id", { count: "exact", head: true })
+    .gte("updated_at_kublau", since.toISOString());
+  if (error) return 0;
+  return count ?? 0;
+}
+
+/**
+ * Lists every template's scheduled send time. `MOMENTO EN QUE SE ENVIA (HH:MM)`
+ * doesn't live in ClickHouse — only in the CSV-fed cache. Snapshot freshness
+ * is acceptable: scheduled times rarely change.
+ */
+export async function listTemplateSendTimes(): Promise<Array<{ sendTime: string | null }>> {
+  const { data, error } = await client().from("notifications_cache").select("send_time");
+  if (error) return [];
+  return (data ?? []).map((row) => ({
+    sendTime:
+      typeof row.send_time === "string" && row.send_time.trim() ? row.send_time.trim() : null,
+  }));
+}
