@@ -181,6 +181,12 @@ export interface TopOpenEntry {
   vsAverage: number;
   /** Plain-Spanish hypotheses about why this piece performs well. */
   reasons: string[];
+  /**
+   * Subjects from the template catalog whose `theme_name` overlaps the piece
+   * label by enough significant words. Best-effort heuristic (piece names live
+   * in 425/426 and don't have a clean join to templates in 401). Up to 3.
+   */
+  candidateSubjects: string[];
 }
 
 export interface TopOpensInsight {
@@ -631,11 +637,95 @@ const detectVolumeAnomalies = (
 
 const PREMIUM_PRODUCTS = ["world elite", "premier", "platinum", "viva plus", "vivaplus"];
 
-const buildTopOpens = (pieces: PieceMetrics[], globalAvgOpenRate: number): TopOpensInsight => {
+/**
+ * Spanish stop-words + Kublau-specific noise tokens to drop before matching
+ * piece descriptors against template theme names. Acronyms like "RET" (retention)
+ * and "MSI" (meses sin intereses) repeat in many pieces and would dominate noise.
+ */
+const SUBJECT_STOPWORDS = new Set([
+  "de",
+  "del",
+  "la",
+  "el",
+  "los",
+  "las",
+  "y",
+  "o",
+  "a",
+  "en",
+  "un",
+  "una",
+  "por",
+  "para",
+  "con",
+  "sin",
+  "tu",
+  "tus",
+  "su",
+  "ret",
+  "msi",
+  "reminder",
+  "primer",
+  "segundo",
+  "tercer",
+]);
+
+const tokenize = (s: string): string[] =>
+  s
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !SUBJECT_STOPWORDS.has(w));
+
+const extractPieceDescriptor = (pieceLabel: string): string => {
+  const idx = pieceLabel.indexOf("|");
+  return (idx >= 0 ? pieceLabel.slice(idx + 1) : pieceLabel).trim();
+};
+
+const findCandidateSubjects = (pieceLabel: string, templates: TemplateAnalysisRow[]): string[] => {
+  const descriptor = extractPieceDescriptor(pieceLabel);
+  const descriptorTokens = tokenize(descriptor);
+  if (descriptorTokens.length < 2) return [];
+
+  // Score each template by how many descriptor tokens appear in its theme_name.
+  // Min overlap: half the descriptor tokens OR at least 2 — whichever is greater.
+  const minOverlap = Math.max(2, Math.ceil(descriptorTokens.length / 2));
+  const matches: Array<{ subject: string; score: number }> = [];
+
+  for (const t of templates) {
+    const subject = (t.subject ?? "").trim();
+    if (!subject || !t.themeName) continue;
+    const themeTokens = new Set(tokenize(t.themeName));
+    if (themeTokens.size === 0) continue;
+    let overlap = 0;
+    for (const tok of descriptorTokens) {
+      if (themeTokens.has(tok)) overlap++;
+    }
+    if (overlap >= minOverlap) matches.push({ subject, score: overlap });
+  }
+
+  // Dedupe identical subjects, keeping the highest score; then take top 3.
+  const bySubject = new Map<string, number>();
+  for (const { subject, score } of matches) {
+    bySubject.set(subject, Math.max(bySubject.get(subject) ?? 0, score));
+  }
+  return [...bySubject.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([s]) => s);
+};
+
+const buildTopOpens = (
+  pieces: PieceMetrics[],
+  templates: TemplateAnalysisRow[],
+  globalAvgOpenRate: number,
+): TopOpensInsight => {
   const minSent = MIN_SENT_FOR_RATE;
+  // Rank by OPEN RATE (effectiveness), not by absolute opens (volume).
+  // The min-sent gate prevents trivially-small samples from gaming the top.
   const ranked = pieces
     .filter((p) => p.sent >= minSent && p.opened > 0)
-    .sort((a, b) => b.opened - a.opened)
+    .sort((a, b) => b.openRate - a.openRate)
     .slice(0, 10);
 
   const entries: TopOpenEntry[] = ranked.map((p) => {
@@ -648,6 +738,7 @@ const buildTopOpens = (pieces: PieceMetrics[], globalAvgOpenRate: number): TopOp
       openRate: p.openRate,
       vsAverage,
       reasons: analyzePieceReasons(p, vsAverage),
+      candidateSubjects: findCandidateSubjects(p.piece, templates),
     };
   });
 
@@ -809,6 +900,6 @@ export function computeInsights(input: InsightsInput): MetricsInsights {
     sendTime: buildSendTime(input.sendTimes),
     subjects: buildSubjects(input.templates),
     volumeAnomalies: buildVolumeAnomalies(input.weeklyByProduct, input.weeklyByMovement),
-    topOpens: buildTopOpens(input.pieces, input.summary.avgOpenRate),
+    topOpens: buildTopOpens(input.pieces, input.templates, input.summary.avgOpenRate),
   };
 }

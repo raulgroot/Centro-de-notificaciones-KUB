@@ -569,11 +569,11 @@ function TopOpensSection({ topOpens }: { topOpens: TopOpensInsight }) {
   }
   return (
     <Card>
-      <InsightHeader Icon={Eye} iconColor="#16a34a" label="Top 10 piezas más abiertas" />
+      <InsightHeader Icon={Eye} iconColor="#16a34a" label="Top 10 piezas más efectivas" />
       <p className="text-sm text-neutral-700">
-        Las 10 piezas que generan más opens en absoluto, con una hipótesis de{" "}
-        <strong>por qué</strong> funcionan. Open rate promedio global:{" "}
-        <strong>{pctFmt.format(topOpens.globalAvgOpenRate)}</strong>.
+        Ordenadas por <strong>open rate</strong> (mínimo 100 envíos). Para cada pieza muestro los{" "}
+        <strong>subjects probables</strong> del catálogo y una hipótesis del por qué funcionan. Open
+        rate promedio global: <strong>{pctFmt.format(topOpens.globalAvgOpenRate)}</strong>.
       </p>
       <ol className="mt-4 space-y-3">
         {topOpens.entries.map((e, i) => (
@@ -605,6 +605,30 @@ function TopOpensSection({ topOpens }: { topOpens: TopOpensInsight }) {
                 )}
               </div>
             </div>
+            {e.candidateSubjects.length > 0 && (
+              <div className="mt-2.5 pl-9">
+                <div className="text-[10px] font-semibold tracking-wider text-neutral-500 uppercase">
+                  Subjects probables
+                </div>
+                <ul className="mt-1 space-y-1">
+                  {e.candidateSubjects.map((s, si) => (
+                    <li
+                      key={si}
+                      className="border-l-2 border-emerald-300 pl-2 text-xs text-neutral-800"
+                    >
+                      “{s}”
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {e.candidateSubjects.length === 0 && (
+              <div className="mt-2.5 pl-9">
+                <div className="text-[10px] tracking-wider text-neutral-400 italic">
+                  No encontré subjects con suficiente parecido al nombre de la pieza.
+                </div>
+              </div>
+            )}
             {e.reasons.length > 0 && (
               <ul className="mt-2.5 space-y-1 pl-9">
                 {e.reasons.map((r, ri) => (
@@ -807,8 +831,8 @@ export function InsightFeed({ insights }: { insights: MetricsInsights }) {
       </Section>
 
       <Section
-        title="Top 10 piezas más abiertas"
-        description="Las que generan más opens absolutos + hipótesis del por qué funcionan."
+        title="Top 10 piezas más efectivas"
+        description="Ordenadas por open rate, con los subjects probables del catálogo."
       >
         <TopOpensSection topOpens={insights.topOpens} />
       </Section>
