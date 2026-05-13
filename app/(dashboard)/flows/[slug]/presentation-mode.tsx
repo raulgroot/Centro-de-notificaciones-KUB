@@ -174,7 +174,7 @@ function Overlay({
         className={`flex items-center justify-between gap-4 border-b ${panelBorder} px-6 py-3`}
       >
         <div className="flex min-w-0 items-center gap-3">
-          <span className="truncate text-sm font-semibold">
+          <span className="truncate text-base font-semibold xl:text-lg">
             Paso {current + 1} de {total}: {step.title}
           </span>
         </div>
@@ -214,71 +214,78 @@ function Overlay({
       {/* Content */}
       <div className="flex flex-1 overflow-hidden">
         {/* Phone column */}
-        <div className="flex flex-1 items-center justify-center px-6 py-8">
-          <div className="flex flex-col items-center gap-4">
+        <div className="flex flex-1 items-center justify-center px-4 py-4 md:py-6">
+          <div className="flex flex-col items-center gap-3">
             <PhoneFrame
               step={step}
               accentColor={flow.accentColor}
               onNext={onNext}
               onPrev={onPrev}
             />
-            <div className="flex items-center gap-3 text-xs">
+            <div className="flex items-center gap-3 text-sm">
               <button
                 type="button"
                 onClick={onPrev}
                 disabled={current === 0}
-                className={`flex h-9 w-9 items-center justify-center rounded-full border transition disabled:cursor-not-allowed disabled:opacity-30 ${
+                className={`flex h-10 w-10 items-center justify-center rounded-full border transition disabled:cursor-not-allowed disabled:opacity-30 ${
                   isDark
                     ? "border-neutral-700 hover:bg-neutral-800"
                     : "border-neutral-300 hover:bg-neutral-100"
                 }`}
                 aria-label="Anterior"
               >
-                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft className="h-5 w-5" />
               </button>
-              <span className={`min-w-[60px] text-center font-medium tabular-nums ${subFg}`}>
+              <span
+                className={`min-w-[70px] text-center text-base font-medium tabular-nums ${subFg}`}
+              >
                 {current + 1} / {total}
               </span>
               <button
                 type="button"
                 onClick={onNext}
                 disabled={current === total - 1}
-                className={`flex h-9 w-9 items-center justify-center rounded-full border transition disabled:cursor-not-allowed disabled:opacity-30 ${
+                className={`flex h-10 w-10 items-center justify-center rounded-full border transition disabled:cursor-not-allowed disabled:opacity-30 ${
                   isDark
                     ? "border-neutral-700 hover:bg-neutral-800"
                     : "border-neutral-300 hover:bg-neutral-100"
                 }`}
                 aria-label="Siguiente"
               >
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="h-5 w-5" />
               </button>
             </div>
           </div>
         </div>
 
-        {/* Annotations */}
+        {/* Annotations — responsive width, presentation-sized typography */}
         <aside
-          className={`w-[420px] shrink-0 overflow-y-auto border-l ${panelBorder} ${panelBg} px-7 py-8`}
+          className={`w-[clamp(340px,32vw,560px)] shrink-0 overflow-y-auto border-l ${panelBorder} ${panelBg} px-8 py-8 xl:px-10 xl:py-10`}
         >
           <div
-            className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold tracking-wider uppercase"
+            className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold tracking-wider uppercase xl:text-sm"
             style={{ background: `${flow.accentColor}26`, color: flow.accentColor }}
           >
             Paso {step.position}
           </div>
-          <h2 className="mt-3 text-2xl leading-tight font-bold">{step.title}</h2>
+          <h2 className="mt-4 text-3xl leading-tight font-bold xl:text-4xl">{step.title}</h2>
           {step.description && (
-            <p className={`mt-3 text-sm leading-relaxed ${subFg}`}>{step.description}</p>
+            <p className={`mt-4 text-base leading-relaxed xl:text-lg ${subFg}`}>
+              {step.description}
+            </p>
           )}
-          <div className={`my-5 h-px ${isDark ? "bg-neutral-800" : "bg-neutral-200"}`} />
+          <div className={`my-6 h-px ${isDark ? "bg-neutral-800" : "bg-neutral-200"}`} />
 
           {step.keyPoints.length > 0 && (
-            <Section icon={<ListChecks className="h-4 w-4" />} title="Puntos clave" isDark={isDark}>
-              <ul className="mt-2 space-y-2">
+            <Section icon={<ListChecks className="h-5 w-5" />} title="Puntos clave" isDark={isDark}>
+              <ul className="mt-3 space-y-3">
                 {step.keyPoints.map((kp, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm">
+                  <li
+                    key={i}
+                    className="flex items-start gap-3 text-base leading-relaxed xl:text-lg"
+                  >
                     <span
-                      className="mt-1.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full"
+                      className="mt-2 inline-block h-2 w-2 shrink-0 rounded-full"
                       style={{ background: flow.accentColor }}
                     />
                     <span>{kp}</span>
@@ -290,12 +297,12 @@ function Overlay({
 
           {step.userAction && (
             <Section
-              icon={<MousePointerClick className="h-4 w-4" />}
+              icon={<MousePointerClick className="h-5 w-5" />}
               title="Acción del usuario"
               isDark={isDark}
             >
               <div
-                className={`mt-2 rounded-md border p-3 text-sm leading-relaxed ${
+                className={`mt-3 rounded-lg border p-4 text-base leading-relaxed xl:text-lg ${
                   isDark ? "border-neutral-700 bg-neutral-900" : "border-neutral-200 bg-neutral-50"
                 }`}
               >
@@ -309,7 +316,7 @@ function Overlay({
       {/* Thumbnails */}
       <div
         ref={thumbsRef}
-        className={`flex shrink-0 gap-2 overflow-x-auto border-t ${panelBorder} px-6 py-3`}
+        className={`flex shrink-0 gap-2 overflow-x-auto border-t ${panelBorder} px-4 py-2.5`}
       >
         {steps.map((s, i) => {
           const active = i === current;
@@ -320,7 +327,7 @@ function Overlay({
               data-active={active}
               type="button"
               onClick={() => setCurrent(i)}
-              className={`flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-left text-xs transition ${
+              className={`flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition ${
                 active ? "shadow-md" : isDark ? "hover:bg-neutral-800" : "hover:bg-neutral-100"
               }`}
               style={
@@ -348,7 +355,7 @@ function Overlay({
               >
                 {i + 1}
               </span>
-              <span className="max-w-[180px] truncate font-medium">{s.title}</span>
+              <span className="max-w-[200px] truncate font-medium">{s.title}</span>
             </button>
           );
         })}
@@ -424,9 +431,16 @@ function PhoneFrame({
     }
   }
 
+  // Phone height is clamp(min, viewport-chrome, max) so the frame stays inside
+  // the viewport on a 768p laptop (~588px usable) and reaches full size on
+  // larger displays. The mockup itself scrolls internally when content exceeds
+  // the frame.
   return (
-    <div className="rounded-[2.5rem] border-[10px] border-neutral-900 bg-neutral-900 shadow-2xl">
-      <div className="flow-mockup-wrap relative h-[640px] w-[320px] overflow-x-hidden overflow-y-auto rounded-[1.8rem] bg-white">
+    <div className="rounded-[2rem] border-[5px] border-neutral-900 bg-neutral-900 shadow-2xl ring-1 ring-neutral-700">
+      <div
+        className="flow-mockup-wrap relative w-[320px] overflow-x-hidden overflow-y-auto rounded-[1.6rem] bg-white"
+        style={{ height: "clamp(480px, calc(100vh - 200px), 680px)" }}
+      >
         {step.mockupImageUrl ? (
           <Image
             src={step.mockupImageUrl}
@@ -467,9 +481,9 @@ function Section({
   isDark: boolean;
 }) {
   return (
-    <div className="mt-4">
+    <div className="mt-6">
       <div
-        className={`flex items-center gap-1.5 text-[11px] font-semibold tracking-wider uppercase ${
+        className={`flex items-center gap-2 text-xs font-semibold tracking-wider uppercase xl:text-sm ${
           isDark ? "text-neutral-400" : "text-neutral-500"
         }`}
       >
