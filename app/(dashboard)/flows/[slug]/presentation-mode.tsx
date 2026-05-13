@@ -545,11 +545,15 @@ function PhoneFrame({
     return () => el.removeEventListener("wheel", onWheel);
   }, [setZoom]);
 
-  // Width 375px = iPhone 14/15 logical width. Height clamp keeps the frame
-  // inside the viewport on a 768p laptop (~588px usable) and grows on larger
-  // displays. The mockup itself scrolls internally when content exceeds the
-  // frame. Side buttons + Dynamic Island make it read as a phone, not a
-  // browser window.
+  // Width 375px = iPhone 14/15 logical width. Height clamp accounts for the
+  // overlay chrome (header ~50, phone column padding ~48, nav/zoom controls
+  // ~50, thumbnails ~55, frame border 16) ≈ 220px reserved. The mockup
+  // itself scrolls internally when content exceeds the frame. Side buttons
+  // make it read as a phone. The Dynamic Island only shows for HTML mockups
+  // (the legacy iOS status bar sits there). For image mockups (real email
+  // captures) we skip it so it doesn't cover the email content.
+  const hasHtmlMockup = !step.mockupImageUrl && Boolean(step.mockupHtml);
+
   return (
     <div
       ref={frameRef}
@@ -582,15 +586,17 @@ function PhoneFrame({
         className="absolute top-[145px] -right-[10px] h-20 w-[3px] rounded-r-sm bg-neutral-700"
       />
 
-      {/* Dynamic Island */}
-      <span
-        aria-hidden="true"
-        className="absolute top-[12px] left-1/2 z-10 h-[28px] w-[110px] -translate-x-1/2 rounded-full bg-neutral-950 shadow-inner"
-      />
+      {/* Dynamic Island — only when there's an iOS status bar to wrap around. */}
+      {hasHtmlMockup && (
+        <span
+          aria-hidden="true"
+          className="absolute top-[12px] left-1/2 z-10 h-[28px] w-[110px] -translate-x-1/2 rounded-full bg-neutral-950 shadow-inner"
+        />
+      )}
 
       <div
         className="flow-mockup-wrap relative w-[375px] overflow-x-hidden overflow-y-auto rounded-[2.1rem] bg-white"
-        style={{ height: "clamp(560px, calc(100vh - 200px), 760px)" }}
+        style={{ height: "clamp(440px, calc(100vh - 260px), 720px)" }}
       >
         {step.mockupImageUrl ? (
           <Image
