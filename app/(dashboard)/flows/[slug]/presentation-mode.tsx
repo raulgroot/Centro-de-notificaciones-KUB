@@ -494,6 +494,16 @@ function ProgressDots({
   );
 }
 
+// Native iPhone 14 / 15 logical viewport: 390 × 844 (≈ 9:19.5).
+// We pick 375 × 812 (iPhone 14 Pro / 13 mini scale, same aspect class) since
+// the mockup CSS was originally laid out for the 375pt iOS width.
+const PHONE_NATIVE_WIDTH = 375;
+const PHONE_NATIVE_HEIGHT = 812;
+// Chrome around the phone (header + column padding + nav + zoom + thumbnails
+// + frame border). Used to compute the auto-fit scale so the phone always
+// fills the available height without overflow.
+const CHROME_RESERVED_PX = 240;
+
 function PhoneFrame({
   step,
   accentColor,
@@ -510,6 +520,19 @@ function PhoneFrame({
   onPrev: () => void;
 }) {
   const frameRef = useRef<HTMLDivElement>(null);
+  // Auto-fit scale: shrinks the phone proportionally so it fits the viewport
+  // height, never enlarges past 1. Recomputed on resize.
+  const [autoScale, setAutoScale] = useState(1);
+  useEffect(() => {
+    function compute() {
+      const available = window.innerHeight - CHROME_RESERVED_PX;
+      const fit = available / PHONE_NATIVE_HEIGHT;
+      setAutoScale(Math.min(1, Math.max(0.4, fit)));
+    }
+    compute();
+    window.addEventListener("resize", compute);
+    return () => window.removeEventListener("resize", compute);
+  }, []);
 
   // Event delegation: any element inside the HTML mockup with
   // `data-action="next"` or `data-action="prev"` (or an ancestor) advances /
@@ -545,82 +568,96 @@ function PhoneFrame({
     return () => el.removeEventListener("wheel", onWheel);
   }, [setZoom]);
 
-  // Width 375px = iPhone 14/15 logical width. Height clamp accounts for the
-  // overlay chrome (header ~50, phone column padding ~48, nav/zoom controls
-  // ~50, thumbnails ~55, frame border 16) ≈ 220px reserved. The mockup
-  // itself scrolls internally when content exceeds the frame. Side buttons
-  // make it read as a phone. The Dynamic Island only shows for HTML mockups
-  // (the legacy iOS status bar sits there). For image mockups (real email
-  // captures) we skip it so it doesn't cover the email content.
+  // The phone has FIXED native dimensions (iPhone-14-class 375 × 812). We
+  // scale the whole thing with `transform: scale()` so the aspect ratio is
+  // preserved at every viewport size — the device always looks like a phone,
+  // never gets squat. Effective scale = autoFit (fits viewport) × userZoom
+  // (manual zoom control).
+  //
+  // The Dynamic Island only renders for HTML mockups (the legacy iOS status
+  // bar wraps around it). For image mockups (real BAU email captures) it
+  // would cover content, so we skip it.
   const hasHtmlMockup = !step.mockupImageUrl && Boolean(step.mockupHtml);
+  const effectiveScale = autoScale * zoom;
 
   return (
     <div
-      ref={frameRef}
-      className="relative shrink-0 rounded-[2.75rem] border-[8px] border-neutral-900 bg-neutral-900 shadow-2xl ring-1 ring-neutral-700"
       style={{
-        transform: `scale(${zoom})`,
-        transformOrigin: "center top",
-        transition: "transform 150ms ease",
+        // Reserve the visual footprint of the scaled phone so the layout
+        // (column flexbox + nav controls below) accounts for it correctly.
+        width: PHONE_NATIVE_WIDTH * effectiveScale,
+        height: PHONE_NATIVE_HEIGHT * effectiveScale,
       }}
     >
-      {/* Side buttons (decorative) */}
-      {/* Ringer / silent switch (left, near top) */}
-      <span
-        aria-hidden="true"
-        className="absolute top-[88px] -left-[10px] h-7 w-[3px] rounded-l-sm bg-neutral-700"
-      />
-      {/* Volume up */}
-      <span
-        aria-hidden="true"
-        className="absolute top-[130px] -left-[10px] h-12 w-[3px] rounded-l-sm bg-neutral-700"
-      />
-      {/* Volume down */}
-      <span
-        aria-hidden="true"
-        className="absolute top-[195px] -left-[10px] h-12 w-[3px] rounded-l-sm bg-neutral-700"
-      />
-      {/* Power / side button (right) */}
-      <span
-        aria-hidden="true"
-        className="absolute top-[145px] -right-[10px] h-20 w-[3px] rounded-r-sm bg-neutral-700"
-      />
-
-      {/* Dynamic Island — only when there's an iOS status bar to wrap around. */}
-      {hasHtmlMockup && (
+      <div
+        ref={frameRef}
+        className="relative rounded-[3rem] border-[8px] border-neutral-900 bg-neutral-900 shadow-2xl ring-1 ring-neutral-700"
+        style={{
+          width: PHONE_NATIVE_WIDTH,
+          height: PHONE_NATIVE_HEIGHT,
+          transform: `scale(${effectiveScale})`,
+          transformOrigin: "top left",
+          transition: "transform 150ms ease",
+        }}
+      >
+        {/* Side buttons (decorative) */}
+        {/* Ringer / silent switch (left, near top) */}
         <span
           aria-hidden="true"
-          className="absolute top-[12px] left-1/2 z-10 h-[28px] w-[110px] -translate-x-1/2 rounded-full bg-neutral-950 shadow-inner"
+          className="absolute top-[100px] -left-[10px] h-7 w-[3px] rounded-l-sm bg-neutral-700"
         />
-      )}
+        {/* Volume up */}
+        <span
+          aria-hidden="true"
+          className="absolute top-[150px] -left-[10px] h-14 w-[3px] rounded-l-sm bg-neutral-700"
+        />
+        {/* Volume down */}
+        <span
+          aria-hidden="true"
+          className="absolute top-[225px] -left-[10px] h-14 w-[3px] rounded-l-sm bg-neutral-700"
+        />
+        {/* Power / side button (right) */}
+        <span
+          aria-hidden="true"
+          className="absolute top-[170px] -right-[10px] h-24 w-[3px] rounded-r-sm bg-neutral-700"
+        />
 
-      <div
-        className="flow-mockup-wrap relative w-[375px] overflow-x-hidden overflow-y-auto rounded-[2.1rem] bg-white"
-        style={{ height: "clamp(440px, calc(100vh - 260px), 720px)" }}
-      >
-        {step.mockupImageUrl ? (
-          <Image
-            src={step.mockupImageUrl}
-            alt={step.title}
-            width={320}
-            height={640}
-            className="block h-auto w-full"
-            unoptimized
+        {/* Dynamic Island — only when there's an iOS status bar to wrap around. */}
+        {hasHtmlMockup && (
+          <span
+            aria-hidden="true"
+            className="absolute top-[12px] left-1/2 z-10 h-[30px] w-[120px] -translate-x-1/2 rounded-full bg-neutral-950 shadow-inner"
           />
-        ) : step.mockupHtml ? (
-          <div onClick={handleMockupClick} dangerouslySetInnerHTML={{ __html: step.mockupHtml }} />
-        ) : (
-          <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
-            <div
-              className="flex h-14 w-14 items-center justify-center rounded-full text-xl font-bold text-white"
-              style={{ background: accentColor }}
-            >
-              {step.position}
-            </div>
-            <div className="text-sm font-semibold text-neutral-800">{step.title}</div>
-            <div className="text-xs text-neutral-500">Mockup pendiente de cargar</div>
-          </div>
         )}
+
+        <div className="flow-mockup-wrap relative h-full w-full overflow-x-hidden overflow-y-auto rounded-[2.3rem] bg-white">
+          {step.mockupImageUrl ? (
+            <Image
+              src={step.mockupImageUrl}
+              alt={step.title}
+              width={320}
+              height={640}
+              className="block h-auto w-full"
+              unoptimized
+            />
+          ) : step.mockupHtml ? (
+            <div
+              onClick={handleMockupClick}
+              dangerouslySetInnerHTML={{ __html: step.mockupHtml }}
+            />
+          ) : (
+            <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
+              <div
+                className="flex h-14 w-14 items-center justify-center rounded-full text-xl font-bold text-white"
+                style={{ background: accentColor }}
+              >
+                {step.position}
+              </div>
+              <div className="text-sm font-semibold text-neutral-800">{step.title}</div>
+              <div className="text-xs text-neutral-500">Mockup pendiente de cargar</div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
