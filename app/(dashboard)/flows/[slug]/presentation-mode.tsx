@@ -545,23 +545,52 @@ function PhoneFrame({
     return () => el.removeEventListener("wheel", onWheel);
   }, [setZoom]);
 
-  // Phone height is clamp(min, viewport-chrome, max) so the frame stays inside
-  // the viewport on a 768p laptop (~588px usable) and reaches full size on
-  // larger displays. The mockup itself scrolls internally when content exceeds
-  // the frame.
+  // Width 375px = iPhone 14/15 logical width. Height clamp keeps the frame
+  // inside the viewport on a 768p laptop (~588px usable) and grows on larger
+  // displays. The mockup itself scrolls internally when content exceeds the
+  // frame. Side buttons + Dynamic Island make it read as a phone, not a
+  // browser window.
   return (
     <div
       ref={frameRef}
-      className="shrink-0 rounded-[2rem] border-[5px] border-neutral-900 bg-neutral-900 shadow-2xl ring-1 ring-neutral-700"
+      className="relative shrink-0 rounded-[2.75rem] border-[8px] border-neutral-900 bg-neutral-900 shadow-2xl ring-1 ring-neutral-700"
       style={{
         transform: `scale(${zoom})`,
         transformOrigin: "center top",
         transition: "transform 150ms ease",
       }}
     >
+      {/* Side buttons (decorative) */}
+      {/* Ringer / silent switch (left, near top) */}
+      <span
+        aria-hidden="true"
+        className="absolute top-[88px] -left-[10px] h-7 w-[3px] rounded-l-sm bg-neutral-700"
+      />
+      {/* Volume up */}
+      <span
+        aria-hidden="true"
+        className="absolute top-[130px] -left-[10px] h-12 w-[3px] rounded-l-sm bg-neutral-700"
+      />
+      {/* Volume down */}
+      <span
+        aria-hidden="true"
+        className="absolute top-[195px] -left-[10px] h-12 w-[3px] rounded-l-sm bg-neutral-700"
+      />
+      {/* Power / side button (right) */}
+      <span
+        aria-hidden="true"
+        className="absolute top-[145px] -right-[10px] h-20 w-[3px] rounded-r-sm bg-neutral-700"
+      />
+
+      {/* Dynamic Island */}
+      <span
+        aria-hidden="true"
+        className="absolute top-[12px] left-1/2 z-10 h-[28px] w-[110px] -translate-x-1/2 rounded-full bg-neutral-950 shadow-inner"
+      />
+
       <div
-        className="flow-mockup-wrap relative w-[320px] overflow-x-hidden overflow-y-auto rounded-[1.6rem] bg-white"
-        style={{ height: "clamp(480px, calc(100vh - 200px), 680px)" }}
+        className="flow-mockup-wrap relative w-[375px] overflow-x-hidden overflow-y-auto rounded-[2.1rem] bg-white"
+        style={{ height: "clamp(560px, calc(100vh - 200px), 760px)" }}
       >
         {step.mockupImageUrl ? (
           <Image
