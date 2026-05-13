@@ -26,6 +26,11 @@ interface Props {
  *
  * Mockup precedence: `mockupImageUrl` (image) > `mockupHtml` (HTML via
  * dangerouslySetInnerHTML inside the phone frame) > placeholder card.
+ *
+ * Interactivity: any element inside the HTML mockup carrying
+ * `data-action="next"` (or its ancestor) triggers `onNext()` when clicked.
+ * Lets the user "click through" the journey using the real-looking buttons
+ * inside each screen.
  */
 export function PresentationMode({ flow, steps }: Props) {
   const [open, setOpen] = useState(false);
@@ -211,7 +216,7 @@ function Overlay({
         {/* Phone column */}
         <div className="flex flex-1 items-center justify-center px-6 py-8">
           <div className="flex flex-col items-center gap-4">
-            <PhoneFrame step={step} accentColor={flow.accentColor} />
+            <PhoneFrame step={step} accentColor={flow.accentColor} onNext={onNext} />
             <div className="flex items-center gap-3 text-xs">
               <button
                 type="button"
@@ -385,7 +390,26 @@ function ProgressDots({
   );
 }
 
-function PhoneFrame({ step, accentColor }: { step: FlowStep; accentColor: string }) {
+function PhoneFrame({
+  step,
+  accentColor,
+  onNext,
+}: {
+  step: FlowStep;
+  accentColor: string;
+  onNext: () => void;
+}) {
+  // Event delegation: any element inside the HTML mockup with
+  // `data-action="next"` (or whose ancestor has it) advances the flow.
+  // Lets primary CTAs ("Continuar", "Confirmar", etc.) behave like real buttons.
+  function handleMockupClick(e: React.MouseEvent<HTMLDivElement>) {
+    const target = e.target as HTMLElement | null;
+    if (target?.closest('[data-action="next"]')) {
+      e.preventDefault();
+      onNext();
+    }
+  }
+
   return (
     <div className="rounded-[2.5rem] border-[10px] border-neutral-900 bg-neutral-900 shadow-2xl">
       <div className="flow-mockup-wrap relative h-[640px] w-[320px] overflow-x-hidden overflow-y-auto rounded-[1.8rem] bg-white">
@@ -399,7 +423,7 @@ function PhoneFrame({ step, accentColor }: { step: FlowStep; accentColor: string
             unoptimized
           />
         ) : step.mockupHtml ? (
-          <div dangerouslySetInnerHTML={{ __html: step.mockupHtml }} />
+          <div onClick={handleMockupClick} dangerouslySetInnerHTML={{ __html: step.mockupHtml }} />
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
             <div
