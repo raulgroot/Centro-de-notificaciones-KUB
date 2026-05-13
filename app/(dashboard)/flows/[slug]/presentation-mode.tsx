@@ -48,7 +48,6 @@ export function PresentationMode({ flow, steps }: Props) {
   const [current, setCurrent] = useState(0);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [phoneZoom, setPhoneZoom] = useState(1);
-  const thumbsRef = useRef<HTMLDivElement>(null);
 
   const handleOpen = useCallback(() => {
     setCurrent(0);
@@ -103,15 +102,6 @@ export function PresentationMode({ flow, steps }: Props) {
     };
   }, [open]);
 
-  // Scroll active thumbnail into view.
-  useEffect(() => {
-    if (!open || !thumbsRef.current) return;
-    const active = thumbsRef.current.querySelector('[data-active="true"]');
-    if (active) {
-      active.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
-    }
-  }, [current, open]);
-
   if (steps.length === 0) {
     return (
       <button
@@ -153,7 +143,6 @@ export function PresentationMode({ flow, steps }: Props) {
           onZoomIn={zoomIn}
           onZoomOut={zoomOut}
           onZoomReset={zoomReset}
-          thumbsRef={thumbsRef}
         />
       )}
     </>
@@ -175,7 +164,6 @@ function Overlay({
   onZoomIn,
   onZoomOut,
   onZoomReset,
-  thumbsRef,
 }: {
   flow: Flow;
   steps: FlowStep[];
@@ -191,7 +179,6 @@ function Overlay({
   onZoomIn: () => void;
   onZoomOut: () => void;
   onZoomReset: () => void;
-  thumbsRef: React.RefObject<HTMLDivElement | null>;
 }) {
   const step = steps[current];
   if (!step) return null;
@@ -220,7 +207,7 @@ function Overlay({
           </span>
         </div>
         <ProgressDots
-          total={total}
+          steps={steps}
           current={current}
           accent={flow.accentColor}
           onClick={setCurrent}
@@ -408,89 +395,67 @@ function Overlay({
           )}
         </aside>
       </div>
-
-      {/* Thumbnails */}
-      <div
-        ref={thumbsRef}
-        className={`flex shrink-0 gap-2 overflow-x-auto border-t ${panelBorder} px-4 py-2.5`}
-      >
-        {steps.map((s, i) => {
-          const active = i === current;
-          const done = i < current;
-          return (
-            <button
-              key={s.id}
-              data-active={active}
-              type="button"
-              onClick={() => setCurrent(i)}
-              className={`flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition ${
-                active ? "shadow-md" : isDark ? "hover:bg-neutral-800" : "hover:bg-neutral-100"
-              }`}
-              style={
-                active
-                  ? {
-                      background: `${flow.accentColor}26`,
-                      color: flow.accentColor,
-                      borderColor: flow.accentColor,
-                      borderWidth: 1,
-                    }
-                  : undefined
-              }
-            >
-              <span
-                className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${
-                  done && !active
-                    ? "text-white"
-                    : active
-                      ? "text-white"
-                      : isDark
-                        ? "bg-neutral-800 text-neutral-400"
-                        : "bg-neutral-200 text-neutral-600"
-                }`}
-                style={done || active ? { background: flow.accentColor } : undefined}
-              >
-                {i + 1}
-              </span>
-              <span className="max-w-[200px] truncate font-medium">{s.title}</span>
-            </button>
-          );
-        })}
-      </div>
     </div>
   );
 }
 
+/**
+ * Compact step navigator that lives in the header. Replaces the legacy
+ * thumbnail strip:
+ * - Inactive steps: small dots.
+ * - Active step: expanded pill with the step number visible.
+ * - Hover: dot grows + tooltip with the step title above.
+ * - Click jumps to that step.
+ */
 function ProgressDots({
-  total,
+  steps,
   current,
   accent,
   onClick,
   isDark,
 }: {
-  total: number;
+  steps: FlowStep[];
   current: number;
   accent: string;
   onClick: (i: number) => void;
   isDark: boolean;
 }) {
+  const inactiveBg = isDark ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.18)";
+  const tooltipBg = isDark ? "bg-neutral-900" : "bg-neutral-800";
+
   return (
     <div className="hidden flex-1 items-center justify-center md:flex">
-      <div className="flex max-w-[400px] items-center gap-1">
-        {Array.from({ length: total }).map((_, i) => {
+      <div className="flex max-w-[640px] items-center gap-1.5">
+        {steps.map((s, i) => {
           const active = i === current;
           const done = i < current;
+          const filled = done || active;
           return (
             <button
-              key={i}
+              key={s.id}
               type="button"
               onClick={() => onClick(i)}
-              className="h-2.5 w-2.5 rounded-full transition hover:scale-125"
-              style={{
-                background:
-                  done || active ? accent : isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)",
-              }}
-              aria-label={`Ir al paso ${i + 1}`}
-            />
+              className="group relative flex items-center justify-center"
+              aria-label={`Paso ${i + 1}: ${s.title}`}
+              aria-current={active ? "step" : undefined}
+            >
+              {/* Dot / pill */}
+              <span
+                className={`flex items-center justify-center rounded-full font-semibold transition-all duration-200 group-hover:scale-110 ${
+                  active ? "h-7 min-w-[28px] px-2 text-xs text-white" : "h-3 w-3 text-[0px]"
+                }`}
+                style={{ background: filled ? accent : inactiveBg }}
+              >
+                {active ? i + 1 : ""}
+              </span>
+
+              {/* Tooltip */}
+              <span
+                className={`pointer-events-none absolute top-full left-1/2 z-10 mt-2 -translate-x-1/2 rounded-md px-2.5 py-1.5 text-xs font-medium whitespace-nowrap text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 ${tooltipBg}`}
+              >
+                <span className="opacity-60">Paso {i + 1}:</span> {s.title}
+              </span>
+            </button>
           );
         })}
       </div>
