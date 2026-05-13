@@ -11,6 +11,8 @@ import {
   Maximize2,
   ListChecks,
   MousePointerClick,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 import type { Flow, FlowStep } from "@/lib/adapters/supabase/flows";
 
@@ -32,14 +34,25 @@ interface Props {
  * triggers `onNext()` / `onPrev()` when clicked. Lets the user "click
  * through" the journey using the real-looking buttons inside each screen.
  */
+const ZOOM_MIN = 0.6;
+const ZOOM_MAX = 3;
+const ZOOM_STEP_BUTTON = 0.2;
+const ZOOM_STEP_WHEEL = 0.1;
+
+function clampZoom(z: number) {
+  return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(z * 100) / 100));
+}
+
 export function PresentationMode({ flow, steps }: Props) {
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState(0);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [phoneZoom, setPhoneZoom] = useState(1);
   const thumbsRef = useRef<HTMLDivElement>(null);
 
   const handleOpen = useCallback(() => {
     setCurrent(0);
+    setPhoneZoom(1);
     setOpen(true);
   }, []);
 
@@ -50,7 +63,11 @@ export function PresentationMode({ flow, steps }: Props) {
   );
   const prev = useCallback(() => setCurrent((i) => Math.max(i - 1, 0)), []);
 
-  // Keyboard nav.
+  const zoomIn = useCallback(() => setPhoneZoom((z) => clampZoom(z + ZOOM_STEP_BUTTON)), []);
+  const zoomOut = useCallback(() => setPhoneZoom((z) => clampZoom(z - ZOOM_STEP_BUTTON)), []);
+  const zoomReset = useCallback(() => setPhoneZoom(1), []);
+
+  // Keyboard nav + zoom shortcuts (+/-/0).
   useEffect(() => {
     if (!open) return;
     function onKey(e: KeyboardEvent) {
@@ -61,11 +78,20 @@ export function PresentationMode({ flow, steps }: Props) {
       } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
         e.preventDefault();
         prev();
+      } else if (e.key === "+" || e.key === "=") {
+        e.preventDefault();
+        zoomIn();
+      } else if (e.key === "-" || e.key === "_") {
+        e.preventDefault();
+        zoomOut();
+      } else if (e.key === "0") {
+        e.preventDefault();
+        zoomReset();
       }
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [open, next, prev, close]);
+  }, [open, next, prev, close, zoomIn, zoomOut, zoomReset]);
 
   // Lock body scroll while open.
   useEffect(() => {
@@ -119,9 +145,14 @@ export function PresentationMode({ flow, steps }: Props) {
           setCurrent={setCurrent}
           theme={theme}
           setTheme={setTheme}
+          phoneZoom={phoneZoom}
+          setPhoneZoom={setPhoneZoom}
           onClose={close}
           onNext={next}
           onPrev={prev}
+          onZoomIn={zoomIn}
+          onZoomOut={zoomOut}
+          onZoomReset={zoomReset}
           thumbsRef={thumbsRef}
         />
       )}
@@ -136,9 +167,14 @@ function Overlay({
   setCurrent,
   theme,
   setTheme,
+  phoneZoom,
+  setPhoneZoom,
   onClose,
   onNext,
   onPrev,
+  onZoomIn,
+  onZoomOut,
+  onZoomReset,
   thumbsRef,
 }: {
   flow: Flow;
@@ -147,9 +183,14 @@ function Overlay({
   setCurrent: (i: number) => void;
   theme: "dark" | "light";
   setTheme: (t: "dark" | "light") => void;
+  phoneZoom: number;
+  setPhoneZoom: (z: number | ((prev: number) => number)) => void;
   onClose: () => void;
   onNext: () => void;
   onPrev: () => void;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onZoomReset: () => void;
   thumbsRef: React.RefObject<HTMLDivElement | null>;
 }) {
   const step = steps[current];
@@ -213,16 +254,23 @@ function Overlay({
 
       {/* Content */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Phone column */}
-        <div className="flex flex-1 items-center justify-center px-4 py-4 md:py-6">
-          <div className="flex flex-col items-center gap-3">
+        {/* Phone column — outer wrapper allows panning when zoomed */}
+        <div className="relative flex flex-1 flex-col px-4 py-4 md:py-6">
+          <div className="flex flex-1 items-center justify-center overflow-auto">
             <PhoneFrame
               step={step}
               accentColor={flow.accentColor}
+              zoom={phoneZoom}
+              setZoom={setPhoneZoom}
               onNext={onNext}
               onPrev={onPrev}
             />
-            <div className="flex items-center gap-3 text-sm">
+          </div>
+
+          {/* Phone-column controls: step nav + zoom */}
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-4 text-sm">
+            {/* Step navigation */}
+            <div className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={onPrev}
@@ -253,6 +301,50 @@ function Overlay({
                 aria-label="Siguiente"
               >
                 <ChevronRight className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Zoom controls — only affect the phone, not the rest of the UI */}
+            <div
+              className={`flex items-center gap-1 rounded-full border px-1 py-1 ${
+                isDark ? "border-neutral-700 bg-neutral-900/60" : "border-neutral-300 bg-white"
+              }`}
+              title="Zoom (+/-/0)"
+            >
+              <button
+                type="button"
+                onClick={onZoomOut}
+                disabled={phoneZoom <= ZOOM_MIN}
+                className={`flex h-8 w-8 items-center justify-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-30 ${
+                  isDark ? "hover:bg-neutral-800" : "hover:bg-neutral-100"
+                }`}
+                aria-label="Reducir zoom (−)"
+                title="Reducir zoom (−)"
+              >
+                <ZoomOut className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={onZoomReset}
+                className={`min-w-[60px] rounded-full px-2 py-1 text-center text-xs font-medium tabular-nums transition ${
+                  isDark ? "hover:bg-neutral-800" : "hover:bg-neutral-100"
+                }`}
+                aria-label="Restablecer zoom (0)"
+                title="Restablecer zoom (0)"
+              >
+                {Math.round(phoneZoom * 100)}%
+              </button>
+              <button
+                type="button"
+                onClick={onZoomIn}
+                disabled={phoneZoom >= ZOOM_MAX}
+                className={`flex h-8 w-8 items-center justify-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-30 ${
+                  isDark ? "hover:bg-neutral-800" : "hover:bg-neutral-100"
+                }`}
+                aria-label="Aumentar zoom (+)"
+                title="Aumentar zoom (+)"
+              >
+                <ZoomIn className="h-4 w-4" />
               </button>
             </div>
           </div>
@@ -405,14 +497,20 @@ function ProgressDots({
 function PhoneFrame({
   step,
   accentColor,
+  zoom,
+  setZoom,
   onNext,
   onPrev,
 }: {
   step: FlowStep;
   accentColor: string;
+  zoom: number;
+  setZoom: (z: number | ((prev: number) => number)) => void;
   onNext: () => void;
   onPrev: () => void;
 }) {
+  const frameRef = useRef<HTMLDivElement>(null);
+
   // Event delegation: any element inside the HTML mockup with
   // `data-action="next"` or `data-action="prev"` (or an ancestor) advances /
   // rewinds the flow. Lets primary CTAs ("Continuar", "Confirmar") behave like
@@ -431,12 +529,36 @@ function PhoneFrame({
     }
   }
 
+  // Cmd/Ctrl + wheel over the phone zooms (only affects the phone, not the
+  // page). Native React's onWheel is passive, so we attach the listener
+  // manually with { passive: false } to be able to preventDefault.
+  useEffect(() => {
+    const el = frameRef.current;
+    if (!el) return;
+    function onWheel(e: WheelEvent) {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      const direction = e.deltaY < 0 ? 1 : -1;
+      setZoom((prev) => clampZoom(prev + direction * ZOOM_STEP_WHEEL));
+    }
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [setZoom]);
+
   // Phone height is clamp(min, viewport-chrome, max) so the frame stays inside
   // the viewport on a 768p laptop (~588px usable) and reaches full size on
   // larger displays. The mockup itself scrolls internally when content exceeds
   // the frame.
   return (
-    <div className="rounded-[2rem] border-[5px] border-neutral-900 bg-neutral-900 shadow-2xl ring-1 ring-neutral-700">
+    <div
+      ref={frameRef}
+      className="shrink-0 rounded-[2rem] border-[5px] border-neutral-900 bg-neutral-900 shadow-2xl ring-1 ring-neutral-700"
+      style={{
+        transform: `scale(${zoom})`,
+        transformOrigin: "center top",
+        transition: "transform 150ms ease",
+      }}
+    >
       <div
         className="flow-mockup-wrap relative w-[320px] overflow-x-hidden overflow-y-auto rounded-[1.6rem] bg-white"
         style={{ height: "clamp(480px, calc(100vh - 200px), 680px)" }}
