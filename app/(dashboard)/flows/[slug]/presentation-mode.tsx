@@ -254,57 +254,61 @@ function Overlay({
 
       {/* Content */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Phone column — outer wrapper allows panning when zoomed */}
+        {/* Mockup column — phone OR standalone email image. Floating nav
+            arrows live on the sides of the canvas (lightbox-style). */}
         <div className="relative flex flex-1 flex-col px-4 py-4 md:py-6">
+          {/* Floating prev arrow */}
+          <button
+            type="button"
+            onClick={onPrev}
+            disabled={current === 0}
+            className={`absolute top-1/2 left-4 z-20 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full backdrop-blur-md transition disabled:cursor-not-allowed disabled:opacity-20 ${
+              isDark
+                ? "bg-neutral-800/70 text-white hover:bg-neutral-700/80"
+                : "bg-white/80 text-neutral-900 shadow-md ring-1 ring-neutral-200 hover:bg-white"
+            }`}
+            aria-label="Paso anterior"
+            title="Paso anterior (←)"
+          >
+            <ChevronLeft className="h-6 w-6" />
+          </button>
+
+          {/* Floating next arrow */}
+          <button
+            type="button"
+            onClick={onNext}
+            disabled={current === total - 1}
+            className={`absolute top-1/2 right-4 z-20 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full backdrop-blur-md transition disabled:cursor-not-allowed disabled:opacity-20 ${
+              isDark
+                ? "bg-neutral-800/70 text-white hover:bg-neutral-700/80"
+                : "bg-white/80 text-neutral-900 shadow-md ring-1 ring-neutral-200 hover:bg-white"
+            }`}
+            aria-label="Siguiente paso"
+            title="Siguiente paso (→)"
+          >
+            <ChevronRight className="h-6 w-6" />
+          </button>
+
           <div className="flex flex-1 items-center justify-center overflow-auto">
-            <PhoneFrame
+            <MockupCanvas
               step={step}
+              isLast={current === total - 1}
               accentColor={flow.accentColor}
               zoom={phoneZoom}
               setZoom={setPhoneZoom}
               onNext={onNext}
               onPrev={onPrev}
+              isDark={isDark}
             />
           </div>
 
-          {/* Phone-column controls: step nav + zoom */}
-          <div className="mt-3 flex flex-wrap items-center justify-center gap-4 text-sm">
-            {/* Step navigation */}
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={onPrev}
-                disabled={current === 0}
-                className={`flex h-10 w-10 items-center justify-center rounded-full border transition disabled:cursor-not-allowed disabled:opacity-30 ${
-                  isDark
-                    ? "border-neutral-700 hover:bg-neutral-800"
-                    : "border-neutral-300 hover:bg-neutral-100"
-                }`}
-                aria-label="Anterior"
-              >
-                <ChevronLeft className="h-5 w-5" />
-              </button>
-              <span
-                className={`min-w-[70px] text-center text-base font-medium tabular-nums ${subFg}`}
-              >
-                {current + 1} / {total}
-              </span>
-              <button
-                type="button"
-                onClick={onNext}
-                disabled={current === total - 1}
-                className={`flex h-10 w-10 items-center justify-center rounded-full border transition disabled:cursor-not-allowed disabled:opacity-30 ${
-                  isDark
-                    ? "border-neutral-700 hover:bg-neutral-800"
-                    : "border-neutral-300 hover:bg-neutral-100"
-                }`}
-                aria-label="Siguiente"
-              >
-                <ChevronRight className="h-5 w-5" />
-              </button>
-            </div>
+          {/* Bottom bar: step counter + zoom pill (centered, compact). */}
+          <div className="mt-3 flex items-center justify-center gap-4 text-sm">
+            <span className={`text-base font-medium tabular-nums ${subFg}`} aria-live="polite">
+              {current + 1} <span className="opacity-50">/ {total}</span>
+            </span>
 
-            {/* Zoom controls — only affect the phone, not the rest of the UI */}
+            {/* Zoom controls — only affect the mockup, not the rest of the UI */}
             <div
               className={`flex items-center gap-1 rounded-full border px-1 py-1 ${
                 isDark ? "border-neutral-700 bg-neutral-900/60" : "border-neutral-300 bg-white"
@@ -499,6 +503,105 @@ function ProgressDots({
 // the mockup CSS was originally laid out for the 375pt iOS width.
 const PHONE_NATIVE_WIDTH = 375;
 const PHONE_NATIVE_HEIGHT = 812;
+
+/**
+ * Decides whether to render a step inside the iPhone frame or as a standalone
+ * image. The last step of a flow that is image-only (a final confirmation
+ * email/SMS receipt) reads better as a flat image — wrapping it in a phone
+ * frame makes the email-header chrome compete with the device chrome and
+ * looks awkward.
+ */
+function MockupCanvas({
+  step,
+  isLast,
+  accentColor,
+  zoom,
+  setZoom,
+  onNext,
+  onPrev,
+  isDark,
+}: {
+  step: FlowStep;
+  isLast: boolean;
+  accentColor: string;
+  zoom: number;
+  setZoom: (z: number | ((prev: number) => number)) => void;
+  onNext: () => void;
+  onPrev: () => void;
+  isDark: boolean;
+}) {
+  const isStandaloneImage = Boolean(step.mockupImageUrl) && !step.mockupHtml && isLast;
+  if (isStandaloneImage && step.mockupImageUrl) {
+    return (
+      <StandaloneEmail src={step.mockupImageUrl} alt={step.title} zoom={zoom} isDark={isDark} />
+    );
+  }
+  return (
+    <PhoneFrame
+      step={step}
+      accentColor={accentColor}
+      zoom={zoom}
+      setZoom={setZoom}
+      onNext={onNext}
+      onPrev={onPrev}
+    />
+  );
+}
+
+/**
+ * Flat email screenshot. No phone chrome — just the image with a soft shadow.
+ * Width auto-fits to the available viewport height (assuming a ~1:1.77 email
+ * aspect for the BAU confirmation captures); user zoom multiplies on top.
+ */
+const EMAIL_BASE_WIDTH = 520;
+const EMAIL_ASPECT = 1.77; // height / width — based on BAU email captures
+const EMAIL_CHROME_RESERVED_PX = 240;
+
+function StandaloneEmail({
+  src,
+  alt,
+  zoom,
+  isDark,
+}: {
+  src: string;
+  alt: string;
+  zoom: number;
+  isDark: boolean;
+}) {
+  const [autoWidth, setAutoWidth] = useState(EMAIL_BASE_WIDTH);
+  useEffect(() => {
+    function compute() {
+      const available = window.innerHeight - EMAIL_CHROME_RESERVED_PX;
+      const maxByHeight = available / EMAIL_ASPECT;
+      setAutoWidth(Math.min(EMAIL_BASE_WIDTH, Math.max(280, maxByHeight)));
+    }
+    compute();
+    window.addEventListener("resize", compute);
+    return () => window.removeEventListener("resize", compute);
+  }, []);
+  const effectiveWidth = autoWidth * zoom;
+
+  return (
+    <div
+      className={`overflow-hidden rounded-2xl shadow-2xl ${
+        isDark ? "ring-1 ring-neutral-800" : "ring-1 ring-neutral-200"
+      }`}
+      style={{
+        width: effectiveWidth,
+        transition: "width 150ms ease",
+      }}
+    >
+      <Image
+        src={src}
+        alt={alt}
+        width={EMAIL_BASE_WIDTH}
+        height={Math.round(EMAIL_BASE_WIDTH * EMAIL_ASPECT)}
+        className="block h-auto w-full"
+        unoptimized
+      />
+    </div>
+  );
+}
 // Chrome around the phone (header + column padding + nav + zoom + thumbnails
 // + frame border). Used to compute the auto-fit scale so the phone always
 // fills the available height without overflow.
