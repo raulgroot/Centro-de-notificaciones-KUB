@@ -28,9 +28,9 @@ interface Props {
  * dangerouslySetInnerHTML inside the phone frame) > placeholder card.
  *
  * Interactivity: any element inside the HTML mockup carrying
- * `data-action="next"` (or its ancestor) triggers `onNext()` when clicked.
- * Lets the user "click through" the journey using the real-looking buttons
- * inside each screen.
+ * `data-action="next"` or `data-action="prev"` (or whose ancestor has it)
+ * triggers `onNext()` / `onPrev()` when clicked. Lets the user "click
+ * through" the journey using the real-looking buttons inside each screen.
  */
 export function PresentationMode({ flow, steps }: Props) {
   const [open, setOpen] = useState(false);
@@ -216,7 +216,12 @@ function Overlay({
         {/* Phone column */}
         <div className="flex flex-1 items-center justify-center px-6 py-8">
           <div className="flex flex-col items-center gap-4">
-            <PhoneFrame step={step} accentColor={flow.accentColor} onNext={onNext} />
+            <PhoneFrame
+              step={step}
+              accentColor={flow.accentColor}
+              onNext={onNext}
+              onPrev={onPrev}
+            />
             <div className="flex items-center gap-3 text-xs">
               <button
                 type="button"
@@ -394,19 +399,28 @@ function PhoneFrame({
   step,
   accentColor,
   onNext,
+  onPrev,
 }: {
   step: FlowStep;
   accentColor: string;
   onNext: () => void;
+  onPrev: () => void;
 }) {
   // Event delegation: any element inside the HTML mockup with
-  // `data-action="next"` (or whose ancestor has it) advances the flow.
-  // Lets primary CTAs ("Continuar", "Confirmar", etc.) behave like real buttons.
+  // `data-action="next"` or `data-action="prev"` (or an ancestor) advances /
+  // rewinds the flow. Lets primary CTAs ("Continuar", "Confirmar") behave like
+  // real buttons, and back-links ("regresa") go to the previous step.
   function handleMockupClick(e: React.MouseEvent<HTMLDivElement>) {
     const target = e.target as HTMLElement | null;
-    if (target?.closest('[data-action="next"]')) {
+    const actionEl = target?.closest("[data-action]");
+    if (!actionEl) return;
+    const action = actionEl.getAttribute("data-action");
+    if (action === "next") {
       e.preventDefault();
       onNext();
+    } else if (action === "prev") {
+      e.preventDefault();
+      onPrev();
     }
   }
 

@@ -7,6 +7,29 @@
  * conflict with the rest of the app.
  */
 
+/*
+ * Polish for interactive elements (mirrors legacy bindScreenButtons JS):
+ * hover scale + red shadow on CTAs, click pulse, pointer cursor.
+ */
+.flow-mockup-wrap [data-action] {
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease;
+}
+.flow-mockup-wrap [data-action="next"].hsbc-btn-red:hover,
+.flow-mockup-wrap button[data-action="next"]:hover {
+  transform: scale(1.02);
+  box-shadow: 0 4px 12px rgba(219, 0, 17, 0.3);
+}
+.flow-mockup-wrap [data-action]:active {
+  transform: scale(0.96);
+}
+.flow-mockup-wrap .hsbc-sms-link[data-action] {
+  text-decoration: underline;
+}
+.flow-mockup-wrap .hsbc-link-blue[data-action]:hover {
+  filter: brightness(0.85);
+}
+
 .flow-mockup-wrap {
   --color-bg: #F4F6F8;
   --color-surface: #FFFFFF;
