@@ -1,10 +1,12 @@
 import { readFileSync } from "node:fs";
 import * as XLSX from "xlsx";
-import { kublauSendsSource } from "/Users/raulroblesalcala/Centro de notificaciones Kublau/lib/adapters/clickhouse-kublau/sends-source";
+import { kublauSendsSource } from "@/lib/adapters/clickhouse-kublau/sends-source";
 
 async function main() {
-  const path =
-    "/Users/raulroblesalcala/Library/Mobile Documents/com~apple~CloudDocs/Kublau/2026/07 de mayo /11 de mayo/Prueba.xlsx";
+  // Path to the QA xlsx is passed via argv. Falls back to a sample under
+  // ~/Documents/qa-sample.xlsx so the script never hardcodes a machine-
+  // specific path (the previous absolute path broke Vercel typecheck).
+  const path = process.argv[2] ?? `${process.env.HOME}/Documents/qa-sample.xlsx`;
 
   const wb = XLSX.read(readFileSync(path), { cellDates: true });
   const firstSheetName = wb.SheetNames[0]!;
