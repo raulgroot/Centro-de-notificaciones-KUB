@@ -107,6 +107,45 @@ export const supabaseNotificationSource: NotificationSource = {
     return (data as CacheRow[]).map(mapRow);
   },
 
+  async listAllLight(filter: NotificationFilter = {}): Promise<NotificationRecord[]> {
+    // Fetch every matching row WITHOUT html_body — the heavy column. Used by
+    // the grouped / card views which render hundreds of cards but only need
+    // metadata. Supabase caps select at 1000 rows by default which is fine
+    // for our ~767-row dataset; if it grows past that we'll paginate.
+    const lightFields = [
+      "id",
+      "theme_name",
+      "subject",
+      "sms_text",
+      "products",
+      "movements",
+      "client_types",
+      "is_debit",
+      "is_employee",
+      "has_theme",
+      "updated_at_kublau",
+      "theme_link",
+      "template_link",
+      "template_preview_link",
+      "send_time",
+      "last_mail_to",
+      "last_sent_at",
+      "postmark_url",
+    ].join(",");
+
+    let q = client()
+      .from("notifications_cache")
+      .select(lightFields)
+      .order("last_sent_at", { ascending: false, nullsFirst: false })
+      .order("updated_at_kublau", { ascending: false, nullsFirst: false })
+      .limit(1000);
+    q = applyFilters(q, filter);
+    const { data, error } = await q;
+    if (error) throw new Error(`Supabase listAllLight error: ${error.message}`);
+    const rows = data as unknown as Omit<CacheRow, "html_body">[];
+    return rows.map((row) => mapRow({ ...row, html_body: null } as CacheRow));
+  },
+
   async getById(id: string): Promise<NotificationRecord | null> {
     const { data, error } = await client()
       .from("notifications_cache")

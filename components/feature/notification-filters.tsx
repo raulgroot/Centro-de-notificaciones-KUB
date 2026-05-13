@@ -14,6 +14,8 @@ interface FiltersProps {
     debit?: string;
     employee?: string;
     hasTheme?: string;
+    status?: string;
+    view?: string;
   };
 }
 
@@ -68,7 +70,21 @@ export function NotificationFilters({ facets, current }: FiltersProps) {
         defaultValue={current.employee}
         options={["SI", "NO"]}
       />
+      <FilterSelect
+        id="status"
+        label="Estado"
+        defaultValue={current.status}
+        options={[
+          { value: "active", label: "Activas" },
+          { value: "inactive", label: "Inactivas" },
+          { value: "zombie", label: "Zombies" },
+          { value: "never", label: "Sin enviar" },
+        ]}
+      />
 
+      {/* Preserve the current view so changing filters doesn't drop you back
+          to the default grouped view. */}
+      {current.view && <input type="hidden" name="view" value={current.view} />}
       <input type="hidden" name="limit" value={PAGE_SIZE} />
 
       <div className="ml-auto flex items-center gap-2">
@@ -88,6 +104,8 @@ export function NotificationFilters({ facets, current }: FiltersProps) {
   );
 }
 
+type Option = string | { value: string; label: string };
+
 function FilterSelect({
   id,
   label,
@@ -97,7 +115,7 @@ function FilterSelect({
   id: string;
   label: string;
   defaultValue: string | undefined;
-  options: string[];
+  options: Option[];
 }) {
   const isSelected = !!defaultValue && defaultValue !== "";
   return (
@@ -109,11 +127,15 @@ function FilterSelect({
         className={`${inputCls} appearance-none pr-8 ${isSelected ? "border-brand-600 bg-brand-50/50 text-brand-700 font-medium" : ""}`}
       >
         <option value="">{label}</option>
-        {options.map((opt) => (
-          <option key={opt} value={opt}>
-            {opt}
-          </option>
-        ))}
+        {options.map((opt) => {
+          const value = typeof opt === "string" ? opt : opt.value;
+          const optLabel = typeof opt === "string" ? opt : opt.label;
+          return (
+            <option key={value} value={value}>
+              {optLabel}
+            </option>
+          );
+        })}
       </select>
       <svg
         className="pointer-events-none absolute top-1/2 right-2.5 h-3 w-3 -translate-y-1/2 text-neutral-400"

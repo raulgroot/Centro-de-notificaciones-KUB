@@ -216,6 +216,13 @@ export const kublauNotificationSource: NotificationSource = {
     return { products, movements, clientTypes };
   },
 
+  async listAllLight(filter: NotificationFilter = {}): Promise<NotificationRecord[]> {
+    // The Supabase cache is the canonical surface today; ClickHouse retains
+    // this method only so the port stays implementable from either adapter.
+    // Reuses list() with a high limit; nothing in the app calls this path.
+    return this.list({ ...filter, limit: 1000, offset: 0 });
+  },
+
   async listTables(): Promise<string[]> {
     const client = getClickhouseClient();
     const result = await client.query({ query: "SHOW TABLES", format: "JSON" });

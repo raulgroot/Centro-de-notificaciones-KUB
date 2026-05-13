@@ -55,6 +55,13 @@ export interface NotificationSource {
   getById(id: string): Promise<NotificationRecord | null>;
   count(filter: NotificationFilter): Promise<number>;
   facets(): Promise<NotificationFacets>;
+  /**
+   * Returns every notification with the lightweight fields needed for the
+   * grouped/card views — i.e. everything EXCEPT `htmlBody` (heavy, only
+   * fetched on demand for detail pages). Filters narrow the result; the
+   * limit/offset fields on `filter` are ignored.
+   */
+  listAllLight(filter: NotificationFilter): Promise<NotificationRecord[]>;
   /** Discovery helper used during bootstrap to map Kublau's schema. */
   listTables(): Promise<string[]>;
 }
