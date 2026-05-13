@@ -22,6 +22,34 @@
       "when": 1778553167771,
       "tag": "0002_classy_magma",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1778558907298,
+      "tag": "0003_last_matthew_murdock",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1778559954816,
+      "tag": "0004_daffy_the_initiative",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1778568788704,
+      "tag": "0005_fuzzy_whiplash",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1778570927676,
+      "tag": "0006_remarkable_karnak",
+      "breakpoints": true
     }
   ]
 }

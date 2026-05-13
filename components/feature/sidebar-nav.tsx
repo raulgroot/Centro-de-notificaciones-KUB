@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { BarChart3, Bell, GitBranch, LogOut, Plus, ShieldCheck } from "lucide-react";
+import { BarChart3, Bell, CalendarRange, GitBranch, LogOut, Plus, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { KublauIcon } from "@/components/ui/logo";
 import { Avatar } from "@/components/ui/avatar";
 
 const NAV = [
   { href: "/notifications", label: "Notificaciones", icon: Bell },
+  { href: "/campanas", label: "Campañas", icon: CalendarRange },
   { href: "/metrics", label: "Métricas", icon: BarChart3 },
   { href: "/flows", label: "Flujos", icon: GitBranch },
   { href: "/creation", label: "Crear", icon: Plus },

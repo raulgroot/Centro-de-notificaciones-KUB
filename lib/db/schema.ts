@@ -77,12 +77,33 @@ export const notificationVersions = pgTable("notification_versions", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
-/** Customer-journey definitions (sequence of notifications). */
+/**
+ * Documentation flows — step-by-step educational walkthroughs of the HSBC
+ * customer experience (e.g. "Redirección"). Each row has a slug-based URL,
+ * a list of rules/restrictions, and a sequence of steps with mockups.
+ *
+ * Originally this table was for "notification journeys" (sequence of
+ * Kublau notifications). The shape now supports both: link to a specific
+ * notification via `flow_steps.kublau_notification_id` when relevant, leave
+ * it null for pure documentation steps.
+ */
 export const flows = pgTable("flows", {
   id: uuid("id").defaultRandom().primaryKey(),
+  /** URL slug — used in `/flows/<slug>`. */
+  slug: varchar("slug", { length: 64 }).unique(),
   name: text("name").notNull(),
-  client: text("client").notNull(),
+  subtitle: text("subtitle"),
+  client: text("client"),
   description: text("description"),
+  /** Hex accent color for the flow card / detail header. */
+  accentColor: varchar("accent_color", { length: 16 }).default("#DB0011"),
+  /**
+   * Categorical rules / restrictions shown at the top of the detail page.
+   * Each entry: `{ category: string; items: string[] }` (items may contain HTML).
+   */
+  rules: jsonb("rules").$type<Array<{ category: string; items: string[] }>>().default([]),
+  sortOrder: integer("sort_order").notNull().default(0),
+  active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
@@ -92,8 +113,19 @@ export const flowSteps = pgTable("flow_steps", {
   flowId: uuid("flow_id")
     .notNull()
     .references(() => flows.id, { onDelete: "cascade" }),
-  kublauNotificationId: varchar("kublau_notification_id", { length: 255 }).notNull(),
+  /** Optional: link to a Kublau notification this step represents. */
+  kublauNotificationId: varchar("kublau_notification_id", { length: 255 }),
   position: integer("position").notNull(),
+  title: text("title").notNull().default(""),
+  description: text("description"),
+  /** Bullet points shown beside the description. */
+  keyPoints: jsonb("key_points").$type<string[]>().default([]),
+  /** "El cliente da clic en…" — the user's next action. */
+  userAction: text("user_action"),
+  /** Optional URL of a mockup image (PNG / JPG) shown next to the step copy. */
+  mockupImageUrl: text("mockup_image_url"),
+  /** Inline HTML mockup (used for SMS bubbles / web mockups). */
+  mockupHtml: text("mockup_html"),
   triggerCondition: text("trigger_condition"),
 });
 
@@ -142,5 +174,103 @@ export const metricsSnapshots = pgTable(
   },
   (table) => ({
     atIdx: index("metrics_snapshots_at_idx").on(table.snapshottedAt),
+  }),
+);
+
+/**
+ * Campaign catalog. Each row is a distinct campaign or sub-campaign
+ * (e.g. `bb` = Bono de Bienvenida, `rp-viva` = Retención Proactiva VIVA).
+ *
+ * Lives in Supabase rather than hardcoded in TS so HSBC cadence changes
+ * (which DO happen — the legacy platform had to ship code edits) become
+ * a 30-second admin edit instead of a developer task.
+ */
+export const campaignDefinitions = pgTable("campaign_definitions", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  name: text("name").notNull(),
+  /** Hex color for the campaign pill / accents. */
+  accentColor: varchar("accent_color", { length: 16 }).notNull().default("#026FFF"),
+  /** Total span in days from carga to last milestone (used for progress bar). */
+  defaultDurationDays: integer("default_duration_days").notNull().default(90),
+  /** Whether the campaign is currently in use; hidden when false. */
+  active: boolean("active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  /**
+   * Asana tag GID that signals new cargas. Tasks in this tag get pulled into
+   * `campaign_loads` on sync. NULL means this campaign isn't auto-synced.
+   */
+  asanaTagGid: varchar("asana_tag_gid", { length: 64 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * Each row is one milestone in a campaign's cadence (e.g. "10 días después
+ * de envío sin registro"). `dayOffset` null = event-based or HSBC-triggered
+ * (rendered separately, not on the timeline).
+ *
+ * Triggered types:
+ *   - 'time'   → time-based with `dayOffset` (renders on timeline)
+ *   - 'event'  → user action (Al registrarse) — out of timeline
+ *   - 'manual' → external trigger (Cuando avise HSBC) — out of timeline
+ */
+export const campaignMilestones = pgTable(
+  "campaign_milestones",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    campaignId: varchar("campaign_id", { length: 64 })
+      .notNull()
+      .references(() => campaignDefinitions.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    label: text("label").notNull(),
+    description: text("description").notNull().default(""),
+    dayOffset: integer("day_offset"),
+    triggerType: varchar("trigger_type", { length: 16 }).notNull().default("time"),
+    /** Optional HSBC flag classification (F1, F2, F4...) from the spec. */
+    flag: integer("flag"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    campaignIdx: index("campaign_milestones_campaign_idx").on(table.campaignId, table.position),
+  }),
+);
+
+/**
+ * Active cohorts. A new row appears each time a "carga" happens (file uploaded
+ * to HSBC, batch processed, etc.). `loadDate` is day-zero for the timeline.
+ *
+ * Status:
+ *   - 'active'    → currently in flight, shown on /campanas
+ *   - 'completed' → finished (past the last milestone)
+ *   - 'paused'    → put on hold; hidden by default
+ */
+export const campaignLoads = pgTable(
+  "campaign_loads",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    campaignId: varchar("campaign_id", { length: 64 })
+      .notNull()
+      .references(() => campaignDefinitions.id),
+    loadDate: timestamp("load_date", { withTimezone: true }).notNull(),
+    /** Optional cut-off (e.g. "Fecha límite: 30 abr" for Retención). */
+    deadline: timestamp("deadline", { withTimezone: true }),
+    /**
+     * Human-readable title — usually the Asana task name (e.g.
+     * "RET_PRO_260311_sin_one"). Lets us distinguish multiple cargas on the
+     * same date by their variant/segment.
+     */
+    title: text("title"),
+    asanaUrl: text("asana_url"),
+    /** Asana task GID. Unique so we don't double-import the same task. */
+    asanaGid: varchar("asana_gid", { length: 64 }).unique(),
+    notes: text("notes"),
+    status: varchar("status", { length: 16 }).notNull().default("active"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+  },
+  (table) => ({
+    statusIdx: index("campaign_loads_status_idx").on(table.status, table.loadDate),
+    campaignIdx: index("campaign_loads_campaign_idx").on(table.campaignId, table.loadDate),
   }),
 );

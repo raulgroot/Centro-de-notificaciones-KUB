@@ -1,0 +1,1 @@
+ALTER TABLE "campaign_loads" ADD COLUMN "title" text;

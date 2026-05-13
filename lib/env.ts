@@ -41,3 +41,9 @@ export const databaseEnv = () => ({
 export const aiEnv = () => ({
   gatewayApiKey: process.env.AI_GATEWAY_API_KEY,
 });
+
+export const asanaEnv = () => ({
+  pat: requireEnv("ASANA_PAT"),
+  /** Kublau's Asana workspace. Falls back to the value from the legacy platform. */
+  workspaceGid: process.env.ASANA_WORKSPACE_GID ?? "1117756250049910",
+});
