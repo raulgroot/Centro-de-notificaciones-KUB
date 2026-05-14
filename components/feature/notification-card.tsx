@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import {
   Mail,
   ArrowUpRight,
@@ -18,6 +19,7 @@ import {
   STAGE_STYLES,
   type LifecycleStage,
 } from "@/lib/core/notifications/lifecycle";
+import { cardIconFor } from "@/lib/core/notifications/card-icon";
 
 const STAGE_ICON: Record<LifecycleStage, typeof Mail> = {
   emitted: CreditCard,
@@ -51,20 +53,33 @@ export function NotificationCard({ n }: { n: NotificationRecord }) {
   const status = computeStatus(n.lastSentAt);
   const styles = STATUS_STYLES[status.status];
   const stage = extractLifecycleStage(n.themeName);
+  const cardIcon = cardIconFor(n.products);
 
   return (
     <div className="group relative flex h-full flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm transition focus-within:ring-2 focus-within:ring-neutral-900 focus-within:ring-offset-1 hover:-translate-y-0.5 hover:shadow-md">
-      {/* Status stripe + stage-specific icon. Background tint comes from
-          liveness status (activa/zombie/etc.), the icon comes from the
-          lifecycle stage so a 'Problema' card immediately looks different
-          from a 'Entregada' card. */}
+      {/* Visual stripe. If the notification has a known HSBC card product
+          (viva, advance, premier, …) we show the real card art. Otherwise
+          we fall back to a stage-specific icon (Truck for transit,
+          CheckCircle2 for delivered, etc.) so the card still has visual
+          identity. Background tint always comes from liveness status. */}
       <div
-        className={`relative flex h-[88px] items-center justify-center overflow-hidden border-b ${styles.border} ${styles.bg}`}
+        className={`relative flex h-[96px] items-center justify-center overflow-hidden border-b ${styles.border} ${styles.bg}`}
       >
-        {(() => {
-          const Icon = stage ? STAGE_ICON[stage] : Mail;
-          return <Icon className={`h-9 w-9 ${styles.text} opacity-40`} />;
-        })()}
+        {cardIcon ? (
+          <Image
+            src={cardIcon}
+            alt={n.products[0] ?? "Tarjeta HSBC"}
+            width={130}
+            height={84}
+            className="h-[72px] w-auto object-contain drop-shadow-sm"
+            unoptimized
+          />
+        ) : (
+          (() => {
+            const Icon = stage ? STAGE_ICON[stage] : Mail;
+            return <Icon className={`h-10 w-10 ${styles.text} opacity-40`} />;
+          })()
+        )}
         <span
           className={`absolute top-2 right-2 inline-flex items-center gap-1 rounded-full border ${styles.border} bg-white/80 px-2 py-0.5 text-[10px] font-semibold tracking-wider uppercase backdrop-blur ${styles.text}`}
         >
