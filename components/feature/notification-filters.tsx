@@ -15,6 +15,7 @@ interface FiltersProps {
     employee?: string;
     hasTheme?: string;
     status?: string;
+    stage?: string;
     view?: string;
   };
 }
@@ -79,6 +80,19 @@ export function NotificationFilters({ facets, current }: FiltersProps) {
           { value: "inactive", label: "Inactivas" },
           { value: "zombie", label: "Zombies" },
           { value: "never", label: "Sin enviar" },
+        ]}
+      />
+      <FilterSelect
+        id="stage"
+        label="Etapa"
+        defaultValue={current.stage}
+        options={[
+          { value: "emitted", label: "Emitida" },
+          { value: "transit", label: "En tránsito" },
+          { value: "delivered", label: "Entregada" },
+          { value: "activation", label: "Activación" },
+          { value: "problem", label: "Problema" },
+          { value: "reminder", label: "Recordatorio" },
         ]}
       />
 

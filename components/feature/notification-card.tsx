@@ -1,7 +1,32 @@
 import Link from "next/link";
-import { Mail, ArrowUpRight, Eye } from "lucide-react";
+import {
+  Mail,
+  ArrowUpRight,
+  Eye,
+  Truck,
+  CheckCircle2,
+  AlertTriangle,
+  PowerCircle,
+  Bell,
+  CreditCard,
+} from "lucide-react";
 import type { NotificationRecord } from "@/lib/ports/notification-source";
 import { computeStatus, STATUS_STYLES } from "@/lib/core/notifications/status";
+import {
+  extractLifecycleStage,
+  STAGE_LABEL,
+  STAGE_STYLES,
+  type LifecycleStage,
+} from "@/lib/core/notifications/lifecycle";
+
+const STAGE_ICON: Record<LifecycleStage, typeof Mail> = {
+  emitted: CreditCard,
+  transit: Truck,
+  delivered: CheckCircle2,
+  problem: AlertTriangle,
+  activation: PowerCircle,
+  reminder: Bell,
+};
 
 const dateFmt = new Intl.RelativeTimeFormat("es-MX", { numeric: "auto" });
 
@@ -25,14 +50,21 @@ function relativeDate(d: Date | null): string {
 export function NotificationCard({ n }: { n: NotificationRecord }) {
   const status = computeStatus(n.lastSentAt);
   const styles = STATUS_STYLES[status.status];
+  const stage = extractLifecycleStage(n.themeName);
 
   return (
     <div className="group relative flex h-full flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm transition focus-within:ring-2 focus-within:ring-neutral-900 focus-within:ring-offset-1 hover:-translate-y-0.5 hover:shadow-md">
-      {/* Status stripe + envelope icon. Sits behind the stretched link. */}
+      {/* Status stripe + stage-specific icon. Background tint comes from
+          liveness status (activa/zombie/etc.), the icon comes from the
+          lifecycle stage so a 'Problema' card immediately looks different
+          from a 'Entregada' card. */}
       <div
         className={`relative flex h-[88px] items-center justify-center overflow-hidden border-b ${styles.border} ${styles.bg}`}
       >
-        <Mail className={`h-9 w-9 ${styles.text} opacity-40`} />
+        {(() => {
+          const Icon = stage ? STAGE_ICON[stage] : Mail;
+          return <Icon className={`h-9 w-9 ${styles.text} opacity-40`} />;
+        })()}
         <span
           className={`absolute top-2 right-2 inline-flex items-center gap-1 rounded-full border ${styles.border} bg-white/80 px-2 py-0.5 text-[10px] font-semibold tracking-wider uppercase backdrop-blur ${styles.text}`}
         >
@@ -57,6 +89,12 @@ export function NotificationCard({ n }: { n: NotificationRecord }) {
         <p className="line-clamp-1 text-[11px] text-neutral-500" title={n.themeName}>
           {n.themeName}
         </p>
+
+        {stage && (
+          <div className="mt-0.5">
+            <StageChip stage={stage} />
+          </div>
+        )}
 
         {(n.isDebit || n.isEmployee || !n.hasTheme) && (
           <div className="flex flex-wrap gap-1">
@@ -120,6 +158,20 @@ function Tag({ children, kind }: { children: React.ReactNode; kind: "product" | 
       className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${styles[kind]}`}
     >
       {children}
+    </span>
+  );
+}
+
+function StageChip({ stage }: { stage: LifecycleStage }) {
+  const s = STAGE_STYLES[stage];
+  const Icon = STAGE_ICON[stage];
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-semibold ${s.bg} ${s.text} ${s.border}`}
+      title={`Etapa: ${STAGE_LABEL[stage]}`}
+    >
+      <Icon className="h-3 w-3" />
+      {STAGE_LABEL[stage]}
     </span>
   );
 }

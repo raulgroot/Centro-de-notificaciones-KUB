@@ -11,6 +11,12 @@ import {
 import { Pagination } from "@/components/feature/pagination";
 import { filterByStatus, groupByMovement } from "@/lib/core/notifications/grouping";
 import type { NotificationStatus } from "@/lib/core/notifications/status";
+import {
+  ALL_STAGES,
+  extractLifecycleStage,
+  type LifecycleStage,
+} from "@/lib/core/notifications/lifecycle";
+import type { NotificationRecord } from "@/lib/ports/notification-source";
 
 export const dynamic = "force-dynamic";
 
@@ -34,8 +40,21 @@ const STATUS_VALUES: NotificationStatus[] = ["active", "inactive", "zombie", "ne
 const parseStatus = (v: string | undefined): NotificationStatus | undefined =>
   v && (STATUS_VALUES as string[]).includes(v) ? (v as NotificationStatus) : undefined;
 
+const parseStage = (v: string | undefined): LifecycleStage | undefined =>
+  v && (ALL_STAGES as string[]).includes(v) ? (v as LifecycleStage) : undefined;
+
 const parseView = (v: string | undefined): NotificationView =>
   v === "cards" || v === "list" ? v : "groups";
+
+/** Stage is computed from theme_name keywords, not a column. Filter in app
+ *  layer over the lightweight result set. */
+function filterByStage(
+  items: NotificationRecord[],
+  stage: LifecycleStage | undefined,
+): NotificationRecord[] {
+  if (!stage) return items;
+  return items.filter((n) => extractLifecycleStage(n.themeName) === stage);
+}
 
 export default async function NotificationsPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams;
@@ -47,6 +66,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
   const employee = single(params.employee);
   const hasTheme = single(params.hasTheme);
   const status = parseStatus(single(params.status));
+  const stage = parseStage(single(params.stage));
   const view = parseView(single(params.view));
   const offset = Math.max(0, Number(single(params.offset) ?? 0));
 
@@ -70,6 +90,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
     employee,
     hasTheme,
     status,
+    stage,
     view: view === "groups" ? undefined : view,
   };
 
@@ -89,6 +110,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
             employee,
             hasTheme,
             status,
+            stage,
             view: view === "groups" ? undefined : view,
           }}
         />
@@ -97,6 +119,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
           <ListView
             filter={{ ...baseFilter, limit: PAGE_SIZE, offset }}
             status={status}
+            stage={stage}
             offset={offset}
             currentParams={currentParams}
           />
@@ -104,11 +127,12 @@ export default async function NotificationsPage({ searchParams }: { searchParams
           <CardsView
             filter={{ ...baseFilter, limit: CARDS_PAGE_SIZE, offset }}
             status={status}
+            stage={stage}
             offset={offset}
             currentParams={currentParams}
           />
         ) : (
-          <GroupsView filter={baseFilter} status={status} />
+          <GroupsView filter={baseFilter} status={status} stage={stage} />
         )}
       </section>
     </div>
@@ -140,19 +164,21 @@ function Header({
 async function ListView({
   filter,
   status,
+  stage,
   offset,
   currentParams,
 }: {
   filter: Parameters<typeof notifs.list>[0];
   status: NotificationStatus | undefined;
+  stage: LifecycleStage | undefined;
   offset: number;
   currentParams: Record<string, string | undefined>;
 }) {
-  // When a status filter is active we have to fetch all (post-filtering at
-  // the app layer since lastSentAt windows aren't a simple column predicate)
-  // and slice. Without status the regular DB-side pagination is fine.
-  if (status) {
-    const all = filterByStatus(await notifs.listAllLight(filter), status);
+  // Status (date windows on lastSentAt) and stage (substring on themeName)
+  // aren't simple column predicates, so when either is active we fetch the
+  // full lightweight set and filter in the app layer.
+  if (status || stage) {
+    const all = filterByStage(filterByStatus(await notifs.listAllLight(filter), status), stage);
     const window = all.slice(offset, offset + (filter.limit ?? PAGE_SIZE));
     return (
       <ListBody
@@ -215,18 +241,20 @@ function ListBody({
 async function CardsView({
   filter,
   status,
+  stage,
   offset,
   currentParams,
 }: {
   filter: Parameters<typeof notifs.list>[0];
   status: NotificationStatus | undefined;
+  stage: LifecycleStage | undefined;
   offset: number;
   currentParams: Record<string, string | undefined>;
 }) {
   let items: Awaited<ReturnType<typeof notifs.list>>;
   let total: number;
-  if (status) {
-    const all = filterByStatus(await notifs.listAllLight(filter), status);
+  if (status || stage) {
+    const all = filterByStage(filterByStatus(await notifs.listAllLight(filter), status), stage);
     total = all.length;
     items = all.slice(offset, offset + (filter.limit ?? CARDS_PAGE_SIZE));
   } else {
@@ -259,11 +287,13 @@ async function CardsView({
 async function GroupsView({
   filter,
   status,
+  stage,
 }: {
   filter: Parameters<typeof notifs.list>[0];
   status: NotificationStatus | undefined;
+  stage: LifecycleStage | undefined;
 }) {
-  const all = filterByStatus(await notifs.listAllLight(filter), status);
+  const all = filterByStage(filterByStatus(await notifs.listAllLight(filter), status), stage);
   const groups = groupByMovement(all);
 
   if (all.length === 0) {
