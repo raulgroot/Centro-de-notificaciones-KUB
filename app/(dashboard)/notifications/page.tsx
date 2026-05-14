@@ -291,6 +291,7 @@ async function GroupsView({
             movement={g.movement}
             items={g.items}
             summary={g.summary}
+            subgroups={g.subgroups}
           />
         ))}
       </div>
