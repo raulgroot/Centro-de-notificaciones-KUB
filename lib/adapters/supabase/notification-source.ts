@@ -73,12 +73,33 @@ const mapRow = (row: CacheRow): NotificationRecord => ({
   postmarkUrl: row.postmark_url,
 });
 
+/**
+ * PostgREST's `.or()` uses comma as clause separator and reserves parens for
+ * grouping. If those characters appear in the user's search term — or `%`/
+ * `*` which are LIKE wildcards, or `"`/`\` which need backslash-escaping —
+ * the whole query 400s. Search in this app is plain word-substring, so we
+ * just strip the dangerous chars; the UX cost is zero (people don't type
+ * commas in card-template search). We also collapse whitespace so trailing
+ * spaces or double spaces don't produce empty queries.
+ */
+function sanitizeSearchTerm(raw: string): string {
+  return raw
+    .replace(/[,()*%"\\]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function applyFilters(query: any, filter: NotificationFilter): any {
   let q = query;
   if (filter.search) {
-    const t = `%${filter.search}%`;
-    q = q.or(`subject.ilike.${t},theme_name.ilike.${t}`);
+    const cleaned = sanitizeSearchTerm(filter.search);
+    if (cleaned) {
+      // `*` is PostgREST's URL-safe wildcard equivalent of `%` for ilike —
+      // recommended by the supabase-js docs to avoid encoding ambiguity.
+      const t = `*${cleaned}*`;
+      q = q.or(`subject.ilike.${t},theme_name.ilike.${t}`);
+    }
   }
   if (filter.product) q = q.contains("products", [filter.product]);
   if (filter.movement) q = q.contains("movements", [filter.movement]);
