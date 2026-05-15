@@ -161,6 +161,17 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
   const isLastStep = stepIdx === WIZARD_STEPS.length - 1;
   const canAdvance = isStepValid(brief, currentStep.id);
 
+  // Track whether the "Otro" (custom text) option is selected on the
+  // objective/audience steps. Derived from the draft on first render: if the
+  // stored value isn't in the preset list, the user must have typed it.
+  const [otherMode, setOtherMode] = useState<{
+    objective: boolean;
+    audience: boolean;
+  }>(() => ({
+    objective: Boolean(brief.objective && !OBJECTIVES.some((o) => o.id === brief.objective)),
+    audience: Boolean(brief.audience && !AUDIENCES.some((a) => a.id === brief.audience)),
+  }));
+
   // Re-render the email preview on any change to copy / hero / product
   // (the brand header is product-aware: Viva → HSBC+VIVA art, else
   // HSBC-only logo).
@@ -254,8 +265,8 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
           When closed it disappears completely and only a small "Editar brief"
           button remains in the toolbar so copy + preview get the full screen. */}
       {briefOpen && (
-        <div className="shrink-0 border-b border-neutral-200 bg-gradient-to-b from-neutral-50/80 to-white">
-          <div className="mx-auto max-w-3xl px-6 py-8">
+        <div className="flex flex-1 overflow-y-auto bg-gradient-to-b from-neutral-50/80 to-white">
+          <div className="mx-auto flex w-full max-w-3xl flex-col justify-center px-6 py-12">
             {/* Progress dots — clickable to jump back to any visited step. */}
             <div className="mb-6 flex items-center justify-center gap-1.5">
               {WIZARD_STEPS.map((s, i) => {
@@ -317,12 +328,15 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                 >
                   <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
                     {OBJECTIVES.map((o) => {
-                      const active = brief.objective === o.id;
+                      const active = brief.objective === o.id && !otherMode.objective;
                       return (
                         <button
                           key={o.id}
                           type="button"
-                          onClick={() => setBrief({ ...brief, objective: o.id })}
+                          onClick={() => {
+                            setOtherMode((m) => ({ ...m, objective: false }));
+                            setBrief({ ...brief, objective: o.id });
+                          }}
                           className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition ${
                             active
                               ? "border-brand-600 bg-brand-50 ring-brand-600/15 ring-2"
@@ -340,7 +354,43 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                         </button>
                       );
                     })}
+                    {/* "Otro" — toggles inline text input. When active, brief.objective
+                        holds the free-form text the user types. */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOtherMode((m) => ({ ...m, objective: true }));
+                        // Clear stored id if user came from a preset.
+                        if (brief.objective && OBJECTIVES.some((o) => o.id === brief.objective)) {
+                          setBrief({ ...brief, objective: "" });
+                        }
+                      }}
+                      className={`flex flex-col items-start gap-1 rounded-xl border border-dashed p-3 text-left transition ${
+                        otherMode.objective
+                          ? "border-brand-600 bg-brand-50 ring-brand-600/15 ring-2"
+                          : "border-neutral-300 bg-white hover:border-neutral-400 hover:bg-neutral-50"
+                      }`}
+                    >
+                      <span
+                        className={`text-sm font-semibold ${otherMode.objective ? "text-brand-700" : "text-neutral-900"}`}
+                      >
+                        Otro
+                      </span>
+                      <span className="text-[11px] leading-tight text-neutral-500">
+                        Describe el objetivo a tu manera.
+                      </span>
+                    </button>
                   </div>
+                  {otherMode.objective && (
+                    <input
+                      autoFocus
+                      type="text"
+                      value={brief.objective ?? ""}
+                      onChange={(e) => setBrief({ ...brief, objective: e.target.value })}
+                      placeholder="Ej. Avisar que la tarjeta llega un día tarde por contingencia."
+                      className="focus:border-brand-600 focus:ring-brand-600/15 mt-3 w-full rounded-lg border border-neutral-300 bg-white px-3.5 py-3 text-sm placeholder:text-neutral-400 focus:ring-2 focus:outline-none"
+                    />
+                  )}
                 </WizardStep>
               )}
 
@@ -390,12 +440,15 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                 >
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     {AUDIENCES.map((a) => {
-                      const active = brief.audience === a.id;
+                      const active = brief.audience === a.id && !otherMode.audience;
                       return (
                         <button
                           key={a.id}
                           type="button"
-                          onClick={() => setBrief({ ...brief, audience: a.id })}
+                          onClick={() => {
+                            setOtherMode((m) => ({ ...m, audience: false }));
+                            setBrief({ ...brief, audience: a.id });
+                          }}
                           className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition ${
                             active
                               ? "border-brand-600 bg-brand-50 ring-brand-600/15 ring-2"
@@ -413,7 +466,41 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                         </button>
                       );
                     })}
+                    {/* "Otro" — toggles inline text input for a custom audience. */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOtherMode((m) => ({ ...m, audience: true }));
+                        if (brief.audience && AUDIENCES.some((a) => a.id === brief.audience)) {
+                          setBrief({ ...brief, audience: "" });
+                        }
+                      }}
+                      className={`flex flex-col items-start gap-1 rounded-xl border border-dashed p-3 text-left transition ${
+                        otherMode.audience
+                          ? "border-brand-600 bg-brand-50 ring-brand-600/15 ring-2"
+                          : "border-neutral-300 bg-white hover:border-neutral-400 hover:bg-neutral-50"
+                      }`}
+                    >
+                      <span
+                        className={`text-sm font-semibold ${otherMode.audience ? "text-brand-700" : "text-neutral-900"}`}
+                      >
+                        Otro
+                      </span>
+                      <span className="text-[11px] leading-tight text-neutral-500">
+                        Describe la audiencia a tu manera.
+                      </span>
+                    </button>
                   </div>
+                  {otherMode.audience && (
+                    <input
+                      autoFocus
+                      type="text"
+                      value={brief.audience ?? ""}
+                      onChange={(e) => setBrief({ ...brief, audience: e.target.value })}
+                      placeholder="Ej. Clientes en CDMX con plan de pago a meses sin intereses."
+                      className="focus:border-brand-600 focus:ring-brand-600/15 mt-3 w-full rounded-lg border border-neutral-300 bg-white px-3.5 py-3 text-sm placeholder:text-neutral-400 focus:ring-2 focus:outline-none"
+                    />
+                  )}
                 </WizardStep>
               )}
 
@@ -549,189 +636,193 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
         </div>
       )}
 
-      {/* Floating "Editar brief" button when brief is collapsed. */}
+      {/* Toolbar + copy/preview only render once the wizard is closed. When
+          the wizard is open it owns the full screen, so the user is in a
+          single-focus mode (Claude-design wizard vibe). */}
       {!briefOpen && (
-        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-neutral-200 bg-white px-5 py-2">
-          <div className="flex items-center gap-1.5 text-[11px] text-neutral-500">
-            {isPending && <Loader2 className="h-3 w-3 animate-spin" />}
-            {isPending ? "Guardando…" : "Guardado automáticamente"}
-          </div>
-          <button
-            type="button"
-            onClick={() => setBriefOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50"
-            title="Volver a abrir el brief para re-generar"
-          >
-            <Pencil className="h-3 w-3" />
-            Editar brief
-          </button>
-        </div>
-      )}
-
-      {/* MAIN: copy + preview (2 columns, both get full breathing room). */}
-      <div className="grid flex-1 grid-cols-1 overflow-hidden lg:grid-cols-2">
-        {/* COPY — left column when 2-col, half width */}
-        <section className="overflow-y-auto border-r border-neutral-200 bg-white">
-          <div className="p-6">
-            <h2 className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
-              Copy editable
-            </h2>
-            <div className="mt-4 space-y-4">
-              <CopyField
-                field="subject"
-                label="Asunto"
-                value={copy.subject ?? ""}
-                onChange={(v) => setCopy({ ...copy, subject: v })}
-                onRefine={(instr) => onRefine("subject", instr)}
-                refining={busy.refine === "subject"}
-              />
-              <CopyField
-                field="preheader"
-                label="Preheader"
-                value={copy.preheader ?? ""}
-                onChange={(v) => setCopy({ ...copy, preheader: v })}
-                onRefine={(instr) => onRefine("preheader", instr)}
-                refining={busy.refine === "preheader"}
-              />
-              <CopyField
-                field="headline"
-                label="Titular"
-                value={copy.headline ?? ""}
-                onChange={(v) => setCopy({ ...copy, headline: v })}
-                onRefine={(instr) => onRefine("headline", instr)}
-                refining={busy.refine === "headline"}
-              />
-              <CopyField
-                field="body"
-                label="Cuerpo"
-                value={copy.body ?? ""}
-                onChange={(v) => setCopy({ ...copy, body: v })}
-                onRefine={(instr) => onRefine("body", instr)}
-                refining={busy.refine === "body"}
-                textarea
-              />
-              <CopyField
-                field="cta_label"
-                label="CTA"
-                value={copy.cta_label ?? ""}
-                onChange={(v) => setCopy({ ...copy, cta_label: v })}
-                onRefine={(instr) => onRefine("cta_label", instr)}
-                refining={busy.refine === "cta_label"}
-              />
-              <CopyField
-                field="sms"
-                label="SMS"
-                value={copy.sms ?? ""}
-                onChange={(v) => setCopy({ ...copy, sms: v })}
-                onRefine={(instr) => onRefine("sms", instr)}
-                refining={busy.refine === "sms"}
-                textarea
-                hint={`${(copy.sms ?? "").length}/160`}
-              />
+        <>
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-neutral-200 bg-white px-5 py-2">
+            <div className="flex items-center gap-1.5 text-[11px] text-neutral-500">
+              {isPending && <Loader2 className="h-3 w-3 animate-spin" />}
+              {isPending ? "Guardando…" : "Guardado automáticamente"}
             </div>
+            <button
+              type="button"
+              onClick={() => setBriefOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50"
+              title="Volver a abrir el brief para re-generar"
+            >
+              <Pencil className="h-3 w-3" />
+              Editar brief
+            </button>
+          </div>
 
-            {/* Image picker */}
-            <div className="mt-8 rounded-lg border border-neutral-200 bg-neutral-50/60 p-4">
-              <div className="flex items-center gap-2 text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
-                <ImageIcon className="h-3.5 w-3.5" />
-                Imagen del hero
-              </div>
-              {heroImage?.url && (
-                <div className="mt-3 flex items-start gap-3">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={heroImage.url}
-                    alt={heroImage.alt ?? ""}
-                    className="h-20 w-32 rounded border border-neutral-200 object-cover"
+          {/* MAIN: copy + preview (2 columns, both get full breathing room). */}
+          <div className="grid flex-1 grid-cols-1 overflow-hidden lg:grid-cols-2">
+            {/* COPY — left column when 2-col, half width */}
+            <section className="overflow-y-auto border-r border-neutral-200 bg-white">
+              <div className="p-6">
+                <h2 className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+                  Copy editable
+                </h2>
+                <div className="mt-4 space-y-4">
+                  <CopyField
+                    field="subject"
+                    label="Asunto"
+                    value={copy.subject ?? ""}
+                    onChange={(v) => setCopy({ ...copy, subject: v })}
+                    onRefine={(instr) => onRefine("subject", instr)}
+                    refining={busy.refine === "subject"}
                   />
-                  <div className="flex-1">
-                    <div className="text-xs font-medium text-neutral-700">
-                      {heroImage.alt || "Sin descripción"}
-                    </div>
-                    <div className="mt-0.5 text-[11px] text-neutral-500">
-                      Fuente: {heroImage.source}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setHeroImage(null)}
-                      className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-rose-600 hover:underline"
-                    >
-                      <X className="h-3 w-3" />
-                      Quitar
-                    </button>
-                  </div>
+                  <CopyField
+                    field="preheader"
+                    label="Preheader"
+                    value={copy.preheader ?? ""}
+                    onChange={(v) => setCopy({ ...copy, preheader: v })}
+                    onRefine={(instr) => onRefine("preheader", instr)}
+                    refining={busy.refine === "preheader"}
+                  />
+                  <CopyField
+                    field="headline"
+                    label="Titular"
+                    value={copy.headline ?? ""}
+                    onChange={(v) => setCopy({ ...copy, headline: v })}
+                    onRefine={(instr) => onRefine("headline", instr)}
+                    refining={busy.refine === "headline"}
+                  />
+                  <CopyField
+                    field="body"
+                    label="Cuerpo"
+                    value={copy.body ?? ""}
+                    onChange={(v) => setCopy({ ...copy, body: v })}
+                    onRefine={(instr) => onRefine("body", instr)}
+                    refining={busy.refine === "body"}
+                    textarea
+                  />
+                  <CopyField
+                    field="cta_label"
+                    label="CTA"
+                    value={copy.cta_label ?? ""}
+                    onChange={(v) => setCopy({ ...copy, cta_label: v })}
+                    onRefine={(instr) => onRefine("cta_label", instr)}
+                    refining={busy.refine === "cta_label"}
+                  />
+                  <CopyField
+                    field="sms"
+                    label="SMS"
+                    value={copy.sms ?? ""}
+                    onChange={(v) => setCopy({ ...copy, sms: v })}
+                    onRefine={(instr) => onRefine("sms", instr)}
+                    refining={busy.refine === "sms"}
+                    textarea
+                    hint={`${(copy.sms ?? "").length}/160`}
+                  />
                 </div>
-              )}
-              <div className="mt-3 flex gap-2">
-                <input
-                  type="text"
-                  value={imageQuery}
-                  onChange={(e) => setImageQuery(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      onImageSearch();
-                    }
-                  }}
-                  placeholder="Buscar en Freepik (ej. tarjeta credito viva mexico)"
-                  className="focus:border-brand-600 focus:ring-brand-600/15 h-9 flex-1 rounded-md border border-neutral-300 bg-white px-3 text-sm placeholder:text-neutral-400 focus:ring-2 focus:outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={onImageSearch}
-                  disabled={busy.search || !imageQuery.trim()}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-3 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {busy.search ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Wand2 className="h-3.5 w-3.5" />
-                  )}
-                  Buscar
-                </button>
-              </div>
-              {imageResults.length > 0 && (
-                <div className="mt-3 grid grid-cols-3 gap-2">
-                  {imageResults.map((img) => (
-                    <button
-                      key={img.id}
-                      type="button"
-                      onClick={() => pickImage(img)}
-                      className="hover:ring-brand-600 group relative overflow-hidden rounded border border-neutral-200 transition hover:ring-2"
-                    >
+
+                {/* Image picker */}
+                <div className="mt-8 rounded-lg border border-neutral-200 bg-neutral-50/60 p-4">
+                  <div className="flex items-center gap-2 text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+                    <ImageIcon className="h-3.5 w-3.5" />
+                    Imagen del hero
+                  </div>
+                  {heroImage?.url && (
+                    <div className="mt-3 flex items-start gap-3">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src={img.thumbUrl}
-                        alt={img.title}
-                        className="h-20 w-full object-cover"
+                        src={heroImage.url}
+                        alt={heroImage.alt ?? ""}
+                        className="h-20 w-32 rounded border border-neutral-200 object-cover"
                       />
+                      <div className="flex-1">
+                        <div className="text-xs font-medium text-neutral-700">
+                          {heroImage.alt || "Sin descripción"}
+                        </div>
+                        <div className="mt-0.5 text-[11px] text-neutral-500">
+                          Fuente: {heroImage.source}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setHeroImage(null)}
+                          className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-rose-600 hover:underline"
+                        >
+                          <X className="h-3 w-3" />
+                          Quitar
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  <div className="mt-3 flex gap-2">
+                    <input
+                      type="text"
+                      value={imageQuery}
+                      onChange={(e) => setImageQuery(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          onImageSearch();
+                        }
+                      }}
+                      placeholder="Buscar en Freepik (ej. tarjeta credito viva mexico)"
+                      className="focus:border-brand-600 focus:ring-brand-600/15 h-9 flex-1 rounded-md border border-neutral-300 bg-white px-3 text-sm placeholder:text-neutral-400 focus:ring-2 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={onImageSearch}
+                      disabled={busy.search || !imageQuery.trim()}
+                      className="inline-flex h-9 items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-3 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {busy.search ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Wand2 className="h-3.5 w-3.5" />
+                      )}
+                      Buscar
                     </button>
-                  ))}
+                  </div>
+                  {imageResults.length > 0 && (
+                    <div className="mt-3 grid grid-cols-3 gap-2">
+                      {imageResults.map((img) => (
+                        <button
+                          key={img.id}
+                          type="button"
+                          onClick={() => pickImage(img)}
+                          className="hover:ring-brand-600 group relative overflow-hidden rounded border border-neutral-200 transition hover:ring-2"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={img.thumbUrl}
+                            alt={img.title}
+                            className="h-20 w-full object-cover"
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </div>
-        </section>
+              </div>
+            </section>
 
-        {/* PREVIEW — right column when 2-col */}
-        <section className="overflow-y-auto bg-neutral-100">
-          <div className="sticky top-0 z-10 flex items-center justify-between border-b border-neutral-200 bg-neutral-100/95 px-5 py-2.5 backdrop-blur">
-            <div className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
-              Preview HSBC
-            </div>
+            {/* PREVIEW — right column when 2-col */}
+            <section className="overflow-y-auto bg-neutral-100">
+              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-neutral-200 bg-neutral-100/95 px-5 py-2.5 backdrop-blur">
+                <div className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+                  Preview HSBC
+                </div>
+              </div>
+              <div className="p-5">
+                <div className="mx-auto max-w-[640px] overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-sm">
+                  <iframe
+                    title="Email preview"
+                    srcDoc={previewHtml}
+                    className="block h-[calc(100vh-12rem)] w-full border-0"
+                    sandbox="allow-same-origin"
+                  />
+                </div>
+              </div>
+            </section>
           </div>
-          <div className="p-5">
-            <div className="mx-auto max-w-[640px] overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-sm">
-              <iframe
-                title="Email preview"
-                srcDoc={previewHtml}
-                className="block h-[calc(100vh-12rem)] w-full border-0"
-                sandbox="allow-same-origin"
-              />
-            </div>
-          </div>
-        </section>
-      </div>
+        </>
+      )}
     </div>
   );
 }
