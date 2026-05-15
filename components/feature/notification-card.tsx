@@ -138,26 +138,38 @@ export function NotificationCard({ n }: { n: NotificationRecord }) {
         </div>
       </div>
 
-      {/* Footer. Higher z-index than the stretched link so the Preview button
-          captures clicks instead of navigating to the detail page. */}
+      {/* Footer. Higher z-index than the stretched link so the action
+          buttons capture clicks instead of navigating to the detail page. */}
       <div className="relative z-[2] flex items-center justify-between gap-2 border-t border-neutral-100 px-3.5 py-2 text-[11px] text-neutral-500">
         <span title={n.lastSentAt?.toISOString() ?? "Nunca enviada"}>
           {n.lastSentAt ? `Enviada ${relativeDate(n.lastSentAt)}` : "Sin enviar"}
         </span>
-        {n.templatePreviewLink ? (
-          <a
-            href={n.templatePreviewLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 rounded-md border border-neutral-200 bg-white px-2 py-1 text-[11px] font-medium text-neutral-700 transition hover:bg-neutral-50 hover:text-neutral-900"
-            title="Abrir preview en Kublau"
-          >
-            <Eye className="h-3 w-3" />
-            Preview
-          </a>
-        ) : (
-          <span title={n.updatedAt?.toISOString() ?? ""}>Edit. {relativeDate(n.updatedAt)}</span>
-        )}
+        <div className="flex items-center gap-1">
+          {n.postmarkUrl && (
+            <a
+              href={n.postmarkUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 rounded-md border border-neutral-200 bg-white px-2 py-1 text-[11px] font-medium text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 hover:text-neutral-900"
+              title="Ver la última notificación enviada (Postmark)"
+            >
+              <Mail className="h-3 w-3" />
+              Última
+            </a>
+          )}
+          {n.templatePreviewLink && (
+            <a
+              href={n.templatePreviewLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 rounded-md border border-neutral-200 bg-white px-2 py-1 text-[11px] font-medium text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 hover:text-neutral-900"
+              title="Abrir preview del template en Kublau"
+            >
+              <Eye className="h-3 w-3" />
+              Preview
+            </a>
+          )}
+        </div>
       </div>
     </div>
   );
