@@ -1,20 +1,22 @@
 /**
- * Sync engine: Kublau ClickHouse → Supabase notifications_cache.
+ * Sync engine: Kublau ClickHouse → Supabase `notifications_cache`.
  *
- * Run by:
- *  - Vercel Cron (`/api/sync` GET, scheduled hourly)
- *  - Manual button (`/api/sync` POST from the app)
+ * Runs from:
+ *  - Vercel Cron (`/api/sync` GET, scheduled daily at 06:00 UTC in vercel.json)
+ *  - Manual button (`/api/sync` POST from the dashboard)
  *  - CLI script (`pnpm sync:run`)
  *
- * Strategy: full snapshot. Each run fetches all rows from blazer_query_401,
- * upserts them by id, and records the run in `sync_runs`. Simpler and safer
+ * Strategy: full snapshot. Each run pulls every row from `blazer_query_401`,
+ * upserts them by `id`, and records the run in `sync_runs`. Simpler and safer
  * than incremental sync given the modest table size (~767 rows).
+ *
+ * Transport: we use the Supabase JS client (HTTPS / PostgREST), NOT the
+ * direct Postgres TCP connection. Direct Postgres is unreachable from Vercel
+ * Functions on Supabase free tier (IPv6-only). PostgREST is always reachable.
  */
 
-import { sql } from "drizzle-orm";
 import { getClickhouseClient } from "@/lib/adapters/clickhouse-kublau/client";
-import { getDb } from "@/lib/db/client";
-import { notificationsCache, syncRuns } from "@/lib/db/schema";
+import { getSupabaseAdmin } from "@/lib/adapters/supabase/admin";
 
 interface RawKublauRow {
   id: string;
@@ -68,10 +70,10 @@ const parseJsonArray = (raw: string | null | undefined): string[] => {
 
 const yesNo = (v: string | null | undefined): boolean => v?.toUpperCase() === "SI";
 
-const parseDate = (v: string | null | undefined): Date | null => {
+const parseDate = (v: string | null | undefined): string | null => {
   if (!v) return null;
   const d = new Date(v);
-  return Number.isNaN(d.getTime()) ? null : d;
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
 };
 
 const nullIfEmpty = (v: string | null | undefined): string | null =>
@@ -82,109 +84,132 @@ export interface SyncResult {
   durationMs: number;
 }
 
+/** Snake-case row shape that matches the Supabase `notifications_cache` schema. */
+interface CacheRowInsert {
+  id: string;
+  theme_name: string;
+  subject: string;
+  sms_text: string | null;
+  products: string[];
+  movements: string[];
+  client_types: string[];
+  is_debit: boolean;
+  is_employee: boolean;
+  has_theme: boolean;
+  updated_at_kublau: string | null;
+  theme_link: string | null;
+  template_link: string | null;
+  last_mail_to: string | null;
+  html_body: string | null;
+  last_sent_at: string | null;
+  postmark_url: string | null;
+  synced_at: string;
+}
+
 /**
- * Pulls every notification from Kublau and upserts into our cache.
+ * Pulls every notification from Kublau and upserts into our Supabase cache.
  * Returns count + duration. Records the run in `sync_runs`.
  */
 export async function runSync(kind: "cron" | "manual"): Promise<SyncResult> {
-  const db = getDb();
-  const startedAt = new Date();
+  const supabase = getSupabaseAdmin();
+  const startedAtIso = new Date().toISOString();
+  const startedAtMs = Date.now();
 
-  // Insert a sync_runs row up front so we can correlate failures.
-  const [run] = await db.insert(syncRuns).values({ kind, startedAt }).returning();
-  if (!run) throw new Error("Failed to insert sync_runs row");
+  // Open a sync_runs row up front so failures get correlated even if the
+  // function throws partway through.
+  const { data: run, error: runInsertErr } = await supabase
+    .from("sync_runs")
+    .insert({ kind, started_at: startedAtIso })
+    .select("id")
+    .single();
+  if (runInsertErr || !run) {
+    throw new Error(`Failed to open sync_runs row: ${runInsertErr?.message ?? "unknown"}`);
+  }
+  const runId = run.id as string;
 
   try {
+    // 1. Read everything from ClickHouse Kublau.
     const ch = getClickhouseClient();
     const result = await ch.query({
       query: `SELECT ${KUBLAU_SELECT} FROM blazer_query_401`,
       format: "JSON",
     });
-    const data = (await result.json()) as { data: RawKublauRow[] };
-    const rows = data.data;
+    const { data: rows } = (await result.json()) as { data: RawKublauRow[] };
 
     if (rows.length === 0) {
       throw new Error("Kublau returned 0 rows — refusing to wipe cache.");
     }
 
-    // Map to cache rows
-    const mapped = rows.map((r) => ({
+    const syncedAtIso = new Date().toISOString();
+    const mapped: CacheRowInsert[] = rows.map((r) => ({
       id: r.id,
-      themeName: r.themeName ?? "",
+      theme_name: r.themeName ?? "",
       subject: r.subject ?? "",
-      smsText: nullIfEmpty(r.smsText),
+      sms_text: nullIfEmpty(r.smsText),
       products: parseJsonArray(r.productsRaw),
       movements: parseJsonArray(r.movementsRaw),
-      clientTypes: parseJsonArray(r.clientTypesRaw),
-      isDebit: yesNo(r.debitFlag),
-      isEmployee: yesNo(r.employeeFlag),
-      hasTheme: yesNo(r.hasThemeFlag),
-      updatedAtKublau: parseDate(r.updatedAt),
-      themeLink: nullIfEmpty(r.themeLink),
-      templateLink: nullIfEmpty(r.templateLink),
-      lastMailTo: nullIfEmpty(r.lastMailTo),
-      htmlBody: nullIfEmpty(r.htmlBody),
-      lastSentAt: parseDate(r.lastSentAt),
-      postmarkUrl: nullIfEmpty(r.postmarkUrl),
-      syncedAt: new Date(),
+      client_types: parseJsonArray(r.clientTypesRaw),
+      is_debit: yesNo(r.debitFlag),
+      is_employee: yesNo(r.employeeFlag),
+      has_theme: yesNo(r.hasThemeFlag),
+      updated_at_kublau: parseDate(r.updatedAt),
+      theme_link: nullIfEmpty(r.themeLink),
+      template_link: nullIfEmpty(r.templateLink),
+      last_mail_to: nullIfEmpty(r.lastMailTo),
+      html_body: nullIfEmpty(r.htmlBody),
+      last_sent_at: parseDate(r.lastSentAt),
+      postmark_url: nullIfEmpty(r.postmarkUrl),
+      synced_at: syncedAtIso,
     }));
 
-    // Upsert in chunks (Postgres has parameter limits)
-    const CHUNK = 100;
+    // 2. Upsert in chunks. PostgREST has a per-request size cap (typically
+    //    1 MB by default), and html_body alone can run 50-100 KB per row, so
+    //    we use small chunks. 25 keeps each request comfortably under the
+    //    limit while still cutting the round-trip count by ~30x vs single
+    //    inserts.
+    const CHUNK = 25;
     for (let i = 0; i < mapped.length; i += CHUNK) {
       const chunk = mapped.slice(i, i + CHUNK);
-      await db
-        .insert(notificationsCache)
-        .values(chunk)
-        .onConflictDoUpdate({
-          target: notificationsCache.id,
-          set: {
-            themeName: sql`excluded.theme_name`,
-            subject: sql`excluded.subject`,
-            smsText: sql`excluded.sms_text`,
-            products: sql`excluded.products`,
-            movements: sql`excluded.movements`,
-            clientTypes: sql`excluded.client_types`,
-            isDebit: sql`excluded.is_debit`,
-            isEmployee: sql`excluded.is_employee`,
-            hasTheme: sql`excluded.has_theme`,
-            updatedAtKublau: sql`excluded.updated_at_kublau`,
-            themeLink: sql`excluded.theme_link`,
-            templateLink: sql`excluded.template_link`,
-            lastMailTo: sql`excluded.last_mail_to`,
-            htmlBody: sql`excluded.html_body`,
-            lastSentAt: sql`excluded.last_sent_at`,
-            postmarkUrl: sql`excluded.postmark_url`,
-            syncedAt: sql`excluded.synced_at`,
-          },
-        });
+      const { error } = await supabase
+        .from("notifications_cache")
+        .upsert(chunk, { onConflict: "id" });
+      if (error) {
+        throw new Error(`upsert chunk ${i}: ${error.message}`);
+      }
     }
 
-    const finishedAt = new Date();
-    const durationMs = finishedAt.getTime() - startedAt.getTime();
-
-    await db
-      .update(syncRuns)
-      .set({ finishedAt, rowsSynced: rows.length })
-      .where(sql`${syncRuns.id} = ${run.id}`);
+    // 3. Close the run row with success metadata.
+    const finishedAtIso = new Date().toISOString();
+    const durationMs = Date.now() - startedAtMs;
+    await supabase
+      .from("sync_runs")
+      .update({ finished_at: finishedAtIso, rows_synced: rows.length })
+      .eq("id", runId);
 
     return { rowsSynced: rows.length, durationMs };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    await db
-      .update(syncRuns)
-      .set({ finishedAt: new Date(), error: message })
-      .where(sql`${syncRuns.id} = ${run.id}`);
+    // Best-effort: record the error and re-throw.
+    await supabase
+      .from("sync_runs")
+      .update({ finished_at: new Date().toISOString(), error: message })
+      .eq("id", runId)
+      .then(undefined, () => undefined);
     throw err;
   }
 }
 
 /** Returns the timestamp of the most recent successful sync, or null. */
 export async function getLastSyncedAt(): Promise<Date | null> {
-  const db = getDb();
-  const result = await db.query.syncRuns.findFirst({
-    where: (runs, { isNotNull }) => isNotNull(runs.finishedAt),
-    orderBy: (runs, { desc }) => [desc(runs.finishedAt)],
-  });
-  return result?.finishedAt ?? null;
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("sync_runs")
+    .select("finished_at")
+    .not("finished_at", "is", null)
+    .is("error", null)
+    .order("finished_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error || !data?.finished_at) return null;
+  return new Date(data.finished_at);
 }
