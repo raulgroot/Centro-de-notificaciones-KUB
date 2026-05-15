@@ -48,6 +48,15 @@ function escapeAttr(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
 }
 
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 /**
  * Convert a free-form body (paragraphs separated by blank lines or single
  * newlines) into HSBC-styled HTML paragraphs.
@@ -68,43 +77,61 @@ function bodyToInlineHtml($: CheerioAPI, body: string): string {
 }
 
 /**
- * Build the inline SVG block that renders the hero photo clipped to the
- * official HSBC "right-half hexagon" silhouette. The path comes directly
- * from Raúl's reference assets (`010_Container.svg` / `Hexagono_hex.svg`):
+ * Build the new HERO block: a two-column row that mirrors HSBC's
+ * 621×300 container reference (see /Hexágono/001_Container in the brand
+ * guide). Headline lives in the left column (white), the right column
+ * holds the hex-clipped Freepik photo.
  *
- *     ┌─────────────┐
- *     │      __________
- *     │     /         │
- *     │    /          │   ← image sits inside this shape
- *     │    \          │
- *     │     \_________│
- *     └─────────────┘
+ *     ┌──────────────────────────────────┐
+ *     │                       __________ │
+ *     │  Headline grande     /         │ │
+ *     │  va aquí a la         /          │ │  ← Freepik image
+ *     │  izquierda            \          │ │     clipped to hex
+ *     │                       \_________ │ │
+ *     └──────────────────────────────────┘
  *
- * The right edge is flush with the container; the left side has the hex
- * "point" cutting in toward the middle. ViewBox matches the container
- * asset (621×300) so the geometry is byte-identical to HSBC's brand
- * guide.
+ * Implementation: outer <table> with 2 cells; right cell contains a
+ * raw inline SVG using the path from Hexágono_hex.svg. Tables are the
+ * only reliable layout primitive across Outlook / Gmail / Apple Mail.
  *
- * Inline SVG is supported in Gmail web/mobile, Apple Mail, Yahoo, and
- * modern Outlook web; older Outlook desktop will degrade to a plain
- * rectangle of the image (still readable, just not clipped).
+ * Width ratios match the container reference: ~38% text, ~62% hex.
+ * Inline SVG works in every modern email client; older Outlook
+ * gracefully degrades to an unclipped rectangle (still readable).
  */
-function hexagonImageSvg(imageUrl: string, alt: string): string {
+function heroBlockHtml(args: { headline: string; imageUrl: string; alt: string }): string {
+  const { headline, imageUrl, alt } = args;
+  const safeHeadline = escapeHtml(headline || "");
   const safeUrl = escapeAttr(imageUrl);
   const safeAlt = escapeAttr(alt || "Imagen");
+
   // Path verbatim from /Hexágono/Hexagono_hex.svg — the isolated hex
-  // shape (no container). 384×278 native, scales fluidly with the email
-  // width. The hex has a straight right edge and a 2-segment diagonal
-  // "point" on the left, same brand signature HSBC uses elsewhere.
+  // silhouette (no container). 384×278 native; we scale via the
+  // wrapping SVG's `width` attribute.
   const HEX_PATH = "M112.5 278 L0 165.5 L165.5 0 L383.5 0 L383.5 278 Z";
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 278" width="600" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;height:auto;max-width:600px;" role="img" aria-label="${safeAlt}">
+
+  // Each render gets a unique clipPath id so multiple hex blocks in the
+  // same email body don't collide.
+  const clipId = `hsbc-hero-hex-${Math.random().toString(36).slice(2, 8)}`;
+
+  const heroImage = safeUrl
+    ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 278" width="372" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;height:auto;max-width:372px;" role="img" aria-label="${safeAlt}">
   <defs>
-    <clipPath id="hsbc-hero-hex" clipPathUnits="userSpaceOnUse">
+    <clipPath id="${clipId}" clipPathUnits="userSpaceOnUse">
       <path d="${HEX_PATH}" />
     </clipPath>
   </defs>
-  <image href="${safeUrl}" x="0" y="0" width="384" height="278" preserveAspectRatio="xMidYMid slice" clip-path="url(#hsbc-hero-hex)" />
-</svg>`;
+  <image href="${safeUrl}" x="0" y="0" width="384" height="278" preserveAspectRatio="xMidYMid slice" clip-path="url(#${clipId})" />
+</svg>`
+    : "";
+
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="width:100%;max-width:600px;border-collapse:collapse;margin:0 auto;background:#FFFFFF;">
+  <tr>
+    <td valign="middle" align="left" style="width:38%;padding:24px 16px 24px 32px;background:#FFFFFF;">
+      <h1 style="margin:0;font-family:'Univers Next',Arial,sans-serif;font-size:24px;line-height:1.2;font-weight:700;color:#1A1A1A;">${safeHeadline}</h1>
+    </td>
+    <td valign="middle" align="right" style="width:62%;padding:0;background:#FFFFFF;font-size:0;line-height:0;">${heroImage}</td>
+  </tr>
+</table>`;
 }
 
 /** Render copy + hero into the real HSBC HTML via cheerio. */
@@ -160,27 +187,13 @@ export function renderEmailHtml(args: {
     }
   }
 
-  // 1. Headline → first <h2>
-  if (copy.headline) {
-    const h2 = $("h2").first();
-    if (h2.length > 0) {
-      h2.text(copy.headline);
-    }
-  }
-
-  // 2. Body → the div that wraps the "Tu Tarjeta de Crédito..." paragraph.
-  if (copy.body) {
-    const bodyTarget = $('strong:contains("Tarjeta de Crédito")').first().closest("div");
-    if (bodyTarget.length > 0) {
-      bodyTarget.html(bodyToInlineHtml($, copy.body));
-    }
-  }
-
-  // 3. Hero image: replace the "emitted_header" banner with an SVG block
-  //    that clips the Freepik image to a hexagon. If no heroImage was
-  //    picked we keep the original placeholder so the layout doesn't
-  //    collapse.
-  if (heroImage?.url) {
+  // 1. HERO BLOCK: replace the original full-width banner image with our
+  //    new two-column block (headline on the left, hex-clipped Freepik
+  //    image on the right). Mirrors Raúl's 001_Container design reference.
+  //    Triggered when there's either a headline OR a hero image — that way
+  //    a brand-new draft with no content yet still shows the structure
+  //    placeholder.
+  if (copy.headline || heroImage?.url) {
     const heroImg = $("img")
       .filter((_i, el) => {
         const src = $(el).attr("src") ?? "";
@@ -188,7 +201,33 @@ export function renderEmailHtml(args: {
       })
       .first();
     if (heroImg.length > 0) {
-      heroImg.replaceWith(hexagonImageSvg(heroImage.url, heroImage.alt ?? ""));
+      // The original hero image lives inside a `.spaced-section` wrapper —
+      // replace the whole wrapper so the new block doesn't inherit the old
+      // padding that no longer makes sense in a side-by-side layout.
+      const wrap = heroImg.closest("div.spaced-section");
+      const newHero = heroBlockHtml({
+        headline: copy.headline ?? "",
+        imageUrl: heroImage?.url ?? "",
+        alt: heroImage?.alt ?? "",
+      });
+      (wrap.length > 0 ? wrap : heroImg).replaceWith(newHero);
+    }
+  }
+
+  // 2. With the headline now living inside the hero block, the original
+  //    "¡Hola, NICOLE!" H2 below the banner is redundant. Drop it cleanly
+  //    (remove the wrapping spaced-section so the layout closes up).
+  const standaloneH2 = $("h2").first();
+  if (standaloneH2.length > 0) {
+    const wrap = standaloneH2.closest("div.spaced-section");
+    (wrap.length > 0 ? wrap : standaloneH2).remove();
+  }
+
+  // 3. Body → the div that wraps the "Tu Tarjeta de Crédito..." paragraph.
+  if (copy.body) {
+    const bodyTarget = $('strong:contains("Tarjeta de Crédito")').first().closest("div");
+    if (bodyTarget.length > 0) {
+      bodyTarget.html(bodyToInlineHtml($, copy.body));
     }
   }
 
