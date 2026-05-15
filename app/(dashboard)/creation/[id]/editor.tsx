@@ -31,8 +31,8 @@ import type { DraftBrief, DraftCopy, DraftHeroImage } from "@/lib/db/schema";
 import { renderEmailHtml } from "@/lib/notifications/template";
 import type { FreepikImage } from "@/lib/adapters/freepik/client";
 import {
-  ChevronDown,
-  ChevronUp,
+  ArrowLeft,
+  ArrowRight,
   ImageIcon,
   Loader2,
   Pencil,
@@ -53,16 +53,36 @@ const PRODUCTS = [
   { id: "zero", label: "Zero", icon: "/cards/zero.png" },
 ] as const;
 
-const LIFECYCLES = [
-  { id: "emitted", label: "Emitida" },
-  { id: "transit", label: "En tránsito" },
-  { id: "delivered", label: "Entregada" },
-  { id: "activation", label: "Activación" },
-  { id: "problem", label: "Problema" },
+const OBJECTIVES = [
+  { id: "activar", label: "Activar", help: "Que active la tarjeta o un servicio." },
+  { id: "verificar", label: "Verificar", help: "Que confirme datos o una transacción." },
+  { id: "informar", label: "Informar", help: "Avisarle de un cambio o actualización." },
+  { id: "recordar", label: "Recordar", help: "Recordarle una acción pendiente." },
+  { id: "agradecer", label: "Agradecer", help: "Reconocer su lealtad o compra." },
+  { id: "bienvenida", label: "Dar bienvenida", help: "Recibirlo a un nuevo producto." },
+] as const;
+
+const AUDIENCES = [
+  { id: "todos", label: "Todos", help: "Audiencia mixta, lenguaje universal." },
+  { id: "nuevos", label: "Nuevos", help: "Primer mes con HSBC, sin asumir conocimiento previo." },
+  {
+    id: "recurrentes",
+    label: "Recurrentes",
+    help: "Clientes con historial, familiares con la marca.",
+  },
+  { id: "vip", label: "VIP / Premier", help: "Tono más sobrio y premium." },
+  { id: "morosos", label: "Con adeudo", help: "Firme pero respetuoso." },
+] as const;
+
+const URGENCIES = [
+  { id: "baja", label: "Baja", help: "Informativo, sin presión." },
+  { id: "media", label: "Media", help: "Llamada a la acción clara, sin alarmar." },
+  { id: "alta", label: "Alta", help: "Acción inmediata, enfatiza tiempos." },
 ] as const;
 
 const TONES = [
   { id: "informativo", label: "Informativo" },
+  { id: "cercano", label: "Cercano" },
   { id: "celebratorio", label: "Celebratorio" },
   { id: "urgente", label: "Urgente" },
   { id: "formal", label: "Formal" },
@@ -70,9 +90,48 @@ const TONES = [
 
 type CopyField = keyof DraftCopy;
 
-/** Has the brief been filled enough to be considered "complete"? */
+/**
+ * The wizard's ordered list of steps. `required` controls whether the user
+ * can skip to the next step. `keyInfo` is optional (some notifications have
+ * no hard data to pin down).
+ */
+const WIZARD_STEPS = [
+  { id: "product", required: true },
+  { id: "objective", required: true },
+  { id: "topic", required: true },
+  { id: "keyInfo", required: false },
+  { id: "audience", required: true },
+  { id: "urgency", required: true },
+  { id: "tone", required: true },
+] as const;
+
+type WizardStepId = (typeof WIZARD_STEPS)[number]["id"];
+
+/** Is the field at `step` filled enough to advance? */
+function isStepValid(brief: DraftBrief, step: WizardStepId): boolean {
+  switch (step) {
+    case "product":
+      return Boolean(brief.product);
+    case "objective":
+      return Boolean(brief.objective);
+    case "topic":
+      return Boolean(brief.topic && brief.topic.trim().length >= 10);
+    case "keyInfo":
+      return true; // optional
+    case "audience":
+      return Boolean(brief.audience);
+    case "urgency":
+      return Boolean(brief.urgency);
+    case "tone":
+      return Boolean(brief.tone);
+    default:
+      return false;
+  }
+}
+
+/** Has the brief been filled enough to be generated? (all required steps pass) */
 function isBriefComplete(b: DraftBrief): boolean {
-  return Boolean(b.product && b.lifecycle && (b.topic ?? b.context));
+  return WIZARD_STEPS.filter((s) => s.required).every((s) => isStepValid(b, s.id));
 }
 
 export function DraftEditor({ draft }: { draft: NotificationDraft }) {
@@ -91,6 +150,16 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
   // the user has gone through the first generation). They can re-open it
   // anytime to tweak the inputs.
   const [briefOpen, setBriefOpen] = useState<boolean>(!draft.copy.subject);
+
+  // Wizard step index. When re-opening the brief after a generation we jump
+  // straight to the last step so the user can review/regenerate without
+  // clicking "Siguiente" five times.
+  const [stepIdx, setStepIdx] = useState<number>(draft.copy.subject ? WIZARD_STEPS.length - 1 : 0);
+  // `stepIdx` is always clamped to a valid range by setStepIdx, but TS
+  // strict needs the non-null assertion for tuple indexing.
+  const currentStep = WIZARD_STEPS[stepIdx]!;
+  const isLastStep = stepIdx === WIZARD_STEPS.length - 1;
+  const canAdvance = isStepValid(brief, currentStep.id);
 
   // Re-render the email preview on any change to copy / hero / product
   // (the brand header is product-aware: Viva → HSBC+VIVA art, else
@@ -179,155 +248,296 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden">
-      {/* TOP BAR: brief — when open it's a wizard; when closed it disappears
-          completely and only a small "Editar brief" button remains floating
-          near the header so it doesn't compete with copy + preview. */}
+      {/* TOP BAR: brief wizard — conversational step-by-step (Claude-design style).
+          Each step is its own focused screen with a big question, an answer
+          input, and progress dots + back/next buttons.
+          When closed it disappears completely and only a small "Editar brief"
+          button remains in the toolbar so copy + preview get the full screen. */}
       {briefOpen && (
-        <div className="shrink-0 border-b border-neutral-200 bg-neutral-50/60">
-          <div className="mx-auto max-w-5xl p-6">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-base font-semibold text-neutral-900">
-                  Crea tu notificación HSBC
-                </h2>
-                <p className="mt-0.5 text-xs text-neutral-600">
-                  Solo dime sobre qué se trata y el tono. Yo me encargo del resto.
-                </p>
-              </div>
-              {isBriefComplete(brief) && (
-                <button
-                  type="button"
-                  onClick={() => setBriefOpen(false)}
-                  className="inline-flex items-center gap-1 rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50"
+        <div className="shrink-0 border-b border-neutral-200 bg-gradient-to-b from-neutral-50/80 to-white">
+          <div className="mx-auto max-w-3xl px-6 py-8">
+            {/* Progress dots — clickable to jump back to any visited step. */}
+            <div className="mb-6 flex items-center justify-center gap-1.5">
+              {WIZARD_STEPS.map((s, i) => {
+                const filled = isStepValid(brief, s.id);
+                const current = i === stepIdx;
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setStepIdx(i)}
+                    aria-label={`Paso ${i + 1}`}
+                    className={`h-1.5 rounded-full transition-all ${
+                      current
+                        ? "bg-brand-600 w-8"
+                        : filled
+                          ? "bg-brand-600/40 hover:bg-brand-600/60 w-4"
+                          : "w-4 bg-neutral-300 hover:bg-neutral-400"
+                    }`}
+                  />
+                );
+              })}
+            </div>
+
+            {/* Current step content */}
+            <div className="min-h-[280px]">
+              {currentStep.id === "product" && (
+                <WizardStep
+                  title="¿Para cuál tarjeta es esta notificación?"
+                  hint="Determina el logo y los acentos visuales del email."
                 >
-                  <ChevronUp className="h-3.5 w-3.5" />
-                  Cerrar
-                </button>
+                  <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                    {PRODUCTS.map((p) => {
+                      const active = brief.product === p.id;
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => setBrief({ ...brief, product: p.id })}
+                          className={`group flex flex-col items-center gap-2 rounded-xl border p-3 text-sm font-medium transition ${
+                            active
+                              ? "border-brand-600 bg-brand-50 text-brand-700 ring-brand-600/15 ring-2"
+                              : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300 hover:bg-neutral-50"
+                          }`}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={p.icon} alt="" className="h-10 w-16 object-contain" />
+                          <span className="text-xs">{p.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </WizardStep>
+              )}
+
+              {currentStep.id === "objective" && (
+                <WizardStep
+                  title="¿Qué quieres que haga el usuario?"
+                  hint="Una acción concreta. Ancla el headline y el CTA."
+                >
+                  <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+                    {OBJECTIVES.map((o) => {
+                      const active = brief.objective === o.id;
+                      return (
+                        <button
+                          key={o.id}
+                          type="button"
+                          onClick={() => setBrief({ ...brief, objective: o.id })}
+                          className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition ${
+                            active
+                              ? "border-brand-600 bg-brand-50 ring-brand-600/15 ring-2"
+                              : "border-neutral-200 bg-white hover:border-neutral-300 hover:bg-neutral-50"
+                          }`}
+                        >
+                          <span
+                            className={`text-sm font-semibold ${active ? "text-brand-700" : "text-neutral-900"}`}
+                          >
+                            {o.label}
+                          </span>
+                          <span className="text-[11px] leading-tight text-neutral-500">
+                            {o.help}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </WizardStep>
+              )}
+
+              {currentStep.id === "topic" && (
+                <WizardStep
+                  title="¿De qué se trata exactamente?"
+                  hint="Cuéntame en una o dos frases qué pasa, qué cambia, qué debe saber el usuario."
+                >
+                  <textarea
+                    autoFocus
+                    value={brief.topic ?? ""}
+                    onChange={(e) => setBrief({ ...brief, topic: e.target.value })}
+                    rows={5}
+                    placeholder="Ej. Su tarjeta VIVA ya fue generada y le llegará en 5-10 días hábiles. Puede rastrearla por la app. Si necesita actualizar la dirección, hay un botón directo."
+                    className="focus:border-brand-600 focus:ring-brand-600/15 w-full rounded-lg border border-neutral-300 bg-white px-3.5 py-3 text-sm placeholder:text-neutral-400 focus:ring-2 focus:outline-none"
+                  />
+                  <p className="mt-1.5 text-[11px] text-neutral-500">
+                    Mínimo 10 caracteres.{" "}
+                    <span className="text-neutral-400">({(brief.topic ?? "").trim().length})</span>
+                  </p>
+                </WizardStep>
+              )}
+
+              {currentStep.id === "keyInfo" && (
+                <WizardStep
+                  title="¿Hay datos que SÍ o SÍ deben aparecer?"
+                  hint="Opcional. Fechas, montos, últimos 4 de la tarjeta, IDs de rastreo. Evita que Claude se invente cosas."
+                >
+                  <textarea
+                    autoFocus
+                    value={brief.keyInfo ?? ""}
+                    onChange={(e) => setBrief({ ...brief, keyInfo: e.target.value })}
+                    rows={4}
+                    placeholder="Ej. Fecha de corte: 15 de junio. Monto mínimo: $1,250. Tarjeta terminación 4823."
+                    className="focus:border-brand-600 focus:ring-brand-600/15 w-full rounded-lg border border-neutral-300 bg-white px-3.5 py-3 text-sm placeholder:text-neutral-400 focus:ring-2 focus:outline-none"
+                  />
+                  <p className="mt-1.5 text-[11px] text-neutral-500">
+                    Puedes saltar este paso si no aplica.
+                  </p>
+                </WizardStep>
+              )}
+
+              {currentStep.id === "audience" && (
+                <WizardStep
+                  title="¿Quién va a recibir esto?"
+                  hint="El segmento cambia el tono y los supuestos del mensaje."
+                >
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {AUDIENCES.map((a) => {
+                      const active = brief.audience === a.id;
+                      return (
+                        <button
+                          key={a.id}
+                          type="button"
+                          onClick={() => setBrief({ ...brief, audience: a.id })}
+                          className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition ${
+                            active
+                              ? "border-brand-600 bg-brand-50 ring-brand-600/15 ring-2"
+                              : "border-neutral-200 bg-white hover:border-neutral-300 hover:bg-neutral-50"
+                          }`}
+                        >
+                          <span
+                            className={`text-sm font-semibold ${active ? "text-brand-700" : "text-neutral-900"}`}
+                          >
+                            {a.label}
+                          </span>
+                          <span className="text-[11px] leading-tight text-neutral-500">
+                            {a.help}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </WizardStep>
+              )}
+
+              {currentStep.id === "urgency" && (
+                <WizardStep
+                  title="¿Qué tan urgente es?"
+                  hint="Determina la intensidad del lenguaje y el CTA."
+                >
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    {URGENCIES.map((u) => {
+                      const active = brief.urgency === u.id;
+                      return (
+                        <button
+                          key={u.id}
+                          type="button"
+                          onClick={() => setBrief({ ...brief, urgency: u.id })}
+                          className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition ${
+                            active
+                              ? "border-brand-600 bg-brand-50 ring-brand-600/15 ring-2"
+                              : "border-neutral-200 bg-white hover:border-neutral-300 hover:bg-neutral-50"
+                          }`}
+                        >
+                          <span
+                            className={`text-sm font-semibold ${active ? "text-brand-700" : "text-neutral-900"}`}
+                          >
+                            {u.label}
+                          </span>
+                          <span className="text-[11px] leading-tight text-neutral-500">
+                            {u.help}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </WizardStep>
+              )}
+
+              {currentStep.id === "tone" && (
+                <WizardStep
+                  title="¿Con qué tono lo decimos?"
+                  hint="El último ajuste antes de generar."
+                >
+                  <div className="flex flex-wrap gap-2">
+                    {TONES.map((t) => {
+                      const active = brief.tone === t.id;
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => setBrief({ ...brief, tone: t.id })}
+                          className={`inline-flex items-center rounded-full border px-4 py-2 text-sm font-medium transition ${
+                            active
+                              ? "border-brand-600 bg-brand-600 text-white"
+                              : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300 hover:bg-neutral-50"
+                          }`}
+                        >
+                          {t.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </WizardStep>
               )}
             </div>
 
-            {/* PRODUCT — card-icon picker */}
-            <div className="mb-4">
-              <div className="mb-1.5 text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
-                Producto
+            {/* Navigation footer */}
+            <div className="mt-6 flex items-center justify-between gap-3 border-t border-neutral-200 pt-4">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setStepIdx((i) => Math.max(0, i - 1))}
+                  disabled={stepIdx === 0}
+                  className="inline-flex items-center gap-1 rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                  Atrás
+                </button>
+                <div className="flex items-center gap-1.5 text-[11px] text-neutral-500">
+                  {isPending && <Loader2 className="h-3 w-3 animate-spin" />}
+                  Paso {stepIdx + 1} de {WIZARD_STEPS.length}
+                </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {PRODUCTS.map((p) => {
-                  const active = brief.product === p.id;
-                  return (
+
+              {isLastStep ? (
+                <button
+                  type="button"
+                  onClick={onGenerate}
+                  disabled={busy.generate || !isBriefComplete(brief)}
+                  className="bg-brand-600 hover:bg-brand-700 inline-flex items-center justify-center gap-2 rounded-md px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {busy.generate ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Generando con IA…
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4" />
+                      Generar notificación
+                    </>
+                  )}
+                </button>
+              ) : (
+                <div className="flex items-center gap-2">
+                  {!currentStep.required && !canAdvance && (
                     <button
-                      key={p.id}
                       type="button"
-                      onClick={() => setBrief({ ...brief, product: p.id })}
-                      className={`group inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition ${
-                        active
-                          ? "border-brand-600 bg-brand-50 text-brand-700 ring-brand-600/15 ring-2"
-                          : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300"
-                      }`}
+                      onClick={() => setStepIdx((i) => Math.min(WIZARD_STEPS.length - 1, i + 1))}
+                      className="text-xs font-medium text-neutral-500 hover:text-neutral-700"
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={p.icon} alt="" className="h-6 w-9 object-contain" />
-                      {p.label}
+                      Saltar
                     </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* LIFECYCLE — chip picker */}
-            <div className="mb-4">
-              <div className="mb-1.5 text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
-                Etapa del ciclo
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {LIFECYCLES.map((l) => {
-                  const active = brief.lifecycle === l.id;
-                  return (
-                    <button
-                      key={l.id}
-                      type="button"
-                      onClick={() => setBrief({ ...brief, lifecycle: l.id })}
-                      className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-medium transition ${
-                        active
-                          ? "border-brand-600 bg-brand-600 text-white"
-                          : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300"
-                      }`}
-                    >
-                      {l.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* TOPIC — textarea */}
-            <div className="mb-4">
-              <label
-                htmlFor="topic"
-                className="mb-1.5 block text-[11px] font-semibold tracking-wider text-neutral-500 uppercase"
-              >
-                ¿De qué se trata la notificación?
-              </label>
-              <textarea
-                id="topic"
-                value={brief.topic ?? ""}
-                onChange={(e) => setBrief({ ...brief, topic: e.target.value })}
-                rows={4}
-                placeholder="Ej. Avisar al cliente que su tarjeta VIVA ya fue generada y le llegará en 5-10 días hábiles. Mencionar que puede rastrearla. Recordar que si necesita actualizar la dirección, hay un botón directo."
-                className="focus:border-brand-600 focus:ring-brand-600/15 w-full rounded-md border border-neutral-300 bg-white px-3 py-2.5 text-sm placeholder:text-neutral-400 focus:ring-2 focus:outline-none"
-              />
-            </div>
-
-            {/* TONE — chip picker */}
-            <div className="mb-4">
-              <div className="mb-1.5 text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
-                Tono
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {TONES.map((t) => {
-                  const active = brief.tone === t.id;
-                  return (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => setBrief({ ...brief, tone: t.id })}
-                      className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-medium transition ${
-                        active
-                          ? "border-brand-600 bg-brand-600 text-white"
-                          : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300"
-                      }`}
-                    >
-                      {t.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Action: generate */}
-            <div className="mt-5 flex items-center justify-between gap-3 border-t border-neutral-200 pt-4">
-              <div className="flex items-center gap-1.5 text-[11px] text-neutral-500">
-                {isPending && <Loader2 className="h-3 w-3 animate-spin" />}
-                {isPending ? "Guardando…" : "Guardado automáticamente"}
-              </div>
-              <button
-                type="button"
-                onClick={onGenerate}
-                disabled={busy.generate || !brief.product || !brief.lifecycle}
-                className="bg-brand-600 hover:bg-brand-700 inline-flex items-center justify-center gap-2 rounded-md px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {busy.generate ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Generando con IA…
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-4 w-4" />
-                    Generar notificación
-                  </>
-                )}
-              </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setStepIdx((i) => Math.min(WIZARD_STEPS.length - 1, i + 1))}
+                    disabled={!canAdvance}
+                    className="bg-brand-600 hover:bg-brand-700 inline-flex items-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Siguiente
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              )}
             </div>
 
             {error && (
@@ -528,66 +738,25 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
 
 /* ─────────────────── tiny field components ─────────────────── */
 
-function ComboField({
-  id,
-  label,
-  value,
-  options,
-  onChange,
+/**
+ * Generic wrapper for a single wizard step. Provides the big-question +
+ * helper-text header and slot for the answer input. Keeps every step
+ * visually consistent.
+ */
+function WizardStep({
+  title,
+  hint,
+  children,
 }: {
-  id: string;
-  label: string;
-  value: string;
-  options: string[];
-  onChange: (v: string) => void;
+  title: string;
+  hint: string;
+  children: React.ReactNode;
 }) {
   return (
     <div>
-      <label htmlFor={id} className="block text-[11px] font-medium text-neutral-700">
-        {label}
-      </label>
-      <input
-        id={id}
-        list={`${id}-options`}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="focus:border-brand-600 focus:ring-brand-600/15 mt-1 h-9 w-full rounded-md border border-neutral-300 bg-white px-2.5 text-sm focus:ring-2 focus:outline-none"
-      />
-      <datalist id={`${id}-options`}>
-        {options.map((o) => (
-          <option key={o} value={o} />
-        ))}
-      </datalist>
-    </div>
-  );
-}
-
-function TextareaField({
-  id,
-  label,
-  value,
-  placeholder,
-  onChange,
-}: {
-  id: string;
-  label: string;
-  value: string;
-  placeholder?: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <div>
-      <label htmlFor={id} className="block text-[11px] font-medium text-neutral-700">
-        {label}
-      </label>
-      <textarea
-        id={id}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        rows={3}
-        className="focus:border-brand-600 focus:ring-brand-600/15 mt-1 w-full rounded-md border border-neutral-300 bg-white px-2.5 py-2 text-sm placeholder:text-neutral-400 focus:ring-2 focus:outline-none"
-      />
+      <h2 className="text-xl font-semibold tracking-tight text-neutral-900">{title}</h2>
+      <p className="mt-1.5 text-sm text-neutral-600">{hint}</p>
+      <div className="mt-5">{children}</div>
     </div>
   );
 }

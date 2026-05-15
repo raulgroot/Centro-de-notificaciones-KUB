@@ -287,16 +287,35 @@ export const campaignLoads = pgTable(
  * the schema doesn't need to migrate every time the wizard adds a field.
  */
 export interface DraftBrief {
-  product?: string; // e.g. "viva", "advance"
-  lifecycle?: string; // e.g. "emitted", "transit", "delivered"
+  /** HSBC card id: "viva", "vivaplus", "2now", "advance", "air", "premier", "clasica", "zero". */
+  product?: string;
+  /**
+   * What action do we want the user to take after reading this?
+   * One of: "activar" | "verificar" | "agradecer" | "informar" | "recordar" | "bienvenida".
+   * Anchors the headline + CTA voice.
+   */
+  objective?: string;
   /** Free-form: "what is this notification about?". The meat of the prompt. */
   topic?: string;
-  /** Optional chip: "informativo" | "celebratorio" | "urgente" | "formal" */
+  /**
+   * Hard facts that MUST appear in the copy (dates, amounts, deadlines,
+   * last-4 of the card, tracking IDs). Optional but encouraged.
+   */
+  keyInfo?: string;
+  /**
+   * Audience segment id. Pre-defined options:
+   *   "nuevos" | "recurrentes" | "vip" | "morosos" | "todos"
+   * Free-text legacy briefs may have arbitrary values.
+   */
+  audience?: string;
+  /** Urgency level: "baja" | "media" | "alta". Influences language emphasis. */
+  urgency?: string;
+  /** Tone id: "informativo" | "celebratorio" | "urgente" | "formal" | "cercano". */
   tone?: string;
   // Legacy fields, kept as-is so drafts created before the simplification
-  // still de-serialize without runtime errors. Future briefs use `topic`.
+  // still de-serialize without runtime errors. New briefs ignore these.
+  lifecycle?: string;
   movement?: string;
-  audience?: string;
   context?: string;
 }
 

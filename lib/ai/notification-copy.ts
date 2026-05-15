@@ -95,16 +95,61 @@ function systemPrompt(): string {
   ].join("\n");
 }
 
+/**
+ * Map an objective key to a verbalized hint for Claude. The wizard stores
+ * IDs ("activar", "verificar"…) but the model benefits from the explicit
+ * "queremos que el usuario X" framing.
+ */
+const OBJECTIVE_HINT: Record<string, string> = {
+  activar: "Queremos que el usuario ACTIVE su tarjeta / un servicio.",
+  verificar: "Queremos que el usuario VERIFIQUE datos o una transacción.",
+  agradecer: "Queremos AGRADECER al usuario (post-compra / lealtad).",
+  informar: "Queremos INFORMAR al usuario de un cambio o actualización.",
+  recordar: "Queremos RECORDAR al usuario una acción pendiente.",
+  bienvenida: "Queremos DAR LA BIENVENIDA al usuario a un nuevo producto.",
+};
+
+const AUDIENCE_HINT: Record<string, string> = {
+  nuevos:
+    "Tarjetahabientes recién emitidos (primer mes). Lenguaje acogedor, sin asumir conocimiento previo.",
+  recurrentes: "Clientes con historial. Puedes asumir familiaridad con la marca y los flujos.",
+  vip: "Segmento Premier / Advance / Air. Tono más cuidado, sobrio, premium.",
+  morosos: "Clientes con saldo vencido. Tono firme pero respetuoso, evita estigmatizar.",
+  todos: "Audiencia mixta. Mantén el lenguaje accesible y universal.",
+};
+
+const URGENCY_HINT: Record<string, string> = {
+  baja: "Urgencia baja: informativo, sin presión, recordatorio amable.",
+  media: "Urgencia media: claridad sobre tiempos, llama a la acción sin alarmar.",
+  alta: "Urgencia alta: pide acción inmediata, enfatiza consecuencias de no actuar a tiempo. NO uses lenguaje amenazante.",
+};
+
 function briefToUserPrompt(brief: DraftBrief): string {
   const lines: string[] = ["Datos del brief:"];
   if (brief.product) lines.push(`- Producto: ${brief.product}`);
-  if (brief.lifecycle) lines.push(`- Etapa del ciclo: ${brief.lifecycle}`);
+  if (brief.objective) {
+    const hint = OBJECTIVE_HINT[brief.objective] ?? "";
+    lines.push(`- Objetivo: ${brief.objective}${hint ? ` — ${hint}` : ""}`);
+  }
   if (brief.topic) lines.push(`- De qué se trata: ${brief.topic}`);
+  if (brief.keyInfo) {
+    lines.push(
+      `- Información clave (debe aparecer en la copy, sin inventar nada extra): ${brief.keyInfo}`,
+    );
+  }
+  if (brief.audience) {
+    const hint = AUDIENCE_HINT[brief.audience] ?? "";
+    lines.push(`- Audiencia: ${brief.audience}${hint ? ` — ${hint}` : ""}`);
+  }
+  if (brief.urgency) {
+    const hint = URGENCY_HINT[brief.urgency] ?? "";
+    lines.push(`- Urgencia: ${brief.urgency}${hint ? ` — ${hint}` : ""}`);
+  }
   if (brief.tone) lines.push(`- Tono: ${brief.tone}`);
   // Legacy fields (drafts antes de la simplificación). Si vienen, los
   // adjuntamos como contexto extra para no perder lo que ya escribió.
+  if (brief.lifecycle) lines.push(`- Etapa del ciclo (legacy): ${brief.lifecycle}`);
   if (brief.movement) lines.push(`- Movimiento (legacy): ${brief.movement}`);
-  if (brief.audience) lines.push(`- Audiencia (legacy): ${brief.audience}`);
   if (brief.context) lines.push(`- Contexto extra (legacy): ${brief.context}`);
   return lines.join("\n");
 }
@@ -174,7 +219,7 @@ export async function refineField(args: {
  * default hero image search is decent without the user typing anything.
  */
 export function defaultImageQuery(brief: DraftBrief): string {
-  const parts = [brief.product, brief.lifecycle, "tarjeta credito mexicana"]
+  const parts = [brief.product, brief.objective, brief.audience, "tarjeta credito mexicana"]
     .filter((p): p is string => Boolean(p))
     .map((p) => p.toLowerCase());
   return parts.join(" ");
