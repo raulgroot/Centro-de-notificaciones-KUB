@@ -108,7 +108,7 @@ export default async function NotificationDetailPage({ params }: { params: Param
         </Card>
       </div>
 
-      {(n.themeLink || n.templateLink || n.templatePreviewLink) && (
+      {(n.themeLink || n.templateLink || n.templatePreviewLink || n.postmarkUrl) && (
         <Card>
           <div className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
             Enlaces a Kublau
@@ -120,6 +120,9 @@ export default async function NotificationDetailPage({ params }: { params: Param
             )}
             {n.templatePreviewLink && (
               <ExternalLinkRow href={n.templatePreviewLink} label="Preview del template" />
+            )}
+            {n.postmarkUrl && (
+              <ExternalLinkRow href={n.postmarkUrl} label="Ver última notificación enviada" />
             )}
           </div>
         </Card>
