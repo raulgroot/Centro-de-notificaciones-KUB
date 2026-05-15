@@ -68,27 +68,42 @@ function bodyToInlineHtml($: CheerioAPI, body: string): string {
 }
 
 /**
- * Build the inline SVG block that renders the hero photo clipped to a
- * pointy-edge hexagon. Inline SVG is supported by Gmail, Apple Mail,
- * Yahoo, Outlook web, and modern Outlook desktop; older Outlook gracefully
- * degrades to an unclipped rectangle of the image (still readable).
+ * Build the inline SVG block that renders the hero photo clipped to the
+ * official HSBC "right-half hexagon" silhouette. The path comes directly
+ * from Raúl's reference assets (`010_Container.svg` / `Hexagono_hex.svg`):
  *
- * The hexagon proportions mirror HSBC's hex-banner style: full width 600,
- * height 360, with vertices at the top-left, top-right, mid-right edges,
- * and mirrored on the bottom — same visual cadence as the "Tip de
- * Seguridad" cutout further down.
+ *     ┌─────────────┐
+ *     │      __________
+ *     │     /         │
+ *     │    /          │   ← image sits inside this shape
+ *     │    \          │
+ *     │     \_________│
+ *     └─────────────┘
+ *
+ * The right edge is flush with the container; the left side has the hex
+ * "point" cutting in toward the middle. ViewBox matches the container
+ * asset (621×300) so the geometry is byte-identical to HSBC's brand
+ * guide.
+ *
+ * Inline SVG is supported in Gmail web/mobile, Apple Mail, Yahoo, and
+ * modern Outlook web; older Outlook desktop will degrade to a plain
+ * rectangle of the image (still readable, just not clipped).
  */
 function hexagonImageSvg(imageUrl: string, alt: string): string {
   const safeUrl = escapeAttr(imageUrl);
   const safeAlt = escapeAttr(alt || "Imagen");
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 360" width="600" height="360" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;height:auto;max-width:600px;" role="img" aria-label="${safeAlt}">
+  // Path verbatim from /Hexágono/Hexagono_hex.svg — the isolated hex
+  // shape (no container). 384×278 native, scales fluidly with the email
+  // width. The hex has a straight right edge and a 2-segment diagonal
+  // "point" on the left, same brand signature HSBC uses elsewhere.
+  const HEX_PATH = "M112.5 278 L0 165.5 L165.5 0 L383.5 0 L383.5 278 Z";
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 278" width="600" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;height:auto;max-width:600px;" role="img" aria-label="${safeAlt}">
   <defs>
     <clipPath id="hsbc-hero-hex" clipPathUnits="userSpaceOnUse">
-      <polygon points="120,0 480,0 600,180 480,360 120,360 0,180" />
+      <path d="${HEX_PATH}" />
     </clipPath>
   </defs>
-  <rect x="0" y="0" width="600" height="360" fill="#FFFFFF" />
-  <image href="${safeUrl}" x="0" y="0" width="600" height="360" preserveAspectRatio="xMidYMid slice" clip-path="url(#hsbc-hero-hex)" />
+  <image href="${safeUrl}" x="0" y="0" width="384" height="278" preserveAspectRatio="xMidYMid slice" clip-path="url(#hsbc-hero-hex)" />
 </svg>`;
 }
 
