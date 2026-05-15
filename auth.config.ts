@@ -43,6 +43,13 @@ export const authConfig = {
       if (pathname.startsWith("/login")) return true;
       if (pathname.startsWith("/api/auth")) return true;
       if (pathname.startsWith("/api/health")) return true;
+      // Cron endpoints: gated by their own Bearer token (CRON_SECRET) inside
+      // the route handler, so NextAuth must let them through. Without this,
+      // every Vercel Cron request would 307 to /login and the schedule would
+      // silently fail — exactly the bug that left notifications_cache stale.
+      if (pathname === "/api/sync") return true;
+      if (pathname === "/api/refresh-metrics") return true;
+      if (pathname === "/api/sync-campaigns") return true;
       // Everything else requires auth
       return isLoggedIn;
     },
