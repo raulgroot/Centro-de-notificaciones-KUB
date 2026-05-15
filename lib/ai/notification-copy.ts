@@ -98,11 +98,14 @@ function systemPrompt(): string {
 function briefToUserPrompt(brief: DraftBrief): string {
   const lines: string[] = ["Datos del brief:"];
   if (brief.product) lines.push(`- Producto: ${brief.product}`);
-  if (brief.movement) lines.push(`- Movimiento: ${brief.movement}`);
   if (brief.lifecycle) lines.push(`- Etapa del ciclo: ${brief.lifecycle}`);
-  if (brief.audience) lines.push(`- Audiencia: ${brief.audience}`);
+  if (brief.topic) lines.push(`- De qué se trata: ${brief.topic}`);
   if (brief.tone) lines.push(`- Tono: ${brief.tone}`);
-  if (brief.context) lines.push(`- Contexto adicional: ${brief.context}`);
+  // Legacy fields (drafts antes de la simplificación). Si vienen, los
+  // adjuntamos como contexto extra para no perder lo que ya escribió.
+  if (brief.movement) lines.push(`- Movimiento (legacy): ${brief.movement}`);
+  if (brief.audience) lines.push(`- Audiencia (legacy): ${brief.audience}`);
+  if (brief.context) lines.push(`- Contexto extra (legacy): ${brief.context}`);
   return lines.join("\n");
 }
 

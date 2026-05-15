@@ -288,11 +288,16 @@ export const campaignLoads = pgTable(
  */
 export interface DraftBrief {
   product?: string; // e.g. "viva", "advance"
-  movement?: string; // e.g. "alta nueva", "renovacion x vencimiento"
   lifecycle?: string; // e.g. "emitted", "transit", "delivered"
-  audience?: string; // "titular" | "adicional" | "empleado"
-  tone?: string; // "formal" | "casual" | "celebratorio" | ...
-  context?: string; // extra prompt for Claude
+  /** Free-form: "what is this notification about?". The meat of the prompt. */
+  topic?: string;
+  /** Optional chip: "informativo" | "celebratorio" | "urgente" | "formal" */
+  tone?: string;
+  // Legacy fields, kept as-is so drafts created before the simplification
+  // still de-serialize without runtime errors. Future briefs use `topic`.
+  movement?: string;
+  audience?: string;
+  context?: string;
 }
 
 export interface DraftCopy {

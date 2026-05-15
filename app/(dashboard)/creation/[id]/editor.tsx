@@ -41,22 +41,38 @@ import {
   X,
 } from "lucide-react";
 
-const PRODUCTS = ["viva", "vivaplus", "2now", "advance", "air", "premier", "clasica", "zero"];
-const MOVEMENTS = [
-  "alta nueva",
-  "renovacion x vencimiento",
-  "reposicion por maltrato",
-  "cambio de producto upgrade",
-  "trascodificadas",
-];
-const LIFECYCLES = ["emitted", "transit", "delivered", "activation", "problem"];
-const TONES = ["informativo", "celebratorio", "urgente", "formal"];
+/** Products that have an official HSBC card icon under /public/cards/. */
+const PRODUCTS = [
+  { id: "viva", label: "Viva", icon: "/cards/viva.png" },
+  { id: "vivaplus", label: "Viva Plus", icon: "/cards/vivaplus.png" },
+  { id: "2now", label: "2Now", icon: "/cards/2now.png" },
+  { id: "advance", label: "Advance", icon: "/cards/advance.png" },
+  { id: "air", label: "Air", icon: "/cards/air.png" },
+  { id: "premier", label: "Premier", icon: "/cards/premier.png" },
+  { id: "clasica", label: "Clásica", icon: "/cards/clasica.png" },
+  { id: "zero", label: "Zero", icon: "/cards/zero.png" },
+] as const;
+
+const LIFECYCLES = [
+  { id: "emitted", label: "Emitida" },
+  { id: "transit", label: "En tránsito" },
+  { id: "delivered", label: "Entregada" },
+  { id: "activation", label: "Activación" },
+  { id: "problem", label: "Problema" },
+] as const;
+
+const TONES = [
+  { id: "informativo", label: "Informativo" },
+  { id: "celebratorio", label: "Celebratorio" },
+  { id: "urgente", label: "Urgente" },
+  { id: "formal", label: "Formal" },
+] as const;
 
 type CopyField = keyof DraftCopy;
 
 /** Has the brief been filled enough to be considered "complete"? */
 function isBriefComplete(b: DraftBrief): boolean {
-  return Boolean(b.product && b.movement && b.lifecycle);
+  return Boolean(b.product && b.lifecycle && (b.topic ?? b.context));
 }
 
 export function DraftEditor({ draft }: { draft: NotificationDraft }) {
@@ -155,27 +171,21 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
     });
   }
 
-  const briefSummary = [
-    brief.product,
-    brief.movement,
-    brief.lifecycle,
-    brief.audience,
-    brief.tone,
-  ].filter((v): v is string => Boolean(v));
-
   return (
     <div className="flex h-full w-full flex-col overflow-hidden">
-      {/* TOP BAR: brief — collapsible. When closed, shows a chip strip + Editar button. */}
-      <div className="shrink-0 border-b border-neutral-200 bg-neutral-50/60">
-        {briefOpen ? (
-          <div className="p-5">
-            <div className="mb-3 flex items-center justify-between gap-2">
+      {/* TOP BAR: brief — when open it's a wizard; when closed it disappears
+          completely and only a small "Editar brief" button remains floating
+          near the header so it doesn't compete with copy + preview. */}
+      {briefOpen && (
+        <div className="shrink-0 border-b border-neutral-200 bg-neutral-50/60">
+          <div className="mx-auto max-w-5xl p-6">
+            <div className="mb-4 flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
-                  Brief
+                <h2 className="text-base font-semibold text-neutral-900">
+                  Crea tu notificación HSBC
                 </h2>
                 <p className="mt-0.5 text-xs text-neutral-600">
-                  Llena lo que sepas. Claude genera todo el copy a partir de aquí.
+                  Solo dime sobre qué se trata y el tono. Yo me encargo del resto.
                 </p>
               </div>
               {isBriefComplete(brief) && (
@@ -183,60 +193,113 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                   type="button"
                   onClick={() => setBriefOpen(false)}
                   className="inline-flex items-center gap-1 rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50"
-                  title="Ocultar brief"
                 >
                   <ChevronUp className="h-3.5 w-3.5" />
-                  Ocultar
+                  Cerrar
                 </button>
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-              <ComboField
-                id="product"
-                label="Producto"
-                value={brief.product ?? ""}
-                options={PRODUCTS}
-                onChange={(v) => setBrief({ ...brief, product: v })}
-              />
-              <ComboField
-                id="movement"
-                label="Movimiento"
-                value={brief.movement ?? ""}
-                options={MOVEMENTS}
-                onChange={(v) => setBrief({ ...brief, movement: v })}
-              />
-              <ComboField
-                id="lifecycle"
-                label="Etapa"
-                value={brief.lifecycle ?? ""}
-                options={LIFECYCLES}
-                onChange={(v) => setBrief({ ...brief, lifecycle: v })}
-              />
-              <ComboField
-                id="audience"
-                label="Audiencia"
-                value={brief.audience ?? ""}
-                options={["titular", "adicional", "empleado"]}
-                onChange={(v) => setBrief({ ...brief, audience: v })}
-              />
-              <ComboField
-                id="tone"
-                label="Tono"
-                value={brief.tone ?? ""}
-                options={TONES}
-                onChange={(v) => setBrief({ ...brief, tone: v })}
-              />
-              <TextareaField
-                id="context"
-                label="Contexto extra"
-                value={brief.context ?? ""}
-                placeholder="Ej. Segmento ONE; énfasis en seguridad."
-                onChange={(v) => setBrief({ ...brief, context: v })}
+            {/* PRODUCT — card-icon picker */}
+            <div className="mb-4">
+              <div className="mb-1.5 text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+                Producto
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {PRODUCTS.map((p) => {
+                  const active = brief.product === p.id;
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setBrief({ ...brief, product: p.id })}
+                      className={`group inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition ${
+                        active
+                          ? "border-brand-600 bg-brand-50 text-brand-700 ring-brand-600/15 ring-2"
+                          : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300"
+                      }`}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={p.icon} alt="" className="h-6 w-9 object-contain" />
+                      {p.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* LIFECYCLE — chip picker */}
+            <div className="mb-4">
+              <div className="mb-1.5 text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+                Etapa del ciclo
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {LIFECYCLES.map((l) => {
+                  const active = brief.lifecycle === l.id;
+                  return (
+                    <button
+                      key={l.id}
+                      type="button"
+                      onClick={() => setBrief({ ...brief, lifecycle: l.id })}
+                      className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+                        active
+                          ? "border-brand-600 bg-brand-600 text-white"
+                          : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300"
+                      }`}
+                    >
+                      {l.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* TOPIC — textarea */}
+            <div className="mb-4">
+              <label
+                htmlFor="topic"
+                className="mb-1.5 block text-[11px] font-semibold tracking-wider text-neutral-500 uppercase"
+              >
+                ¿De qué se trata la notificación?
+              </label>
+              <textarea
+                id="topic"
+                value={brief.topic ?? ""}
+                onChange={(e) => setBrief({ ...brief, topic: e.target.value })}
+                rows={4}
+                placeholder="Ej. Avisar al cliente que su tarjeta VIVA ya fue generada y le llegará en 5-10 días hábiles. Mencionar que puede rastrearla. Recordar que si necesita actualizar la dirección, hay un botón directo."
+                className="focus:border-brand-600 focus:ring-brand-600/15 w-full rounded-md border border-neutral-300 bg-white px-3 py-2.5 text-sm placeholder:text-neutral-400 focus:ring-2 focus:outline-none"
               />
             </div>
 
-            <div className="mt-4 flex items-center justify-between gap-3">
+            {/* TONE — chip picker */}
+            <div className="mb-4">
+              <div className="mb-1.5 text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+                Tono
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {TONES.map((t) => {
+                  const active = brief.tone === t.id;
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setBrief({ ...brief, tone: t.id })}
+                      className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+                        active
+                          ? "border-brand-600 bg-brand-600 text-white"
+                          : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300"
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Action: generate */}
+            <div className="mt-5 flex items-center justify-between gap-3 border-t border-neutral-200 pt-4">
               <div className="flex items-center gap-1.5 text-[11px] text-neutral-500">
                 {isPending && <Loader2 className="h-3 w-3 animate-spin" />}
                 {isPending ? "Guardando…" : "Guardado automáticamente"}
@@ -244,18 +307,18 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
               <button
                 type="button"
                 onClick={onGenerate}
-                disabled={busy.generate}
+                disabled={busy.generate || !brief.product || !brief.lifecycle}
                 className="bg-brand-600 hover:bg-brand-700 inline-flex items-center justify-center gap-2 rounded-md px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {busy.generate ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Generando…
+                    Generando con IA…
                   </>
                 ) : (
                   <>
                     <Sparkles className="h-4 w-4" />
-                    Generar copy con IA
+                    Generar notificación
                   </>
                 )}
               </button>
@@ -267,56 +330,27 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
               </div>
             )}
           </div>
-        ) : (
-          /* Collapsed brief: chip strip + Editar */
-          <div className="flex flex-wrap items-center gap-2 px-5 py-3">
-            <span className="text-[10px] font-semibold tracking-wider text-neutral-500 uppercase">
-              Brief
-            </span>
-            {briefSummary.length === 0 ? (
-              <span className="text-xs text-neutral-400">sin definir</span>
-            ) : (
-              briefSummary.map((v) => (
-                <span
-                  key={v}
-                  className="inline-flex items-center rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-neutral-700 ring-1 ring-neutral-200"
-                >
-                  {v}
-                </span>
-              ))
-            )}
-            <div className="ml-auto flex items-center gap-2">
-              <div className="flex items-center gap-1.5 text-[11px] text-neutral-500">
-                {isPending && <Loader2 className="h-3 w-3 animate-spin" />}
-                {isPending ? "Guardando…" : "Guardado"}
-              </div>
-              <button
-                type="button"
-                onClick={onGenerate}
-                disabled={busy.generate}
-                className="bg-brand-600 hover:bg-brand-700 inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-semibold text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-60"
-                title="Re-generar copy con el brief actual"
-              >
-                {busy.generate ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Sparkles className="h-3.5 w-3.5" />
-                )}
-                Re-generar
-              </button>
-              <button
-                type="button"
-                onClick={() => setBriefOpen(true)}
-                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-3 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-                Editar brief
-                <ChevronDown className="h-3.5 w-3.5" />
-              </button>
-            </div>
+        </div>
+      )}
+
+      {/* Floating "Editar brief" button when brief is collapsed. */}
+      {!briefOpen && (
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-neutral-200 bg-white px-5 py-2">
+          <div className="flex items-center gap-1.5 text-[11px] text-neutral-500">
+            {isPending && <Loader2 className="h-3 w-3 animate-spin" />}
+            {isPending ? "Guardando…" : "Guardado automáticamente"}
           </div>
-        )}
-      </div>
+          <button
+            type="button"
+            onClick={() => setBriefOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50"
+            title="Volver a abrir el brief para re-generar"
+          >
+            <Pencil className="h-3 w-3" />
+            Editar brief
+          </button>
+        </div>
+      )}
 
       {/* MAIN: copy + preview (2 columns, both get full breathing room). */}
       <div className="grid flex-1 grid-cols-1 overflow-hidden lg:grid-cols-2">

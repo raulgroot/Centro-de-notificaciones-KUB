@@ -1,0 +1,318 @@
+/**
+ * Real HSBC email template, embedded as a string constant.
+ *
+ * Source: `notifications_cache` row for `viva emitted titular alta nueva`
+ * (downloaded May 2026). Used by `renderEmailHtml()` as the byte-by-byte
+ * skeleton — we only mutate the dynamic content (headline, body, hero
+ * image, CTA) at render time via cheerio.
+ *
+ * Why a TS constant instead of fs.readFileSync? Next.js doesn't reliably
+ * include arbitrary .html files from /lib in the Vercel bundle. Bundling
+ * the markup as a string sidesteps that and keeps the function pure.
+ *
+ * If you ever need to update the base: re-pull from Supabase and
+ * regenerate this file (see scripts/regen-hsbc-base.ts — TODO).
+ */
+
+export const HSBC_BASE_HTML = `
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns="http://www.w3.org/1999/xhtml" style="box-sizing:inherit;box-sizing:border-box;font-size:calc(1.0 * 62.5%);height:100%;color-scheme:light;supported-color-schemes:light;font-size:16px">
+  <head style="box-sizing:inherit">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" style="box-sizing:inherit" />
+    <meta name="x-apple-disable-message-reformatting" style="box-sizing:inherit" />
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" style="box-sizing:inherit" />
+    <meta name="color-scheme" content="light dark" style="box-sizing:inherit" />
+    <meta name="supported-color-schemes" content="light dark" style="box-sizing:inherit" />
+    <title style="box-sizing:inherit"></title>
+    
+        
+
+    
+    
+
+    
+  <style>*::before{box-sizing:inherit}
+*::after{box-sizing:inherit}
+@media screen and (min-width: 750px) {
+body{font-size:1.6rem}
+}
+@font-face{font-family:'Univers Next';src:url(https://rastreo.kublau.com/rails/active_storage/public_blobs/b6bbfe455zhw3mh5ahhdcbmwpsgm/public_assets-univers-next.woff) format("woff")}
+@media only screen and (min-width: 750px) {
+.h0{font-size:5.2rem}
+}
+@media only screen and (min-width: 750px) {
+h1{font-size:4rem}
+}
+@media only screen and (min-width: 750px) {
+.h1{font-size:4rem}
+}
+@media only screen and (min-width: 750px) {
+h2{font-size:2.4rem}
+}
+@media only screen and (min-width: 750px) {
+.h2{font-size:2.4rem}
+}
+@media only screen and (min-width: 750px) {
+h3{font-size:1.8rem}
+}
+@media only screen and (min-width: 750px) {
+.h3{font-size:1.8rem}
+}
+@media only screen and (min-width: 750px) {
+h5{font-size:1.3rem}
+}
+@media only screen and (min-width: 750px) {
+.h5{font-size:1.3rem}
+}
+@media only screen and (max-width: 600px) {
+.spaced-section{padding-left:16px;padding-right:16px}
+}
+@media only screen and (max-width: 500px) {
+.button{width:100% !important;text-align:center !important}
+}
+@media only screen and (max-width: 600px) {
+.email-body_inner{width:100% !important}
+}
+@media only screen and (max-width: 600px) {
+.email-footer{width:100% !important}
+}</style></head>
+  <body style="box-sizing:inherit;display:grid;grid-template-rows:auto auto 1fr auto;grid-template-columns:100%;min-height:100%;font-size:1.5rem;letter-spacing:0.06rem;line-height:calc(1 + 0.8 / 1.0);font-family:var(--font-body-family);font-style:var(--font-body-style);font-weight:var(--font-body-weight);height:100%;margin:0;-webkit-text-size-adjust:none;font-family:'Univers Next', Arial, sans-serif;background-color:#FFF;width:100% !important">
+    <table class="email-wrapper" width="100%" cellpadding="0" cellspacing="0" role="presentation" style="box-sizing:inherit;width:100%;margin:0;padding:0;-premailer-width:100%;-premailer-cellpadding:0;-premailer-cellspacing:0;background-color:#FFF">
+      <tr style="box-sizing:inherit">
+        <td align="center" style="box-sizing:inherit;word-break:break-word;font-family:'Univers Next', Arial, sans-serif">
+          <table class="email-content" width="100%" cellpadding="0" cellspacing="0" role="presentation" style="box-sizing:inherit;width:100%;margin:0;padding:0;-premailer-width:100%;-premailer-cellpadding:0;-premailer-cellspacing:0">
+            
+            <tr style="box-sizing:inherit">
+              <td class="email-body" width="570" cellpadding="0" cellspacing="0" style="box-sizing:inherit;word-break:break-word;font-family:'Univers Next', Arial, sans-serif;width:100%;min-height:100%;margin:0;padding:0;background-color:#eee;-premailer-width:100%;-premailer-cellpadding:0;-premailer-cellspacing:0">
+                <table class="email-body_inner" align="center" width="570" cellpadding="0" cellspacing="0" role="presentation" style="box-sizing:inherit;max-width:600px;width:100%;margin:0 auto;padding:0;-premailer-width:600px;-premailer-cellpadding:0;-premailer-cellspacing:0;background-color:#FFFFFF;border:1px solid #cecece">
+                  
+                  <tr style="box-sizing:inherit">
+                    <td class="content-cell" style="box-sizing:inherit;word-break:break-word;font-family:'Univers Next', Arial, sans-serif;max-width:621px">
+                      <div class="f-fallback" style="box-sizing:inherit">
+                              <div style="box-sizing:inherit">
+  <div class="spaced-section spaced-section--full-width spaced-section--flush" style="box-sizing:inherit;margin-top:32px;margin-bottom:32px;padding-left:32px;padding-right:32px;padding-left:0px;padding-right:0px;margin-top:0px;margin-bottom:0px">
+  <table border="0" cellspacing="0" cellpadding="0" width="100%" style="box-sizing:inherit">
+      <tr style="box-sizing:inherit">
+          <td style="box-sizing:inherit;word-break:break-word;font-family:'Univers Next', Arial, sans-serif"></td>
+          <td width="600" style="box-sizing:inherit;word-break:break-word;font-family:'Univers Next', Arial, sans-serif">
+            
+              <img src="https://rastreo.kublau.com/rails/active_storage/public_blobs/ioqpk91b0etcq1te1mqxliykjfqj/public_assets-header_viva_todo.png" style="box-sizing:inherit;display:block;max-width:100%" />
+            
+          </td>
+          <td style="box-sizing:inherit;word-break:break-word;font-family:'Univers Next', Arial, sans-serif"></td>
+       </tr>
+  </table>
+</div>
+
+
+</div>
+  <div style="box-sizing:inherit">
+  <div class="spaced-section spaced-section--full-width " style="box-sizing:inherit;margin-top:32px;margin-bottom:32px;padding-left:32px;padding-right:32px;padding-left:0px;padding-right:0px">
+  <table border="0" cellspacing="0" cellpadding="0" width="100%" style="box-sizing:inherit">
+      <tr style="box-sizing:inherit">
+          <td style="box-sizing:inherit;word-break:break-word;font-family:'Univers Next', Arial, sans-serif"></td>
+          <td width="600" style="box-sizing:inherit;word-break:break-word;font-family:'Univers Next', Arial, sans-serif">
+            
+              <img src="https://rastreo.kublau.com/rails/active_storage/public_blobs/zyprbxzeptqlna6plgklurxh9vgv/public_assets-emitted_header-container.png" style="box-sizing:inherit;display:block;max-width:100%" />
+            
+          </td>
+          <td style="box-sizing:inherit;word-break:break-word;font-family:'Univers Next', Arial, sans-serif"></td>
+       </tr>
+  </table>
+</div>
+
+
+</div>
+  <div class="spaced-section" style="box-sizing:inherit;margin-top:32px;margin-bottom:32px;padding-left:32px;padding-right:32px">
+  <div class="heading-container" style="box-sizing:inherit;line-height:calc(1 + 0.3 / max(1, 1.0))">
+  <h2 class="h5" style="box-sizing:inherit;font-size:2rem;letter-spacing:0.06rem;color:rgb(219, 0, 17);font-size:1.2rem">
+    ¡Hola, NICOLE SOTO GARCIA!
+  </h2>
+</div>
+
+
+</div>
+  
+  <div style="box-sizing:inherit">
+  <div class="spaced-section spaced-section--full-width spaced-section--flush" style="box-sizing:inherit;margin-top:32px;margin-bottom:32px;padding-left:32px;padding-right:32px;padding-left:0px;padding-right:0px;margin-top:0px;margin-bottom:0px">
+  <table border="0" cellspacing="0" cellpadding="0" width="100%" style="box-sizing:inherit">
+      <tr style="box-sizing:inherit">
+          <td style="box-sizing:inherit;word-break:break-word;font-family:'Univers Next', Arial, sans-serif"></td>
+          <td width="600" style="box-sizing:inherit;word-break:break-word;font-family:'Univers Next', Arial, sans-serif">
+            
+              <img src="https://rastreo.kublau.com/rails/active_storage/public_blobs/iwg0ov1aj1ulimhs8lv8wbda4uc2/public_assets-viva_generica_tracking.png" style="box-sizing:inherit;display:block;max-width:100%" />
+            
+          </td>
+          <td style="box-sizing:inherit;word-break:break-word;font-family:'Univers Next', Arial, sans-serif"></td>
+       </tr>
+  </table>
+</div>
+
+
+</div>
+  <div style="box-sizing:inherit">
+  <div class="spaced-section p  spaced-section--flush" style="box-sizing:inherit;margin:.4em 0 1.1875em;font-size:1rem;line-height:1.8rem;margin-top:32px;margin-bottom:32px;padding-left:32px;padding-right:32px;margin-top:0px;margin-bottom:0px; ">
+  <div style="box-sizing:inherit">Tu <strong style="box-sizing:inherit">Tarjeta de Crédito HSBC VIVA </strong>ha sido generada y el código de rastreo es <strong style="box-sizing:inherit">260511000917.<br style="box-sizing:inherit" /><br style="box-sizing:inherit" /></strong>Será enviada a la dirección<strong style="box-sizing:inherit"> registrada con nosotros:<br style="box-sizing:inherit" /><br style="box-sizing:inherit" />C 27 B NOR ***, Puebla, Puebla, 72090<br style="box-sizing:inherit" /><br style="box-sizing:inherit" /></strong>Si el código postal no coincide con la dirección actual, da click en el botón:</div>
+</div>
+
+
+
+</div>
+  
+  
+  
+  
+  
+  <section class="spaced-section" style="box-sizing:inherit;margin-top:32px;margin-bottom:32px;padding-left:32px;padding-right:32px">
+  <table class="body-action" align="center" width="100%" cellpadding="0" cellspacing="0" style="box-sizing:inherit">
+  <tr style="box-sizing:inherit">
+    <td align="center" style="box-sizing:inherit;word-break:break-word;font-family:'Univers Next', Arial, sans-serif">
+      <table width="100%" border="0" cellspacing="0" cellpadding="0" style="box-sizing:inherit">
+        <tr style="box-sizing:inherit">
+          <td align="center" style="box-sizing:inherit;word-break:break-word;font-family:'Univers Next', Arial, sans-serif">
+            <table border="0" cellspacing="0" cellpadding="0" style="box-sizing:inherit">
+              <tr style="box-sizing:inherit">
+                <td style="box-sizing:inherit;word-break:break-word;font-family:'Univers Next', Arial, sans-serif">
+                  <a href="https://rastreo.kublau.com/workspaces/rastreo/publics/tickets/new?data=S95tZ5d2IpuVmM2c4kdqcLaeC2dU5NI6WgqV4n5UKbvAP1%2Bk1ZvpBmMO4J3O0f68KvoNH%2B11wZVXDLmqqkVfNrbzYpSCOI75S3mq0XGR3OAVFwHl8zGJZTJTF4L%2B%2F9Iqrcg9jDWD5BZswAIq4a4tVTyJvVqcDf3t1bTQRGfvObVajyZ52lxe5jIEDsIqLhy1ZzIXOhWvDvXrSsOB34G6pgCHa%2FGWm2ryJcWqVnQ%3D--HCkqfFRvEy0Gk%2FLR--w3%2B%2BqCXuZssK6uluGEJTwA%3D%3D" class="button button--primary" style="box-sizing:inherit;color:#3869D4;color:rgb(255, 255, 255);background-color:rgb(219, 0, 17);border-top:10px solid rgb(219, 0, 17);border-right:18px solid rgb(219, 0, 17);border-bottom:10px solid rgb(219, 0, 17);border-left:18px solid rgb(219, 0, 17);font-size:1rem;display:inline-block;text-align:center;text-decoration:none;border-radius:0.5rem;-webkit-text-size-adjust:none;box-sizing:border-box">
+                    Actualizar domicilio de entrega
+                  </a>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+
+
+
+
+
+</section>
+  <div style="box-sizing:inherit">
+  <div class="spaced-section p  " style="box-sizing:inherit;margin:.4em 0 1.1875em;font-size:1rem;line-height:1.8rem;margin-top:32px;margin-bottom:32px;padding-left:32px;padding-right:32px; font-size: 1.0rem; ">
+  <div style="box-sizing:inherit">Cualquier duda relacionada con la entrega, comunícate al <a href="https://master.rastreo.kublau.com/workspaces/rastreo/themes/92a77eb4-f904-4b16-badb-131245fa8af6/templates/6e0a3353-bf73-47be-a963-b561ab4db5d7/%7B%%20urlForPublics%20'click_to_calls',%20'show',%20tracking_code:%20tracker.tracking_code,%20phone:%20'+525557211168'%20%%7D" style="box-sizing:inherit;color:#3869D4">55 5721 1168 – Opc 2</a> o mediante el chat desde tu app móvil escribiendo la frase <strong style="box-sizing:inherit">"Quiero localizar mi tarjeta de crédito".</strong></div>
+</div>
+
+
+
+</div>
+  
+  <div style="box-sizing:inherit">
+  <div class="spaced-section spaced-section--full-width spaced-section--flush" style="box-sizing:inherit;margin-top:32px;margin-bottom:32px;padding-left:32px;padding-right:32px;padding-left:0px;padding-right:0px;margin-top:0px;margin-bottom:0px">
+  <table border="0" cellspacing="0" cellpadding="0" width="100%" style="box-sizing:inherit">
+      <tr style="box-sizing:inherit">
+          <td style="box-sizing:inherit;word-break:break-word;font-family:'Univers Next', Arial, sans-serif"></td>
+          <td width="600" style="box-sizing:inherit;word-break:break-word;font-family:'Univers Next', Arial, sans-serif">
+            
+              <a role="link" href="https://www.hsbc.com.mx/" style="box-sizing:inherit;color:#3869D4">
+                <img src="https://rastreo.kublau.com/rails/active_storage/public_blobs/aarle474uhk4kacluy9v4mmcni8x/public_assets-link-de-pagina.png" style="box-sizing:inherit;display:block;max-width:100%;border:none" />
+              </a>
+            
+          </td>
+          <td style="box-sizing:inherit;word-break:break-word;font-family:'Univers Next', Arial, sans-serif"></td>
+       </tr>
+  </table>
+</div>
+
+
+</div>
+  <div style="box-sizing:inherit">
+  <div class="spaced-section spaced-section--full-width " style="box-sizing:inherit;margin-top:32px;margin-bottom:32px;padding-left:32px;padding-right:32px;padding-left:0px;padding-right:0px">
+  <table border="0" cellspacing="0" cellpadding="0" width="100%" style="box-sizing:inherit">
+      <tr style="box-sizing:inherit">
+          <td style="box-sizing:inherit;word-break:break-word;font-family:'Univers Next', Arial, sans-serif"></td>
+          <td width="600" style="box-sizing:inherit;word-break:break-word;font-family:'Univers Next', Arial, sans-serif">
+            
+              <img src="https://rastreo.kublau.com/rails/active_storage/public_blobs/t2tcc8tor6ojk4ghbxml0v1st1wl/public_assets-tip-de-seguridad.png" style="box-sizing:inherit;display:block;max-width:100%" />
+            
+          </td>
+          <td style="box-sizing:inherit;word-break:break-word;font-family:'Univers Next', Arial, sans-serif"></td>
+       </tr>
+  </table>
+</div>
+
+
+</div>
+  
+  
+  <div class="spaced-section" style="box-sizing:inherit;margin-top:32px;margin-bottom:32px;padding-left:32px;padding-right:32px">
+  <div class="social-networks-banner" style="box-sizing:inherit">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" valign="bottom" style="box-sizing:inherit">
+    <tr style="box-sizing:inherit">
+      <th style="box-sizing:inherit;font-family:'Univers Next', Arial, sans-serif;font-size:0.9rem;font-weight:normal;padding-right:1rem">
+        Conéctate a nuestras redes sociales 
+      </th>
+      <td style="box-sizing:inherit;word-break:break-word;font-family:'Univers Next', Arial, sans-serif;padding-left:0.5rem">
+        <a href="https://www.instagram.com/hsbc_mx/?hl=es" style="box-sizing:inherit;color:#3869D4">
+          <img src="https://rastreo.kublau.com/rails/active_storage/public_blobs/awxsl2jaegtsujm6vm4hq78rygg6/public_assets-logo-ig.png" style="box-sizing:inherit;display:block;max-width:100%;border:none;vertical-align:middle;width:1.4rem;height:1.4rem" />
+        </a>
+      </td>
+      <td style="box-sizing:inherit;word-break:break-word;font-family:'Univers Next', Arial, sans-serif;padding-left:0.5rem">
+        <a href="https://www.facebook.com/HSBCMX/?locale=es_LA" style="box-sizing:inherit;color:#3869D4">
+          <img src="https://rastreo.kublau.com/rails/active_storage/public_blobs/vol8fi1gte0bhjbkk2o99l1l585g/public_assets-logo_face.png" style="box-sizing:inherit;display:block;max-width:100%;border:none;vertical-align:middle;width:1.4rem;height:1.4rem" />
+        </a>
+      </td>
+      <td style="box-sizing:inherit;word-break:break-word;font-family:'Univers Next', Arial, sans-serif;padding-left:0.5rem">
+        <a href="https://www.youtube.com/channel/UC35V-gnvYyeENIW2dptdpWQ" style="box-sizing:inherit;color:#3869D4">
+          <img src="https://rastreo.kublau.com/rails/active_storage/public_blobs/593f7u6lje3a441mt1wbdynq0595/public_assets-logo_youtube.png" style="box-sizing:inherit;display:block;max-width:100%;border:none;vertical-align:middle;width:1.4rem;height:1.4rem" />
+        </a>
+      </td>
+      <td style="box-sizing:inherit;word-break:break-word;font-family:'Univers Next', Arial, sans-serif;padding-left:0.5rem">
+        <a href="https://x.com/hsbc_mx" style="box-sizing:inherit;color:#3869D4">
+          <img src="https://rastreo.kublau.com/rails/active_storage/public_blobs/gs5gytxwr566qp373f9tyokf1xpm/public_assets-logox.png" style="box-sizing:inherit;display:block;max-width:100%;border:none;vertical-align:middle;width:1.4rem;height:1.4rem" />
+        </a>
+      </td>
+    </tr>
+  </table>
+</div>
+
+
+
+</div>
+  <div style="box-sizing:inherit">
+  <div class="legals" style="box-sizing:inherit;border:1px solid #D7D8D6;background-color:#d1d2d4;font-size:0.7rem;line-height:0.8rem;padding:1rem;overflow:hidden;color:#000">
+  <p class="p" style="box-sizing:inherit;color:#000;margin:.4em 0 1.1875em;font-size:1rem;line-height:1.8rem">
+    </p><div style="box-sizing:inherit"><a href="HSBC México" style="box-sizing:inherit;color:#3869D4;color:#000"><strong style="box-sizing:inherit">HSBC México</strong></a><strong style="box-sizing:inherit">             </strong><a href="https://www.hsbc.com.mx/contacto/" style="box-sizing:inherit;color:#3869D4;color:#000"><strong style="box-sizing:inherit">Contacto</strong></a><strong style="box-sizing:inherit"> </strong><br style="box-sizing:inherit" /><br style="box-sizing:inherit" />Emisora de la Tarjeta de Crédito: HSBC México S.A., Institución de Banca Múltiple, Grupo Financiero HSBC.<br style="box-sizing:inherit" /><br style="box-sizing:inherit" />Consulta requisitos, términos, condiciones de contratación y comisiones en www.hsbc.com.mx.<br style="box-sizing:inherit" /><br style="box-sizing:inherit" />HSBC y sus logotipos son marcas registradas en México.</div>
+  
+</div>
+
+
+
+</div>
+  <div style="box-sizing:inherit">
+  <div class="spaced-section spaced-section--full-width spaced-section--flush" style="box-sizing:inherit;margin-top:32px;margin-bottom:32px;padding-left:32px;padding-right:32px;padding-left:0px;padding-right:0px;margin-top:0px;margin-bottom:0px">
+  <table border="0" cellspacing="0" cellpadding="0" width="100%" style="box-sizing:inherit">
+      <tr style="box-sizing:inherit">
+          <td style="box-sizing:inherit;word-break:break-word;font-family:'Univers Next', Arial, sans-serif"></td>
+          <td width="600" style="box-sizing:inherit;word-break:break-word;font-family:'Univers Next', Arial, sans-serif">
+            
+              <img src="https://rastreo.kublau.com/rails/active_storage/public_blobs/q8mnjwz0roithv8yzjlzodqwasnx/public_assets-banner-kublau_recordatorio.png" style="box-sizing:inherit;display:block;max-width:100%" />
+            
+          </td>
+          <td style="box-sizing:inherit;word-break:break-word;font-family:'Univers Next', Arial, sans-serif"></td>
+       </tr>
+  </table>
+</div>
+
+
+</div>
+  
+ 
+
+                      </div>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+
+`;
