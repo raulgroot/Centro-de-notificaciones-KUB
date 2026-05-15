@@ -44,6 +44,9 @@ const VIVA_PRODUCTS = new Set(["viva", "vivaplus", "hsbc viva", "hsbc viva plus"
 /** Public URL of the HSBC-only logo (no product overlay). */
 const HSBC_ONLY_LOGO_URL = "https://centro-de-notificaciones-kub.vercel.app/hsbc-logo.svg";
 
+/** Color rojo HSBC (Masterbrand) — usado para saludos y acentos. */
+const HSBC_RED = "#DB0011";
+
 function escapeAttr(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
 }
@@ -124,7 +127,7 @@ function heroBlockHtml(args: { headline: string; imageUrl: string; alt: string }
 </svg>`
     : "";
 
-  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="width:100%;max-width:600px;border-collapse:collapse;margin:0 auto;background:#FFFFFF;">
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="width:100%;max-width:600px;border-collapse:collapse;margin:0 auto 24px auto;background:#FFFFFF;">
   <tr>
     <td valign="middle" align="left" style="width:38%;padding:24px 16px 24px 32px;background:#FFFFFF;">
       <h1 style="margin:0;font-family:'Univers Next',Arial,sans-serif;font-size:24px;line-height:1.2;font-weight:700;color:#1A1A1A;">${safeHeadline}</h1>
@@ -177,12 +180,13 @@ export function renderEmailHtml(args: {
       topHeader.attr("src", HSBC_ONLY_LOGO_URL);
       topHeader.attr("alt", "HSBC");
       // Preserve a sensible inline width for the plain logo (smaller than
-      // the Viva-branded banner art).
-      topHeader.attr("width", "180");
+      // the Viva-branded banner art). Padding lateral para que no toque
+      // los bordes del email.
+      topHeader.attr("width", "120");
       topHeader.removeAttr("height");
       topHeader.attr(
         "style",
-        "box-sizing:inherit;display:block;width:180px;max-width:100%;height:auto;margin:8px 0;",
+        "box-sizing:inherit;display:block;width:120px;max-width:100%;height:auto;margin:16px 0 16px 24px;",
       );
     }
   }
@@ -224,10 +228,14 @@ export function renderEmailHtml(args: {
   }
 
   // 3. Body → the div that wraps the "Tu Tarjeta de Crédito..." paragraph.
+  //    Prependemos un saludo en rojo HSBC + negritas. Usamos un placeholder
+  //    `[Nombre]` que MKT/CRM puede reemplazar con la variable real del MTA
+  //    (ej. `{{first_name}}` en Postmark / `%%FNAME%%` en Salesforce).
   if (copy.body) {
     const bodyTarget = $('strong:contains("Tarjeta de Crédito")').first().closest("div");
     if (bodyTarget.length > 0) {
-      bodyTarget.html(bodyToInlineHtml($, copy.body));
+      const greeting = `<p style="margin:0 0 16px 0;font-family:'Univers Next',Arial,sans-serif;font-size:18px;line-height:1.3;font-weight:700;color:${HSBC_RED};">¡Hola, [Nombre]!</p>`;
+      bodyTarget.html(greeting + bodyToInlineHtml($, copy.body));
     }
   }
 
