@@ -25,6 +25,38 @@ const getCachedFacets = unstable_cache(() => notifs.facets(), ["notification-fac
   tags: ["facets"],
 });
 
+/**
+ * `listAllLight` pulls every row (~910KB) and takes ~1.2s server-side. Without
+ * caching, every back-navigation from /notifications/[id] to /notifications
+ * re-queries Supabase, which Raúl rightly felt as a regression.
+ *
+ * The underlying data refreshes once a day via cron — so a 60s TTL is plenty
+ * to make back-nav feel instant without ever serving stale data for more
+ * than a minute. The cache key includes every filter dimension so each
+ * (search, product, …) combination has its own entry, but in practice the
+ * common case is "no filter, default groups view" which is one hot key.
+ */
+const getCachedListAllLight = unstable_cache(
+  async (filter: Parameters<typeof notifs.listAllLight>[0]) => notifs.listAllLight(filter),
+  ["notifications-listAllLight-v1"],
+  { revalidate: 60, tags: ["notifications-light"] },
+);
+
+/**
+ * Same story for `list` + `count` used by the list/cards views with no
+ * status/stage filter. Memoize the pair per filter signature.
+ */
+const getCachedList = unstable_cache(
+  async (filter: Parameters<typeof notifs.list>[0]) => notifs.list(filter),
+  ["notifications-list-v1"],
+  { revalidate: 60, tags: ["notifications-light"] },
+);
+const getCachedCount = unstable_cache(
+  async (filter: Parameters<typeof notifs.count>[0]) => notifs.count(filter),
+  ["notifications-count-v1"],
+  { revalidate: 60, tags: ["notifications-light"] },
+);
+
 const PAGE_SIZE = 50;
 const CARDS_PAGE_SIZE = 48;
 
@@ -178,7 +210,7 @@ async function ListView({
   // aren't simple column predicates, so when either is active we fetch the
   // full lightweight set and filter in the app layer.
   if (status || stage) {
-    const all = filterByStage(filterByStatus(await notifs.listAllLight(filter), status), stage);
+    const all = filterByStage(filterByStatus(await getCachedListAllLight(filter), status), stage);
     const window = all.slice(offset, offset + (filter.limit ?? PAGE_SIZE));
     return (
       <ListBody
@@ -189,7 +221,7 @@ async function ListView({
       />
     );
   }
-  const [notifications, total] = await Promise.all([notifs.list(filter), notifs.count(filter)]);
+  const [notifications, total] = await Promise.all([getCachedList(filter), getCachedCount(filter)]);
   return (
     <ListBody
       notifications={notifications}
@@ -254,11 +286,11 @@ async function CardsView({
   let items: Awaited<ReturnType<typeof notifs.list>>;
   let total: number;
   if (status || stage) {
-    const all = filterByStage(filterByStatus(await notifs.listAllLight(filter), status), stage);
+    const all = filterByStage(filterByStatus(await getCachedListAllLight(filter), status), stage);
     total = all.length;
     items = all.slice(offset, offset + (filter.limit ?? CARDS_PAGE_SIZE));
   } else {
-    [items, total] = await Promise.all([notifs.list(filter), notifs.count(filter)]);
+    [items, total] = await Promise.all([getCachedList(filter), getCachedCount(filter)]);
   }
 
   return (
@@ -293,7 +325,7 @@ async function GroupsView({
   status: NotificationStatus | undefined;
   stage: LifecycleStage | undefined;
 }) {
-  const all = filterByStage(filterByStatus(await notifs.listAllLight(filter), status), stage);
+  const all = filterByStage(filterByStatus(await getCachedListAllLight(filter), status), stage);
   const groups = groupByMovement(all);
 
   if (all.length === 0) {
