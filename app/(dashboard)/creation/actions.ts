@@ -38,11 +38,14 @@ export async function saveDraftAction(args: {
   copy?: DraftCopy;
   heroImage?: DraftHeroImage | null;
 }): Promise<void> {
+  // We need the product key to pick the right top header art (HSBC+VIVA
+  // for Viva/Plus, HSBC-only otherwise). The brief is the source of truth.
   const renderedHtml =
     args.copy || args.heroImage !== undefined
       ? renderEmailHtml({
           copy: args.copy ?? {},
           heroImage: args.heroImage ?? null,
+          product: args.brief?.product,
         })
       : undefined;
   await updateDraft(args.id, {

@@ -92,7 +92,13 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
   // anytime to tweak the inputs.
   const [briefOpen, setBriefOpen] = useState<boolean>(!draft.copy.subject);
 
-  const previewHtml = useMemo(() => renderEmailHtml({ copy, heroImage }), [copy, heroImage]);
+  // Re-render the email preview on any change to copy / hero / product
+  // (the brand header is product-aware: Viva → HSBC+VIVA art, else
+  // HSBC-only logo).
+  const previewHtml = useMemo(
+    () => renderEmailHtml({ copy, heroImage, product: brief.product }),
+    [copy, heroImage, brief.product],
+  );
 
   // Auto-save debounced. The ref shadows the latest state so the setTimeout
   // callback doesn't capture stale values; updated in a layout-safe effect
