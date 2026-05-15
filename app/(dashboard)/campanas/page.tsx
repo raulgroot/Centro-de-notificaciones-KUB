@@ -1,11 +1,17 @@
 import Link from "next/link";
-import { Settings } from "lucide-react";
+import { AlertTriangle, Settings } from "lucide-react";
 import {
   listCampaignDefinitions,
   listCampaignLoads,
   listCampaignMilestones,
 } from "@/lib/adapters/supabase/campaigns";
 import { computeCampaignTimeline } from "@/lib/core/campaigns/timeline";
+import {
+  countMissedMilestones,
+  verifyCohortMilestones,
+  type MilestoneVerification,
+} from "@/lib/core/campaigns/verification";
+import { supabaseNotificationSource as notifs } from "@/lib/adapters/supabase/notification-source";
 import { CampaignCard } from "@/components/feature/campaign-card";
 import { PageHeader } from "@/components/feature/page-header";
 import { NewLoadForm } from "./new-load-form";
@@ -19,12 +25,17 @@ function now(): Date {
 }
 
 export default async function CampanasPage() {
-  const [definitions, milestones, activeLoads, completedLoads] = await Promise.all([
-    listCampaignDefinitions(),
-    listCampaignMilestones(),
-    listCampaignLoads({ status: "active" }),
-    listCampaignLoads({ status: "completed" }),
-  ]);
+  const [definitions, milestones, activeLoads, completedLoads, reminderTemplates] =
+    await Promise.all([
+      listCampaignDefinitions(),
+      listCampaignMilestones(),
+      listCampaignLoads({ status: "active" }),
+      listCampaignLoads({ status: "completed" }),
+      // Pull every "NN reminder" template — small (~150 rows), cheap, used to
+      // verify whether each milestone actually fired. listAllLight excludes
+      // html_body so this stays cheap even at full table scan.
+      notifs.listAllLight({ search: "reminder" }),
+    ]);
 
   const defById = new Map(definitions.map((d) => [d.id, d]));
   const milestonesByCampaign = new Map<string, typeof milestones>();
@@ -34,6 +45,19 @@ export default async function CampanasPage() {
     milestonesByCampaign.set(m.campaignId, arr);
   }
 
+  // Verification data: minimal subset for the pure verification function.
+  const sends = reminderTemplates.map((n) => ({
+    themeName: n.themeName,
+    lastSentAt: n.lastSentAt,
+  }));
+  // All loads grouped by campaign, used to detect "stale_data" cohorts.
+  const loadsByCampaign = new Map<string, typeof activeLoads>();
+  for (const load of [...activeLoads, ...completedLoads]) {
+    const arr = loadsByCampaign.get(load.campaignId) ?? [];
+    arr.push(load);
+    loadsByCampaign.set(load.campaignId, arr);
+  }
+
   const today = now();
   const buildViews = (rows: typeof activeLoads) =>
     rows
@@ -41,12 +65,22 @@ export default async function CampanasPage() {
         const def = defById.get(load.campaignId);
         if (!def) return null;
         const ms = milestonesByCampaign.get(load.campaignId) ?? [];
-        return { def, view: computeCampaignTimeline(load, ms, today) };
+        const verifications: MilestoneVerification[] = verifyCohortMilestones({
+          load,
+          milestones: ms,
+          sends,
+          cohortsForCampaign: loadsByCampaign.get(load.campaignId) ?? [],
+          now: today,
+        });
+        return { def, view: computeCampaignTimeline(load, ms, today), verifications };
       })
       .filter((v): v is NonNullable<typeof v> => v !== null);
 
   const views = buildViews(activeLoads);
   const archivedViews = buildViews(completedLoads);
+
+  // Total missed across active cohorts → banner at top.
+  const totalMissed = views.reduce((sum, v) => sum + countMissedMilestones(v.verifications), 0);
 
   const showEmpty = definitions.length === 0;
 
@@ -71,6 +105,8 @@ export default async function CampanasPage() {
           <EmptyState />
         ) : (
           <>
+            {totalMissed > 0 && <MissedBanner count={totalMissed} />}
+
             <div className="flex flex-wrap items-start justify-between gap-3">
               <NewLoadForm campaigns={definitions.filter((d) => d.active)} />
               <AsanaSyncButton />
@@ -80,8 +116,13 @@ export default async function CampanasPage() {
               <NoActiveLoads />
             ) : (
               <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-                {views.map(({ def, view }) => (
-                  <CampaignCard key={view.load.id} definition={def} view={view} />
+                {views.map(({ def, view, verifications }) => (
+                  <CampaignCard
+                    key={view.load.id}
+                    definition={def}
+                    view={view}
+                    verifications={verifications}
+                  />
                 ))}
               </div>
             )}
@@ -109,6 +150,29 @@ function EmptyState() {
         <Settings className="h-3.5 w-3.5" />
         Ir a configuración
       </Link>
+    </div>
+  );
+}
+
+function MissedBanner({ count }: { count: number }) {
+  return (
+    <div
+      role="alert"
+      className="flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-800 shadow-sm"
+    >
+      <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
+      <div className="flex-1">
+        <div className="text-sm font-semibold">
+          {count === 1
+            ? "1 notificación no se envió a tiempo"
+            : `${count} notificaciones no se enviaron a tiempo`}
+        </div>
+        <div className="mt-0.5 text-xs leading-relaxed text-rose-700">
+          La fecha esperada ya pasó y no encontramos ningún envío dentro de ±2 días. Revisa las
+          cards marcadas abajo. (Detección por convención de theme_name; conectaremos Postmark para
+          verificación 100% precisa por cohort.)
+        </div>
+      </div>
     </div>
   );
 }

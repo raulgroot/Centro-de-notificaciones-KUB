@@ -6,7 +6,8 @@
 
 import type { CampaignDefinition } from "@/lib/adapters/supabase/campaigns";
 import type { CampaignTimelineView, MilestoneState } from "@/lib/core/campaigns/timeline";
-import { ExternalLink } from "lucide-react";
+import type { MilestoneVerification } from "@/lib/core/campaigns/verification";
+import { AlertTriangle, Check, ExternalLink, HelpCircle } from "lucide-react";
 import { CardActionsMenu } from "@/app/(dashboard)/campanas/card-actions-menu";
 
 const monthsShort = [
@@ -44,9 +45,12 @@ const fmtFull = (d: Date): string => `${d.getDate()} de ${monthsFull[d.getMonth(
 export function CampaignCard({
   definition,
   view,
+  verifications = [],
 }: {
   definition: CampaignDefinition;
   view: CampaignTimelineView;
+  /** Per-milestone verification results (sent/missed/pending/stale/n-a). */
+  verifications?: MilestoneVerification[];
 }) {
   const { load, elapsedDays, ended, progressPercent, timeline, next, daysToDeadline } = view;
   const accent = definition.accentColor;
@@ -54,8 +58,34 @@ export function CampaignCard({
   const totalDays = view.totalDays;
   const endDate = new Date(load.loadDate.getTime() + totalDays * 86_400_000);
 
+  // Index verifications by milestone id for O(1) lookup in the render loop.
+  const verifByMilestone = new Map(verifications.map((v) => [v.milestoneId, v]));
+  const missedCount = verifications.filter((v) => v.status === "missed").length;
+  const staleData = verifications.some((v) => v.status === "stale_data");
+
   return (
-    <div className="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
+    <div
+      className={`rounded-xl border bg-white p-5 shadow-sm ${
+        missedCount > 0 ? "border-rose-200 ring-1 ring-rose-100" : "border-neutral-200"
+      }`}
+    >
+      {missedCount > 0 && (
+        <div className="mb-3 inline-flex items-center gap-1.5 rounded-md bg-rose-50 px-2.5 py-1 text-[11px] font-semibold text-rose-700">
+          <AlertTriangle className="h-3 w-3" />
+          {missedCount === 1
+            ? "1 milestone no se envió"
+            : `${missedCount} milestones no se enviaron`}
+        </div>
+      )}
+      {staleData && missedCount === 0 && (
+        <div
+          className="mb-3 inline-flex items-center gap-1.5 rounded-md bg-neutral-100 px-2.5 py-1 text-[11px] font-medium text-neutral-600"
+          title="Esta cohort no es la más reciente; los envíos en cache podrían pertenecer a un cohort posterior."
+        >
+          <HelpCircle className="h-3 w-3" />
+          Sin verificación precisa
+        </div>
+      )}
       {/* Header: pill + carga info + asana link */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
@@ -179,6 +209,7 @@ export function CampaignCard({
             withConnector={i < timeline.length - 1}
             label={p.milestone.label}
             description={p.milestone.description}
+            verification={verifByMilestone.get(p.milestone.id)}
           />
         ))}
       </div>
@@ -227,6 +258,7 @@ function TimelineDot({
   withConnector,
   label,
   description,
+  verification,
 }: {
   date: string;
   state: MilestoneState;
@@ -234,18 +266,19 @@ function TimelineDot({
   withConnector: boolean;
   label: string;
   description: string;
+  verification?: MilestoneVerification;
 }) {
-  const fill =
-    state === "done"
-      ? accent
-      : state === "current"
-        ? "transparent"
-        : state === "next"
-          ? "transparent"
-          : "transparent";
+  // Override the timeline (date-based) "state" with the verification result
+  // when available. "missed" turns the dot rose; "sent" gets a checkmark;
+  // "pending" stays as the timeline-driven look.
+  const isMissed = verification?.status === "missed";
+  const isVerifiedSent = verification?.status === "sent";
 
-  const ring =
-    state === "current"
+  const dotColor = isMissed ? "#e11d48" /* rose-600 */ : accent;
+  const fill = isMissed || state === "done" || isVerifiedSent ? dotColor : "transparent";
+  const ring = isMissed
+    ? `0 0 0 3px #fecdd3` /* rose-200 */
+    : state === "current"
       ? `0 0 0 3px ${accent}33`
       : state === "next"
         ? `inset 0 0 0 2px ${accent}`
@@ -256,14 +289,37 @@ function TimelineDot({
   const dotStyle: React.CSSProperties = {
     background: fill,
     boxShadow: ring,
-    border: state === "done" ? `2px solid ${accent}` : "none",
-    borderStyle: state === "future" ? "dashed" : undefined,
+    border: isMissed || isVerifiedSent || state === "done" ? `2px solid ${dotColor}` : "none",
+    borderStyle: state === "future" && !isMissed && !isVerifiedSent ? "dashed" : undefined,
   };
 
+  const tooltip = buildTooltip(label, description, verification);
+
   return (
-    <div className="relative flex flex-1 flex-col items-center" title={`${label} — ${description}`}>
-      <div className="h-3.5 w-3.5 rounded-full transition" style={dotStyle} />
-      <div className="mt-1.5 text-[11px] font-medium text-neutral-700">{date}</div>
+    <div className="relative flex flex-1 flex-col items-center" title={tooltip}>
+      <div
+        className="relative flex h-3.5 w-3.5 items-center justify-center rounded-full transition"
+        style={dotStyle}
+      >
+        {isVerifiedSent && <Check className="h-2.5 w-2.5 text-white" strokeWidth={3} />}
+        {isMissed && <span className="text-[8px] leading-none font-bold text-white">!</span>}
+      </div>
+      <div
+        className={`mt-1.5 text-[11px] font-medium ${
+          isMissed ? "text-rose-700" : "text-neutral-700"
+        }`}
+      >
+        {date}
+      </div>
+      {/* Verification subtitle under each dot */}
+      {verification?.status === "sent" && verification.actualSentAt && (
+        <div className="mt-0.5 text-[10px] text-emerald-700" aria-label="Enviada">
+          ✓ Enviada
+        </div>
+      )}
+      {verification?.status === "missed" && (
+        <div className="mt-0.5 text-[10px] font-semibold text-rose-700">No enviada</div>
+      )}
       {withConnector && (
         <div
           className="absolute top-[7px] right-[calc(-50%+12px)] left-[calc(50%+12px)] h-px"
@@ -273,4 +329,29 @@ function TimelineDot({
       )}
     </div>
   );
+}
+
+function buildTooltip(
+  label: string,
+  description: string,
+  verification: MilestoneVerification | undefined,
+): string {
+  const base = `${label} — ${description}`;
+  if (!verification) return base;
+  switch (verification.status) {
+    case "sent":
+      return `${base}\n✓ Enviada${
+        verification.actualSentAt
+          ? ` el ${verification.actualSentAt.toLocaleDateString("es-MX")}`
+          : ""
+      }${verification.daysOff ? ` (${verification.daysOff > 0 ? "+" : ""}${verification.daysOff} días vs esperada)` : ""}`;
+    case "missed":
+      return `${base}\n⚠ NO se envió. Esperada el ${verification.expectedDate?.toLocaleDateString("es-MX") ?? "?"}.`;
+    case "pending":
+      return `${base}\nPendiente. Esperada el ${verification.expectedDate?.toLocaleDateString("es-MX") ?? "?"}.`;
+    case "stale_data":
+      return `${base}\nSin verificación precisa (cohort no es la más reciente).`;
+    case "not_applicable":
+      return base;
+  }
 }
