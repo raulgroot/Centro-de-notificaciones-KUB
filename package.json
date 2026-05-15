@@ -20,6 +20,7 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.77",
     "@clickhouse/client": "^1.18.4",
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.105.3",

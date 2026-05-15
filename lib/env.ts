@@ -47,3 +47,19 @@ export const asanaEnv = () => ({
   /** Kublau's Asana workspace. Falls back to the value from the legacy platform. */
   workspaceGid: process.env.ASANA_WORKSPACE_GID ?? "1117756250049910",
 });
+
+/**
+ * Anthropic API for the /creation wizard. Direct integration (not via Vercel
+ * AI Gateway) so billing flows straight to the user's Anthropic account and
+ * the code is identical local and in prod.
+ */
+export const anthropicEnv = () => ({
+  apiKey: requireEnv("ANTHROPIC_API_KEY"),
+  /** Override to pin/bump model without code changes. */
+  model: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-5",
+});
+
+/** Freepik API for sourcing hero images in the /creation wizard. */
+export const freepikEnv = () => ({
+  apiKey: requireEnv("FREEPIK_API_KEY"),
+});

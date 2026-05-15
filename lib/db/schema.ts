@@ -274,3 +274,59 @@ export const campaignLoads = pgTable(
     campaignIdx: index("campaign_loads_campaign_idx").on(table.campaignId, table.loadDate),
   }),
 );
+
+/**
+ * Drafts of new notifications created via the /creation wizard.
+ *
+ * Status:
+ *   - 'draft'    → still being edited
+ *   - 'shared'   → has a public link / was handed off to HSBC
+ *   - 'archived' → no longer in use (kept for history)
+ *
+ * Most of the state is stashed as jsonb (`brief`, `copy`, `heroImage`) so
+ * the schema doesn't need to migrate every time the wizard adds a field.
+ */
+export interface DraftBrief {
+  product?: string; // e.g. "viva", "advance"
+  movement?: string; // e.g. "alta nueva", "renovacion x vencimiento"
+  lifecycle?: string; // e.g. "emitted", "transit", "delivered"
+  audience?: string; // "titular" | "adicional" | "empleado"
+  tone?: string; // "formal" | "casual" | "celebratorio" | ...
+  context?: string; // extra prompt for Claude
+}
+
+export interface DraftCopy {
+  subject?: string;
+  preheader?: string;
+  headline?: string;
+  body?: string; // 1-2 paragraphs
+  cta_label?: string;
+  sms?: string;
+}
+
+export interface DraftHeroImage {
+  url: string;
+  alt?: string;
+  source: "freepik" | "upload" | "url";
+  freepikId?: string;
+  query?: string;
+}
+
+export const notificationDrafts = pgTable(
+  "notification_drafts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull().default(""),
+    baseTemplateId: varchar("base_template_id", { length: 255 }),
+    brief: jsonb("brief").$type<DraftBrief>().notNull().default({}),
+    copy: jsonb("copy").$type<DraftCopy>().notNull().default({}),
+    heroImage: jsonb("hero_image").$type<DraftHeroImage | null>(),
+    renderedHtml: text("rendered_html"),
+    status: varchar("status", { length: 16 }).notNull().default("draft"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    updatedIdx: index("notification_drafts_updated_idx").on(table.updatedAt),
+  }),
+);
