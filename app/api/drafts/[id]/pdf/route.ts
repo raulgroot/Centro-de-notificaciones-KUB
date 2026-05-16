@@ -91,6 +91,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       },
     });
   } catch (e) {
+    // Log the full error to Vercel function logs so we can debug puppeteer
+    // / chromium startup failures (most common runtime issue with this
+    // endpoint on Vercel). The client gets a sanitized message.
+    console.error("[pdf-route] failed", {
+      draftId: id,
+      mode,
+      error: e instanceof Error ? { message: e.message, stack: e.stack } : String(e),
+    });
     const message = e instanceof Error ? e.message : String(e);
     return NextResponse.json({ error: `Falló la generación del PDF: ${message}` }, { status: 500 });
   }

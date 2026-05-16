@@ -22,10 +22,24 @@ import type { NotificationDraft } from "@/lib/adapters/supabase/notification-dra
 import { buildPresentationHtml } from "./presentation-template";
 
 /**
+ * URL of the chromium tarball that @sparticuz/chromium-min downloads at
+ * cold-start on Vercel. We pin the version to match our installed
+ * `@sparticuz/chromium-min` so we never end up with a binary that's
+ * incompatible with the puppeteer protocol it expects.
+ *
+ * Why a remote tarball: @sparticuz/chromium v124+ no longer bundles the
+ * binary in the npm package (it busted Vercel's 50MB function size cap).
+ * The `-min` variant ships just the wrapper code; the binary lives on a
+ * GitHub release and Vercel caches it across cold starts.
+ */
+const CHROMIUM_TARBALL =
+  "https://github.com/Sparticuz/chromium/releases/download/v148.0.0/chromium-v148.0.0-pack.x64.tar";
+
+/**
  * Decide which Chromium binary to use based on the runtime environment.
  *
- *   - Vercel (any env): @sparticuz/chromium ships an ARM/x64 binary tuned
- *     for AWS Lambda / Vercel Functions.
+ *   - Vercel (any env): @sparticuz/chromium-min downloads the tarball
+ *     above into /tmp on cold start and extracts a Lambda-tuned binary.
  *   - Local mac dev: fall back to the system Chrome.app. The
  *     PUPPETEER_EXECUTABLE_PATH env var lets devs override (e.g., Brave,
  *     Chromium, Edge).
@@ -34,10 +48,10 @@ async function launchBrowser(): Promise<Browser> {
   const isVercel = Boolean(process.env.VERCEL);
 
   if (isVercel) {
-    const chromium = (await import("@sparticuz/chromium")).default;
+    const chromium = (await import("@sparticuz/chromium-min")).default;
     return puppeteer.launch({
       args: chromium.args,
-      executablePath: await chromium.executablePath(),
+      executablePath: await chromium.executablePath(CHROMIUM_TARBALL),
       headless: true,
     });
   }
