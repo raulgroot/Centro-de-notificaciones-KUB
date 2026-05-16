@@ -98,14 +98,20 @@ export function buildPresentationHtml(args: {
   const css = `
     @page { size: letter; margin: 0; }
     * { box-sizing: border-box; }
+    /* Hide Chrome's viewport scrollbar — puppeteer's default viewport is
+       shorter than 11", so without this Chrome draws a vertical scrollbar
+       on the right edge that ends up baked into the PDF. */
+    ::-webkit-scrollbar { display: none; width: 0; height: 0; }
     html, body {
       margin: 0;
       padding: 0;
       font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Helvetica Neue', Arial, sans-serif;
       color: ${INK};
       background: #FFFFFF;
+      overflow: hidden;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
+      scrollbar-width: none;
     }
     .page {
       width: 8.5in;

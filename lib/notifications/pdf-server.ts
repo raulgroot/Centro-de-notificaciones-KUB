@@ -150,6 +150,10 @@ export async function renderPresentationPdf(args: {
     // Step 2 + 3: Render presentation HTML to PDF using the PNG inline.
     const page = await browser.newPage();
     try {
+      // Match the viewport to letter @ 96dpi so Chrome doesn't draw a
+      // viewport scrollbar that gets baked into the PDF output (this was
+      // showing up as a vertical line next to the phone mockup).
+      await page.setViewport({ width: 816, height: 1056, deviceScaleFactor: 2 });
       await setupInterception(page);
       const html = buildPresentationHtml({ ...args, emailPngDataUrl });
       await page.setContent(html, { waitUntil: "load", timeout: 30_000 });
