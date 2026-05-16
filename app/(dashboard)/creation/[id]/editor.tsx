@@ -33,9 +33,11 @@ import type { FreepikImage } from "@/lib/adapters/freepik/client";
 import {
   ArrowLeft,
   ArrowRight,
+  FileText,
   ImageIcon,
   Loader2,
   Pencil,
+  Presentation,
   Sparkles,
   Wand2,
   X,
@@ -138,9 +140,12 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
   const [brief, setBrief] = useState<DraftBrief>(draft.brief);
   const [copy, setCopy] = useState<DraftCopy>(draft.copy);
   const [heroImage, setHeroImage] = useState<DraftHeroImage | null>(draft.heroImage);
-  const [busy, setBusy] = useState<{ generate?: boolean; refine?: CopyField; search?: boolean }>(
-    {},
-  );
+  const [busy, setBusy] = useState<{
+    generate?: boolean;
+    refine?: CopyField;
+    search?: boolean;
+    pdf?: "piece" | "presentation";
+  }>({});
   const [error, setError] = useState<string | null>(null);
   const [imageQuery, setImageQuery] = useState<string>("");
   const [imageResults, setImageResults] = useState<FreepikImage[]>([]);
@@ -255,6 +260,44 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
       freepikId: img.id,
       query: imageQuery,
     });
+  }
+
+  /**
+   * Fetch the PDF from /api/drafts/[id]/pdf and trigger a browser download.
+   * We fetch + blob (instead of `window.location = url`) so we can show a
+   * loading state and surface server errors as a toast instead of leaving
+   * the user staring at a broken tab.
+   */
+  async function onDownloadPdf(mode: "piece" | "presentation") {
+    setBusy((b) => ({ ...b, pdf: mode }));
+    setError(null);
+    try {
+      const res = await fetch(`/api/drafts/${draft.id}/pdf?mode=${mode}`, {
+        method: "GET",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: res.statusText }));
+        throw new Error(data.error ?? "Falló la generación del PDF.");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      // Pull the filename out of Content-Disposition so we mirror what the
+      // server chose (slugified draft name).
+      const cd = res.headers.get("Content-Disposition") ?? "";
+      const match = cd.match(/filename="([^"]+)"/);
+      const filename = match?.[1] ?? `notificacion-${mode}.pdf`;
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Falló la descarga del PDF.");
+    } finally {
+      setBusy((b) => ({ ...b, pdf: undefined }));
+    }
   }
 
   return (
@@ -646,15 +689,48 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
               {isPending && <Loader2 className="h-3 w-3 animate-spin" />}
               {isPending ? "Guardando…" : "Guardado automáticamente"}
             </div>
-            <button
-              type="button"
-              onClick={() => setBriefOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50"
-              title="Volver a abrir el brief para re-generar"
-            >
-              <Pencil className="h-3 w-3" />
-              Editar brief
-            </button>
+            <div className="flex items-center gap-2">
+              {/* PDF downloads — only enable after copy exists. */}
+              <button
+                type="button"
+                onClick={() => onDownloadPdf("piece")}
+                disabled={!copy.subject || busy.pdf !== undefined}
+                className="inline-flex items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-50"
+                title="Descargar solo el email como PDF"
+              >
+                {busy.pdf === "piece" ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <FileText className="h-3 w-3" />
+                )}
+                PDF · Solo pieza
+              </button>
+              <button
+                type="button"
+                onClick={() => onDownloadPdf("presentation")}
+                disabled={!copy.subject || busy.pdf !== undefined}
+                className="bg-brand-600 hover:bg-brand-700 inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50"
+                title="Descargar deck completo para revisión de HSBC"
+              >
+                {busy.pdf === "presentation" ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Presentation className="h-3 w-3" />
+                )}
+                PDF · Para HSBC
+              </button>
+              {/* Divider */}
+              <div className="h-4 w-px bg-neutral-200" />
+              <button
+                type="button"
+                onClick={() => setBriefOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50"
+                title="Volver a abrir el brief para re-generar"
+              >
+                <Pencil className="h-3 w-3" />
+                Editar brief
+              </button>
+            </div>
           </div>
 
           {/* MAIN: copy + preview (2 columns, both get full breathing room). */}
