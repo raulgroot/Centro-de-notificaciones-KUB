@@ -46,10 +46,16 @@ const CHROMIUM_TARBALL =
 async function launchBrowser(): Promise<Browser> {
   const isVercel = Boolean(process.env.VERCEL);
 
+  // `--hide-scrollbars` is the only way to reliably suppress the viewport
+  // scrollbar when the document is taller than the viewport (our 5-page
+  // presentation body is ~55in tall, so CSS overflow:hidden alone wasn't
+  // enough). Applied to both Vercel and local launches.
+  const sharedArgs = ["--hide-scrollbars"];
+
   if (isVercel) {
     const chromium = (await import("@sparticuz/chromium-min")).default;
     return puppeteer.launch({
-      args: chromium.args,
+      args: [...chromium.args, ...sharedArgs],
       executablePath: await chromium.executablePath(CHROMIUM_TARBALL),
       headless: true,
     });
@@ -61,7 +67,7 @@ async function launchBrowser(): Promise<Browser> {
   return puppeteer.launch({
     executablePath: localChrome,
     headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    args: ["--no-sandbox", "--disable-setuid-sandbox", ...sharedArgs],
   });
 }
 
