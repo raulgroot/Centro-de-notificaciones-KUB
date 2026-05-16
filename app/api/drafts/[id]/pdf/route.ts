@@ -1,34 +1,35 @@
 /**
- * GET /api/drafts/[id]/pdf?mode=piece|presentation
+ * GET /api/drafts/[id]/pdf?mode=image|presentation
  *
- * Returns the draft as a downloadable PDF. Two modes:
- *   - `piece`        → the rendered HSBC email, paginated if long
- *   - `presentation` → multi-page deck for HSBC review (cover, brief,
- *                      asunto+preheader, pieza, SMS)
+ * Returns the draft as a downloadable asset. Two modes:
+ *   - `image`        → PNG screenshot of just the email render (native size,
+ *                      2× DPR). Lo que la gente quiere para mandar por Slack
+ *                      o pegar en slides.
+ *   - `presentation` → multi-page PDF deck para handoff a HSBC (cover,
+ *                      brief, asunto+preheader, pieza embebida como imagen,
+ *                      SMS).
  *
- * Why GET (not POST): browsers handle `window.location.assign(url)` for
- * downloads natively — no need to wire up a Blob ↔ URL.createObjectURL
- * dance on the client. The route is auth-gated by middleware so this is
- * still safe.
+ * Why GET: el browser puede llamarlo directo con un fetch + a.download.
+ * La ruta queda detrás de NextAuth como el resto del dashboard.
  *
- * Runtime: nodejs (puppeteer + @sparticuz/chromium require it). Marked
- * `dynamic` because the response depends on querystring and DB state.
+ * Runtime: nodejs (puppeteer + chromium-min lo requieren). Dinámico porque
+ * el output depende de querystring + DB state.
  */
 
 import { NextResponse, type NextRequest } from "next/server";
 import { getDraft } from "@/lib/adapters/supabase/notification-drafts";
 import { renderEmailHtml } from "@/lib/notifications/template";
-import { renderPiecePdf, renderPresentationPdf } from "@/lib/notifications/pdf-server";
+import { renderPiecePng, renderPresentationPdf } from "@/lib/notifications/pdf-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 // Puppeteer cold start + page render can take 8-15s; give it room.
 export const maxDuration = 60;
 
-type Mode = "piece" | "presentation";
+type Mode = "image" | "presentation";
 
 function isMode(s: string | null): s is Mode {
-  return s === "piece" || s === "presentation";
+  return s === "image" || s === "presentation";
 }
 
 /**
@@ -51,7 +52,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   if (!isMode(mode)) {
     return NextResponse.json(
-      { error: "Modo inválido. Usa ?mode=piece o ?mode=presentation." },
+      { error: "Modo inválido. Usa ?mode=image o ?mode=presentation." },
       { status: 400 },
     );
   }
@@ -71,21 +72,24 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   });
 
   try {
-    const pdf =
-      mode === "piece"
-        ? await renderPiecePdf(emailHtml)
+    const buffer =
+      mode === "image"
+        ? await renderPiecePng(emailHtml)
         : await renderPresentationPdf({ draft, emailHtml });
 
     const base = safeFilename(draft.name);
-    const suffix = mode === "piece" ? "pieza" : "presentacion";
-    const filename = `${base}-${suffix}.pdf`;
+    const isImage = mode === "image";
+    const ext = isImage ? "png" : "pdf";
+    const suffix = isImage ? "pieza" : "presentacion-hsbc";
+    const filename = `${base}-${suffix}.${ext}`;
+    const contentType = isImage ? "image/png" : "application/pdf";
 
     // `Uint8Array` is the type Next 16 wants for binary bodies — Buffer is
     // a subclass so this works at runtime too.
-    return new NextResponse(new Uint8Array(pdf), {
+    return new NextResponse(new Uint8Array(buffer), {
       status: 200,
       headers: {
-        "Content-Type": "application/pdf",
+        "Content-Type": contentType,
         "Content-Disposition": `attachment; filename="${filename}"`,
         "Cache-Control": "no-store",
       },

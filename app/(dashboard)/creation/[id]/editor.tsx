@@ -33,7 +33,6 @@ import type { FreepikImage } from "@/lib/adapters/freepik/client";
 import {
   ArrowLeft,
   ArrowRight,
-  FileText,
   ImageIcon,
   Loader2,
   Pencil,
@@ -144,7 +143,7 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
     generate?: boolean;
     refine?: CopyField;
     search?: boolean;
-    pdf?: "piece" | "presentation";
+    download?: "image" | "presentation";
   }>({});
   const [error, setError] = useState<string | null>(null);
   const [imageQuery, setImageQuery] = useState<string>("");
@@ -263,13 +262,13 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
   }
 
   /**
-   * Fetch the PDF from /api/drafts/[id]/pdf and trigger a browser download.
-   * We fetch + blob (instead of `window.location = url`) so we can show a
-   * loading state and surface server errors as a toast instead of leaving
-   * the user staring at a broken tab.
+   * Fetch the asset (PNG image or PDF deck) from /api/drafts/[id]/pdf and
+   * trigger a browser download. We fetch + blob (instead of `window.location
+   * = url`) so we can show a loading state and surface server errors as a
+   * toast instead of leaving the user staring at a broken tab.
    */
-  async function onDownloadPdf(mode: "piece" | "presentation") {
-    setBusy((b) => ({ ...b, pdf: mode }));
+  async function onDownload(mode: "image" | "presentation") {
+    setBusy((b) => ({ ...b, download: mode }));
     setError(null);
     try {
       const res = await fetch(`/api/drafts/${draft.id}/pdf?mode=${mode}`, {
@@ -277,7 +276,7 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({ error: res.statusText }));
-        throw new Error(data.error ?? "Falló la generación del PDF.");
+        throw new Error(data.error ?? "Falló la descarga.");
       }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -285,7 +284,8 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
       // server chose (slugified draft name).
       const cd = res.headers.get("Content-Disposition") ?? "";
       const match = cd.match(/filename="([^"]+)"/);
-      const filename = match?.[1] ?? `notificacion-${mode}.pdf`;
+      const ext = mode === "image" ? "png" : "pdf";
+      const filename = match?.[1] ?? `notificacion-${mode}.${ext}`;
       const a = document.createElement("a");
       a.href = url;
       a.download = filename;
@@ -294,9 +294,9 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Falló la descarga del PDF.");
+      setError(e instanceof Error ? e.message : "Falló la descarga.");
     } finally {
-      setBusy((b) => ({ ...b, pdf: undefined }));
+      setBusy((b) => ({ ...b, download: undefined }));
     }
   }
 
@@ -690,29 +690,29 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
               {isPending ? "Guardando…" : "Guardado automáticamente"}
             </div>
             <div className="flex items-center gap-2">
-              {/* PDF downloads — only enable after copy exists. */}
+              {/* Downloads — only enable after copy exists. */}
               <button
                 type="button"
-                onClick={() => onDownloadPdf("piece")}
-                disabled={!copy.subject || busy.pdf !== undefined}
+                onClick={() => onDownload("image")}
+                disabled={!copy.subject || busy.download !== undefined}
                 className="inline-flex items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-50"
-                title="Descargar solo el email como PDF"
+                title="Descargar la pieza como imagen PNG (tamaño nativo, 2× retina)"
               >
-                {busy.pdf === "piece" ? (
+                {busy.download === "image" ? (
                   <Loader2 className="h-3 w-3 animate-spin" />
                 ) : (
-                  <FileText className="h-3 w-3" />
+                  <ImageIcon className="h-3 w-3" />
                 )}
-                PDF · Solo pieza
+                PNG · Pieza
               </button>
               <button
                 type="button"
-                onClick={() => onDownloadPdf("presentation")}
-                disabled={!copy.subject || busy.pdf !== undefined}
+                onClick={() => onDownload("presentation")}
+                disabled={!copy.subject || busy.download !== undefined}
                 className="bg-brand-600 hover:bg-brand-700 inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50"
                 title="Descargar deck completo para revisión de HSBC"
               >
-                {busy.pdf === "presentation" ? (
+                {busy.download === "presentation" ? (
                   <Loader2 className="h-3 w-3 animate-spin" />
                 ) : (
                   <Presentation className="h-3 w-3" />
