@@ -4,6 +4,17 @@ import Link from "next/link";
 import { supabaseNotificationSource as notifs } from "@/lib/adapters/supabase/notification-source";
 import { ArrowLeft, ExternalLink, Eye } from "lucide-react";
 import { PostmarkPanel, PostmarkPanelSkeleton } from "./postmark-panel";
+import { LastPieceCard } from "./last-piece-card";
+import { sanitizeForPreview } from "@/lib/notifications/sanitize-preview";
+
+/** Masca "raul.robles@gmail.com" → "ra***@gmail.com" para el banner de envío. */
+function maskEmail(email: string | null): string | null {
+  if (!email) return null;
+  const [local = "", domain = ""] = email.split("@");
+  if (!domain) return email;
+  const head = local.slice(0, 2);
+  return `${head}${"*".repeat(Math.max(0, local.length - 2))}@${domain}`;
+}
 
 export const dynamic = "force-dynamic";
 
@@ -115,6 +126,17 @@ export default async function NotificationDetailPage({ params }: { params: Param
       <Suspense fallback={<PostmarkPanelSkeleton />}>
         <PostmarkPanel subject={n.subject} kublauLastSentAt={n.lastSentAt} />
       </Suspense>
+
+      {/* Última pieza real — gated detrás de un confirm modal. El HTML va
+          sanitizado server-side (hrefs removidos, forms neutralizados,
+          tracking pixels reemplazados) ANTES de bajar al cliente. */}
+      {n.htmlBody && (
+        <LastPieceCard
+          sanitizedHtml={sanitizeForPreview(n.htmlBody)}
+          lastSentAt={n.lastSentAt}
+          recipientMasked={maskEmail(n.lastMailTo)}
+        />
+      )}
 
       {(n.themeLink || n.templateLink || n.templatePreviewLink || n.postmarkUrl) && (
         <Card>
