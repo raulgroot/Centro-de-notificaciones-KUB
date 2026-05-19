@@ -1,7 +1,9 @@
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { supabaseNotificationSource as notifs } from "@/lib/adapters/supabase/notification-source";
 import { ArrowLeft, ExternalLink, Eye } from "lucide-react";
+import { PostmarkPanel, PostmarkPanelSkeleton } from "./postmark-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -107,6 +109,12 @@ export default async function NotificationDetailPage({ params }: { params: Param
           </DetailField>
         </Card>
       </div>
+
+      {/* Postmark verification — streams in via Suspense so the rest of the
+          page paints instantly even if Postmark is slow / rate-limited. */}
+      <Suspense fallback={<PostmarkPanelSkeleton />}>
+        <PostmarkPanel subject={n.subject} kublauLastSentAt={n.lastSentAt} />
+      </Suspense>
 
       {(n.themeLink || n.templateLink || n.templatePreviewLink || n.postmarkUrl) && (
         <Card>
