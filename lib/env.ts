@@ -63,3 +63,24 @@ export const anthropicEnv = () => ({
 export const freepikEnv = () => ({
   apiKey: requireEnv("FREEPIK_API_KEY"),
 });
+
+/**
+ * Postmark server token for cross-referencing the HSBC catalog against the
+ * real outbound logs. Accepts both POSTMARK_API_KEY (alias) and
+ * POSTMARK_SERVER_TOKEN (Postmark's canonical name) so it's hard to misname
+ * in Vercel envs.
+ *
+ * The token is a SERVER token scoped to HSBC's Postmark server — NOT the
+ * account token. Server tokens are read-write for one server, which is what
+ * we need for both message search and stats endpoints.
+ */
+export const postmarkEnv = () => {
+  const token = process.env.POSTMARK_API_KEY ?? process.env.POSTMARK_SERVER_TOKEN ?? "";
+  if (!token.trim()) {
+    throw new Error(
+      "Missing required env var: POSTMARK_API_KEY (or POSTMARK_SERVER_TOKEN). " +
+        "Set it in .env.local (local) or Vercel project settings (production).",
+    );
+  }
+  return { serverToken: token };
+};

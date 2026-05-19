@@ -17,6 +17,7 @@
     "db:studio": "drizzle-kit studio",
     "kublau:tables": "tsx --env-file=.env.local scripts/kublau-show-tables.ts",
     "kublau:describe": "tsx --env-file=.env.local scripts/kublau-describe-table.ts",
+    "postmark:discover": "tsx --env-file=.env.local scripts/postmark-discover.ts",
     "prepare": "husky"
   },
   "dependencies": {
