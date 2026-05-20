@@ -18,7 +18,9 @@ import {
 } from "@/lib/core/notifications/lifecycle";
 import type { NotificationRecord } from "@/lib/ports/notification-source";
 
-export const dynamic = "force-dynamic";
+// Catálogo cambia 1×/día (sync cron). Cache de 30s evita pegarle a
+// Supabase en cada nav rápida del usuario.
+export const revalidate = 30;
 
 const getCachedFacets = unstable_cache(() => notifs.facets(), ["notification-facets-v2"], {
   revalidate: 300,

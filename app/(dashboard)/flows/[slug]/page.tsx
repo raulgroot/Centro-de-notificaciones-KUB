@@ -6,7 +6,8 @@ import { getFlowBySlug } from "@/lib/adapters/supabase/flows";
 import { PresentationMode } from "./presentation-mode";
 import "./flow-mockups.css";
 
-export const dynamic = "force-dynamic";
+// Flow doc cambia rara vez (edits manuales via seeds). Cache 5min.
+export const revalidate = 300;
 
 type Params = Promise<{ slug: string }>;
 
