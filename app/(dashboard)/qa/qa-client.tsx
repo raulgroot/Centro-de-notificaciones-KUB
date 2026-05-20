@@ -49,10 +49,22 @@ function StatusPill({ status }: { status: Status }) {
   );
 }
 
+/** Hoy en formato YYYY-MM-DD usando el TZ de CDMX (sin DST desde 2022). */
+function todayInCDMX(): string {
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Mexico_City",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  return fmt.format(new Date());
+}
+
 export function QAClient() {
   const [result, setResult] = useState<QAResult | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [selectedRow, setSelectedRow] = useState<QARow | null>(null);
+  const [referenceDate, setReferenceDate] = useState<string>(todayInCDMX());
   const [isPending, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -84,45 +96,85 @@ export function QAClient() {
       {/* Upload zone */}
       <form
         onSubmit={onSubmit}
-        className="rounded-lg border border-neutral-200 bg-white p-5 shadow-sm"
+        className="space-y-4 rounded-lg border border-neutral-200 bg-white p-5 shadow-sm"
       >
-        <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex-1">
-            <h2 className="text-sm font-semibold text-neutral-900">Sube tu hoja de QA</h2>
-            <p className="mt-1 text-xs text-neutral-600">
-              Formato esperado:{" "}
-              <code className="rounded bg-neutral-100 px-1 py-0.5 text-[11px]">
-                NOMBRE DE THEME/TRIGGER
-              </code>{" "}
-              en la primera columna,{" "}
-              <code className="rounded bg-neutral-100 px-1 py-0.5 text-[11px]">
-                FECHA DE MODIFICACIÓN
-              </code>{" "}
-              opcional. Acepta <code className="text-[11px]">.xlsx</code> y{" "}
-              <code className="text-[11px]">.xls</code>.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
+        <div>
+          <h2 className="text-sm font-semibold text-neutral-900">Sube tu hoja de QA</h2>
+          <p className="mt-1 text-xs text-neutral-600">
+            Indica cuándo subiste los cambios y carga la lista de themes. Te marco cada uno como{" "}
+            <span className="font-semibold text-emerald-700">listo</span> (ya se mandó después de tu
+            fecha) o <span className="font-semibold text-amber-700">pendiente</span> (aún no sale
+            con los cambios).
+          </p>
+        </div>
+
+        {/* Fecha de referencia — el corazón del flujo. La pongo arriba
+            visible para que el usuario no se la salte. Default: hoy CDMX. */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-[auto_1fr_auto] sm:items-end">
+          <div>
             <label
-              htmlFor="qa-file"
-              className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border border-neutral-300 bg-white px-3 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50"
+              htmlFor="qa-date"
+              className="block text-[11px] font-semibold tracking-wider text-neutral-600 uppercase"
             >
-              <Upload className="h-4 w-4" />
-              {fileName ? "Cambiar archivo" : "Seleccionar archivo"}
+              Fecha de subida de cambios
             </label>
             <input
-              ref={inputRef}
-              id="qa-file"
-              name="file"
-              type="file"
-              accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.currentTarget.files?.[0];
-                setFileName(f?.name ?? null);
-                setResult(null);
-              }}
+              id="qa-date"
+              name="referenceDate"
+              type="date"
+              required
+              value={referenceDate}
+              onChange={(e) => setReferenceDate(e.target.value)}
+              className="focus:border-brand-600 focus:ring-brand-600/15 mt-1 h-9 rounded-md border border-neutral-300 bg-white px-3 text-sm focus:ring-2 focus:outline-none"
             />
+            <p className="mt-1 text-[11px] text-neutral-500">
+              Cualquier envío después de esta fecha cuenta como &ldquo;listo&rdquo;.
+            </p>
+          </div>
+
+          <div>
+            <label
+              htmlFor="qa-file"
+              className="block text-[11px] font-semibold tracking-wider text-neutral-600 uppercase"
+            >
+              Archivo Excel
+            </label>
+            <div className="mt-1 flex items-center gap-2">
+              <label
+                htmlFor="qa-file"
+                className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border border-neutral-300 bg-white px-3 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50"
+              >
+                <Upload className="h-4 w-4" />
+                {fileName ? "Cambiar archivo" : "Seleccionar archivo"}
+              </label>
+              <input
+                ref={inputRef}
+                id="qa-file"
+                name="file"
+                type="file"
+                accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.currentTarget.files?.[0];
+                  setFileName(f?.name ?? null);
+                  setResult(null);
+                }}
+              />
+              {fileName && (
+                <span className="truncate font-mono text-[11px] text-neutral-500">{fileName}</span>
+              )}
+            </div>
+            <p className="mt-1 text-[11px] text-neutral-500">
+              Primera columna con el{" "}
+              <code className="rounded bg-neutral-100 px-1 py-0.5 text-[10px]">
+                NOMBRE DE THEME/TRIGGER
+              </code>
+              . Si traes <code className="text-[10px]">FECHA DE MODIFICACIÓN</code> en otra columna,
+              esa fecha pisa la global por fila.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
             <button
               type="submit"
               disabled={isPending || !fileName}
@@ -141,11 +193,6 @@ export function QAClient() {
             )}
           </div>
         </div>
-        {fileName && (
-          <div className="mt-3 text-[11px] text-neutral-500">
-            Archivo seleccionado: <span className="font-mono">{fileName}</span>
-          </div>
-        )}
       </form>
 
       {/* Error */}
@@ -169,7 +216,11 @@ export function QAClient() {
 
       {/* Results */}
       {result?.ok && result.rows.length > 0 && (
-        <ResultsTable rows={result.rows} onSelect={setSelectedRow} />
+        <ResultsTable
+          rows={result.rows}
+          referenceDate={result.referenceDate}
+          onSelect={setSelectedRow}
+        />
       )}
 
       {/* Preview drawer */}
@@ -178,7 +229,15 @@ export function QAClient() {
   );
 }
 
-function ResultsTable({ rows, onSelect }: { rows: QARow[]; onSelect: (r: QARow) => void }) {
+function ResultsTable({
+  rows,
+  referenceDate,
+  onSelect,
+}: {
+  rows: QARow[];
+  referenceDate: Date | null;
+  onSelect: (r: QARow) => void;
+}) {
   const summary: Record<Status, number> = {
     ready: 0,
     pending: 0,
@@ -191,7 +250,15 @@ function ResultsTable({ rows, onSelect }: { rows: QARow[]; onSelect: (r: QARow) 
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <span className="text-neutral-600">
-          {rows.length} {rows.length === 1 ? "fila" : "filas"} analizadas:
+          {rows.length} {rows.length === 1 ? "fila" : "filas"} analizadas
+          {referenceDate ? (
+            <>
+              {" "}
+              vs. <strong className="text-neutral-900">{dayFmt.format(referenceDate)}</strong>:
+            </>
+          ) : (
+            ":"
+          )}
         </span>
         {(Object.keys(summary) as Status[]).map((s) =>
           summary[s] > 0 ? (

@@ -8,8 +8,8 @@ export default function QAPage() {
       <header>
         <h1 className="text-2xl font-bold tracking-tight">QA</h1>
         <p className="mt-1 text-sm text-neutral-600">
-          Sube una hoja con los nombres de los themes y la fecha de tu cambio. Te muestro el último
-          envío real de cada uno para que valides que el cambio ya salió.
+          Indica la fecha en que subiste cambios y sube la lista de themes. Te digo cuáles ya se
+          mandaron después de esa fecha (listos para revisar) y cuáles siguen pendientes de salir.
         </p>
       </header>
       <QAClient />

@@ -20,7 +20,14 @@ export interface QARow {
 }
 
 export type QAResult =
-  | { ok: true; rows: QARow[]; warnings: string[] }
+  | {
+      ok: true;
+      rows: QARow[];
+      warnings: string[];
+      /** Fecha global de referencia que se usó para clasificar (puede ser null
+       *  si el usuario no la mandó — sólo aplica para retro-compat). */
+      referenceDate: Date | null;
+    }
   | { ok: false; error: string };
 
 interface ParsedSheetRow {
@@ -136,8 +143,23 @@ const computeStatus = (
 ): QARow["status"] => {
   if (!found) return "not-found";
   if (!sentAt) return "no-sends";
-  if (!modifiedAt) return "ready"; // no filter date → any send is valid
+  if (!modifiedAt) return "ready"; // sin fecha de referencia, cualquier envío vale
   return sentAt >= modifiedAt ? "ready" : "pending";
+};
+
+/**
+ * Convierte `YYYY-MM-DD` del date input HTML a un Date en el inicio de ese
+ * día en CDMX (UTC-6, sin DST porque México lo eliminó en 2022). Eso
+ * coincide con el modelo mental del usuario "subí mis cambios el día X" —
+ * cualquier envío de Kublau en ese día o después cuenta como "después de
+ * los cambios".
+ *
+ * Devuelve null si el string no es una fecha válida.
+ */
+const parseReferenceDate = (raw: string | null): Date | null => {
+  if (!raw || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
+  const d = new Date(`${raw}T00:00:00-06:00`);
+  return Number.isNaN(d.getTime()) ? null : d;
 };
 
 export async function processQASheet(formData: FormData): Promise<QAResult> {
@@ -151,6 +173,11 @@ export async function processQASheet(formData: FormData): Promise<QAResult> {
   if (file.size > 5 * 1024 * 1024) {
     return { ok: false, error: "El archivo supera el límite de 5 MB." };
   }
+
+  // Fecha global de referencia — viene del date input del formulario.
+  // Si por algún caso edge falta (form sin date input antiguo), seguimos
+  // funcionando como antes pero con la lógica de fallback más conservadora.
+  const referenceDate = parseReferenceDate(formData.get("referenceDate") as string | null);
 
   const buffer = await file.arrayBuffer();
   const parsed = parseSheet(buffer);
@@ -172,19 +199,22 @@ export async function processQASheet(formData: FormData): Promise<QAResult> {
     const send = sendsByTheme.get(r.themeName);
     const found = Boolean(send);
     const lastSentAt = send?.sentAt ?? null;
+    // Per-row date from the Excel beats the global reference; if neither,
+    // status falls back to "ready when there's any send" (old behavior).
+    const effectiveModifiedAt = r.modifiedAt ?? referenceDate;
     return {
       rowNumber: r.rowNumber,
       themeName: r.themeName,
       themeLink: send?.themeLink ?? r.themeLink,
-      modifiedAt: r.modifiedAt,
+      modifiedAt: effectiveModifiedAt,
       lastSentAt,
       recipient: send?.recipient ?? null,
       subject: send?.subject ?? null,
       postmarkUrl: send?.postmarkUrl ?? null,
       htmlBody: send?.htmlBody ?? null,
-      status: computeStatus(r.modifiedAt, lastSentAt, found),
+      status: computeStatus(effectiveModifiedAt, lastSentAt, found),
     };
   });
 
-  return { ok: true, rows, warnings: parsed.warnings };
+  return { ok: true, rows, warnings: parsed.warnings, referenceDate };
 }
