@@ -12,6 +12,19 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["db:studio"],
       "port": 4983
+    },
+    {
+      "name": "socplus",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8766",
+        "--directory",
+        "/Users/raulroblesalcala/SOC+/Soc+"
+      ],
+      "port": 8766,
+      "url": "http://localhost:8766/Soc+%20Prototype.html"
     }
   ]
 }

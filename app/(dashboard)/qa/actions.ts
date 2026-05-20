@@ -1,8 +1,11 @@
 "use server";
 
 import * as XLSX from "xlsx";
+import { revalidatePath } from "next/cache";
+import { auth } from "@/auth";
 import { kublauSendsSource } from "@/lib/adapters/clickhouse-kublau/sends-source";
 import type { LastSend } from "@/lib/ports/sends-source";
+import { createBatch } from "@/lib/adapters/supabase/qa-batches";
 
 /** One row in the QA result table. */
 export interface QARow {
@@ -217,4 +220,55 @@ export async function processQASheet(formData: FormData): Promise<QAResult> {
   });
 
   return { ok: true, rows, warnings: parsed.warnings, referenceDate };
+}
+
+/**
+ * Guarda el resultado del análisis como un batch persistente.
+ *
+ * Diseñado para llamarse INMEDIATAMENTE después de processQASheet — el
+ * cliente ya tiene las rows analizadas y nosotros sólo persistimos. El
+ * cron horario (`/api/qa/check-batches`) se encarga de monitorear las
+ * transiciones de "pending" → "ready" y disparar notificaciones.
+ */
+export async function saveQABatch(args: {
+  name: string;
+  referenceDateIso: string;
+  rows: Array<{
+    themeName: string;
+    status: QARow["status"];
+    lastSentAt: Date | null;
+  }>;
+}): Promise<{ ok: true; batchId: string } | { ok: false; error: string }> {
+  const session = await auth();
+  const email = session?.user?.email;
+  if (!email) return { ok: false, error: "Sesión no encontrada." };
+
+  const referenceDate = new Date(args.referenceDateIso);
+  if (Number.isNaN(referenceDate.getTime())) {
+    return { ok: false, error: "Fecha de referencia inválida." };
+  }
+
+  if (args.rows.length === 0) {
+    return { ok: false, error: "No hay filas que guardar." };
+  }
+
+  try {
+    const batch = await createBatch({
+      ownerEmail: email,
+      name: args.name?.trim() || "QA sin nombre",
+      referenceDate,
+      items: args.rows.map((r) => ({
+        themeName: r.themeName,
+        initialStatus: r.status,
+        initialLastSentAt: r.lastSentAt,
+      })),
+    });
+    revalidatePath("/alertas");
+    return { ok: true, batchId: batch.id };
+  } catch (e) {
+    return {
+      ok: false,
+      error: `No se pudo guardar el batch: ${e instanceof Error ? e.message : String(e)}`,
+    };
+  }
 }

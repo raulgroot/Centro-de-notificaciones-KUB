@@ -1,8 +1,18 @@
 "use client";
 
 import { useState, useTransition, useRef } from "react";
-import { CheckCircle2, Clock, Ban, FileQuestion, ExternalLink, Upload, X } from "lucide-react";
-import { processQASheet, type QARow, type QAResult } from "./actions";
+import {
+  CheckCircle2,
+  Clock,
+  Ban,
+  FileQuestion,
+  ExternalLink,
+  Upload,
+  X,
+  Bell,
+  Loader2,
+} from "lucide-react";
+import { processQASheet, saveQABatch, type QARow, type QAResult } from "./actions";
 
 const dateFmt = new Intl.DateTimeFormat("es-MX", {
   dateStyle: "medium",
@@ -216,15 +226,149 @@ export function QAClient() {
 
       {/* Results */}
       {result?.ok && result.rows.length > 0 && (
-        <ResultsTable
-          rows={result.rows}
-          referenceDate={result.referenceDate}
-          onSelect={setSelectedRow}
-        />
+        <>
+          <SaveBatchPanel
+            referenceDate={result.referenceDate}
+            rows={result.rows}
+            defaultName={fileName?.replace(/\.(xlsx|xls)$/i, "") ?? ""}
+          />
+          <ResultsTable
+            rows={result.rows}
+            referenceDate={result.referenceDate}
+            onSelect={setSelectedRow}
+          />
+        </>
       )}
 
       {/* Preview drawer */}
       {selectedRow && <PreviewDrawer row={selectedRow} onClose={() => setSelectedRow(null)} />}
+    </div>
+  );
+}
+
+/**
+ * Panel "Guardar este QA" — aparece solo después de analizar. Persiste
+ * los resultados en Supabase para que el cron horario los monitoree y
+ * disparé notificaciones cuando un theme transicione de pendiente a listo.
+ */
+function SaveBatchPanel({
+  referenceDate,
+  rows,
+  defaultName,
+}: {
+  referenceDate: Date | null;
+  rows: QARow[];
+  defaultName: string;
+}) {
+  const [name, setName] = useState(defaultName);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState<null | { batchId: string }>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const pending = rows.filter((r) => r.status === "pending").length;
+  const noSends = rows.filter((r) => r.status === "no-sends").length;
+  const monitorable = pending + noSends;
+
+  if (saved) {
+    return (
+      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+        <div className="flex items-start gap-3">
+          <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
+          <div className="flex-1">
+            <div className="font-semibold">QA guardado</div>
+            <p className="mt-1 text-xs">
+              Te aviso en el bell del top bar cuando cada pieza pendiente empiece a salir. Revisas
+              el inbox completo en{" "}
+              <a href="/alertas" className="font-semibold underline underline-offset-2">
+                /alertas
+              </a>
+              .
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  async function onSave() {
+    if (!referenceDate) {
+      setError("No hay fecha de referencia para guardar el batch.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const r = await saveQABatch({
+        name: name.trim() || "QA sin nombre",
+        referenceDateIso: referenceDate.toISOString(),
+        rows: rows.map((row) => ({
+          themeName: row.themeName,
+          status: row.status,
+          lastSentAt: row.lastSentAt,
+        })),
+      });
+      if (r.ok) setSaved({ batchId: r.batchId });
+      else setError(r.error);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al guardar.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="border-brand-200 bg-brand-50/40 rounded-lg border p-4">
+      <div className="flex items-start gap-3">
+        <Bell className="text-brand-700 mt-0.5 h-5 w-5 shrink-0" />
+        <div className="flex-1">
+          <div className="text-sm font-semibold text-neutral-900">
+            ¿Guardar este QA para recibir avisos?
+          </div>
+          <p className="mt-1 text-xs text-neutral-600">
+            {monitorable > 0 ? (
+              <>
+                Te aviso en el bell del top bar cuando cualquiera de las{" "}
+                <strong>{monitorable}</strong> piezas pendientes / sin-envíos transicione a listo.
+                Cron horario.
+              </>
+            ) : (
+              <>Todas las piezas ya están listas. Aún así puedes guardarlo como histórico.</>
+            )}
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Nombre del batch (ej. Renovaciones mayo)"
+              className="focus:border-brand-600 focus:ring-brand-600/15 h-8 min-w-[200px] flex-1 rounded-md border border-neutral-300 bg-white px-2.5 text-xs focus:ring-2 focus:outline-none"
+            />
+            <button
+              type="button"
+              onClick={onSave}
+              disabled={saving}
+              className="bg-brand-600 hover:bg-brand-700 inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-semibold text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Guardando…
+                </>
+              ) : (
+                <>
+                  <Bell className="h-3 w-3" />
+                  Guardar y avisarme
+                </>
+              )}
+            </button>
+          </div>
+          {error && (
+            <div className="mt-2 rounded-md bg-red-50 px-2 py-1 text-[11px] text-red-700">
+              {error}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

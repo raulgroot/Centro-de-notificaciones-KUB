@@ -354,3 +354,80 @@ export const notificationDrafts = pgTable(
     updatedIdx: index("notification_drafts_updated_idx").on(table.updatedAt),
   }),
 );
+
+/**
+ * QA persistente + inbox de notificaciones.
+ *
+ * Modelo: el usuario sube un Excel → creamos `qa_batches` con 1 fila +
+ * `qa_batch_items` con N filas (una por theme). Cron horario re-pega a
+ * Kublau, detecta transiciones (pending → ready) y crea filas en
+ * `qa_notifications` para mostrar en el bell icon del topbar.
+ *
+ * Scope por `owner_email` (NextAuth session). Cada usuario sólo ve sus
+ * propios batches / inbox.
+ */
+
+export type QAItemStatus = "ready" | "pending" | "no-sends" | "not-found";
+
+export const qaBatches = pgTable(
+  "qa_batches",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    ownerEmail: text("owner_email").notNull(),
+    name: text("name").notNull().default(""),
+    referenceDate: timestamp("reference_date", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    archived: boolean("archived").notNull().default(false),
+  },
+  (table) => ({
+    ownerIdx: index("qa_batches_owner_idx").on(table.ownerEmail, table.archived, table.createdAt),
+  }),
+);
+
+export const qaBatchItems = pgTable(
+  "qa_batch_items",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    batchId: uuid("batch_id")
+      .notNull()
+      .references(() => qaBatches.id, { onDelete: "cascade" }),
+    themeName: text("theme_name").notNull(),
+    initialStatus: varchar("initial_status", { length: 16 }).$type<QAItemStatus>().notNull(),
+    initialLastSentAt: timestamp("initial_last_sent_at", { withTimezone: true }),
+    currentStatus: varchar("current_status", { length: 16 }).$type<QAItemStatus>().notNull(),
+    currentLastSentAt: timestamp("current_last_sent_at", { withTimezone: true }),
+    lastCheckedAt: timestamp("last_checked_at", { withTimezone: true }).defaultNow().notNull(),
+    becameReadyAt: timestamp("became_ready_at", { withTimezone: true }),
+  },
+  (table) => ({
+    batchIdx: index("qa_batch_items_batch_idx").on(table.batchId),
+  }),
+);
+
+export type QANotificationKind = "item_ready" | "batch_complete";
+
+export interface QANotificationPayload {
+  /** Sólo presente en item_ready: timestamp ISO del envío real detectado. */
+  sentAt?: string;
+  /** Sólo en batch_complete: cuántos items tuvo el batch. */
+  totalItems?: number;
+}
+
+export const qaNotifications = pgTable(
+  "qa_notifications",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    ownerEmail: text("owner_email").notNull(),
+    batchId: uuid("batch_id").references(() => qaBatches.id, { onDelete: "cascade" }),
+    itemId: uuid("item_id").references(() => qaBatchItems.id, { onDelete: "cascade" }),
+    kind: varchar("kind", { length: 32 }).$type<QANotificationKind>().notNull(),
+    themeName: text("theme_name"),
+    payload: jsonb("payload").$type<QANotificationPayload>().notNull().default({}),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    ownerAllIdx: index("qa_notifications_owner_all_idx").on(table.ownerEmail, table.createdAt),
+  }),
+);

@@ -1,4 +1,8 @@
+import Link from "next/link";
+import { Suspense } from "react";
+import { Bell } from "lucide-react";
 import { SyncIndicator } from "./sync-indicator";
+import { countUnread } from "@/lib/adapters/supabase/qa-batches";
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -13,6 +17,43 @@ function firstName(email: string): string {
   return first.charAt(0).toUpperCase() + first.slice(1);
 }
 
+/**
+ * Bell con badge de notificaciones unread. Server component que pega a
+ * Supabase para contar — barato porque PostgREST hace COUNT(*) head:true.
+ * Suspense alrededor en el TopBar para que si Supabase laguea, el resto
+ * del topbar igual pinta inmediato.
+ */
+async function NotificationBell({ email }: { email: string }) {
+  let count = 0;
+  try {
+    count = await countUnread(email);
+  } catch {
+    // Fallar a 0 si Supabase no responde — el bell sigue siendo navegable.
+  }
+  return (
+    <Link
+      href="/alertas"
+      title={count > 0 ? `${count} sin leer` : "Sin notificaciones nuevas"}
+      className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-900"
+    >
+      <Bell className="h-4 w-4" />
+      {count > 0 && (
+        <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white">
+          {count > 99 ? "99+" : count}
+        </span>
+      )}
+    </Link>
+  );
+}
+
+function BellFallback() {
+  return (
+    <div className="inline-flex h-9 w-9 items-center justify-center text-neutral-300">
+      <Bell className="h-4 w-4" />
+    </div>
+  );
+}
+
 export function TopBar({ email }: { email: string | null }) {
   const name = email ? firstName(email) : null;
 
@@ -24,7 +65,14 @@ export function TopBar({ email }: { email: string | null }) {
         </div>
         <div className="text-xs text-neutral-500">Centro de notificaciones · Kublau</div>
       </div>
-      <SyncIndicator />
+      <div className="flex items-center gap-2">
+        {email && (
+          <Suspense fallback={<BellFallback />}>
+            <NotificationBell email={email} />
+          </Suspense>
+        )}
+        <SyncIndicator />
+      </div>
     </header>
   );
 }

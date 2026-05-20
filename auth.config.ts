@@ -50,6 +50,7 @@ export const authConfig = {
       if (pathname === "/api/sync") return true;
       if (pathname === "/api/refresh-metrics") return true;
       if (pathname === "/api/sync-campaigns") return true;
+      if (pathname === "/api/qa/check-batches") return true;
       // Everything else requires auth
       return isLoggedIn;
     },
