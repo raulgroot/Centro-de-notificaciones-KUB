@@ -13,6 +13,7 @@ import Link from "next/link";
 import { CheckCircle2, ArrowLeft, Inbox, Clock } from "lucide-react";
 import { listBatches, listNotifications, markRead } from "@/lib/adapters/supabase/qa-batches";
 import { MarkAllReadButton } from "./mark-all-read-button";
+import { RefreshNowButton } from "./refresh-now-button";
 import { revalidatePath } from "next/cache";
 
 export const dynamic = "force-dynamic";
@@ -58,10 +59,15 @@ export default async function AlertasPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Alertas</h1>
           <p className="mt-1 text-sm text-neutral-600">
-            Te aviso aquí cuando una pieza pendiente del QA empieza a salir. Se revisa cada hora.
+            Te aviso aquí cuando una pieza pendiente del QA empieza a salir. Se revisa automático
+            1×/día a las 00:30 (después del sync de Kublau). Si no quieres esperar, dale
+            &ldquo;Refrescar ahora&rdquo;.
           </p>
         </div>
-        {unread.length > 0 && <MarkAllReadButton action={markAllReadAction} />}
+        <div className="flex flex-wrap items-center gap-2">
+          <RefreshNowButton />
+          {unread.length > 0 && <MarkAllReadButton action={markAllReadAction} />}
+        </div>
       </header>
 
       {/* Activos */}

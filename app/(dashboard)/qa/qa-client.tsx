@@ -329,7 +329,8 @@ function SaveBatchPanel({
               <>
                 Te aviso en el bell del top bar cuando cualquiera de las{" "}
                 <strong>{monitorable}</strong> piezas pendientes / sin-envíos transicione a listo.
-                Cron horario.
+                Revisión automática 1×/día, o aprieta &ldquo;Refrescar ahora&rdquo; en /alertas
+                cuando quieras.
               </>
             ) : (
               <>Todas las piezas ya están listas. Aún así puedes guardarlo como histórico.</>
