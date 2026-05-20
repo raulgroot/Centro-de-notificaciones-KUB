@@ -3,8 +3,7 @@ import { ArrowRight, GitBranch } from "lucide-react";
 import { listFlows } from "@/lib/adapters/supabase/flows";
 import { PageHeader } from "@/components/feature/page-header";
 
-// Flows son documentación editada manual via seeds. Cache 5min.
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 export default async function FlowsPage() {
   const flows = await listFlows();

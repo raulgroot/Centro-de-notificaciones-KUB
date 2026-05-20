@@ -18,9 +18,7 @@ import { NewLoadForm } from "./new-load-form";
 import { AsanaSyncButton } from "./sync-button";
 import { ArchivedSection } from "./archived-section";
 
-// Campañas se sync desde Asana 1×/día. Cache 60s — si alguien apenas
-// disparó un sync manual, espera 1min para verlo (acceptable).
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 function now(): Date {
   return new Date();

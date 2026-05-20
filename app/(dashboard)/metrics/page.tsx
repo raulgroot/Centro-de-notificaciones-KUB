@@ -12,10 +12,7 @@ import { RawDataSection } from "@/components/feature/raw-data-section";
 import { PageHeader } from "@/components/feature/page-header";
 import { MetricsRefreshButton } from "@/components/feature/metrics-refresh-button";
 
-// Metrics snapshot se refresca 1×/día (cron) o cuando alguien aprieta el
-// botón "Refrescar". Cache de 5min porque la página es pesada (charts,
-// insights computation) y los datos no se mueven.
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 /** Helper kept outside the component so `Date.now()` isn't called during render. */
 function daysAgo(days: number): Date {

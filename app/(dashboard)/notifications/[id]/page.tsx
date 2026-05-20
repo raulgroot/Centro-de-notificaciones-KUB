@@ -16,11 +16,7 @@ function maskEmail(email: string | null): string | null {
   return `${head}${"*".repeat(Math.max(0, local.length - 2))}@${domain}`;
 }
 
-// El detalle tiene metadata estática (1×/día) + panel de Postmark live
-// (que ya hace su propia fetch dentro de Suspense, fuera del cache de
-// page). Con revalidate=30 la metadata se cachea pero Postmark sigue
-// trayendo data fresca.
-export const revalidate = 30;
+export const dynamic = "force-dynamic";
 
 const dateFmt = new Intl.DateTimeFormat("es-MX", { dateStyle: "long" });
 
