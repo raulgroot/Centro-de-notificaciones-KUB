@@ -1,10 +1,16 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import type { NotificationRecord } from "@/lib/ports/notification-source";
+import { toDate } from "@/lib/core/notifications/dates";
 
 const dateFmt = new Intl.RelativeTimeFormat("es-MX", { numeric: "auto" });
 
-const relativeDate = (d: Date | null): string => {
+/**
+ * Acepta `Date | string | null` — unstable_cache serializa Dates a strings
+ * (ver lib/core/notifications/dates.ts).
+ */
+const relativeDate = (value: Date | string | null): string => {
+  const d = toDate(value);
   if (!d) return "—";
   const diff = (d.getTime() - Date.now()) / (1000 * 60 * 60 * 24);
   if (Math.abs(diff) < 1) return "hoy";

@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import type { NotificationRecord } from "@/lib/ports/notification-source";
 import { computeStatus, STATUS_STYLES } from "@/lib/core/notifications/status";
+import { toDate, toIso } from "@/lib/core/notifications/dates";
 import {
   extractLifecycleStage,
   STAGE_LABEL,
@@ -32,7 +33,12 @@ const STAGE_ICON: Record<LifecycleStage, typeof Mail> = {
 
 const dateFmt = new Intl.RelativeTimeFormat("es-MX", { numeric: "auto" });
 
-function relativeDate(d: Date | null): string {
+/**
+ * Acepta `Date | string | null` porque desde unstable_cache los Date
+ * llegan como ISO string (ver lib/core/notifications/dates.ts).
+ */
+function relativeDate(value: Date | string | null): string {
+  const d = toDate(value);
   if (!d) return "—";
   const diff = (d.getTime() - Date.now()) / (1000 * 60 * 60 * 24);
   if (Math.abs(diff) < 1) return "hoy";
@@ -143,7 +149,7 @@ export function NotificationCard({ n }: { n: NotificationRecord }) {
           The "Última enviada" link lives in the detail page (Enlaces a
           Kublau section), not here — to keep the card listing breezy. */}
       <div className="relative z-[2] flex items-center justify-between gap-2 border-t border-neutral-100 px-3.5 py-2 text-[11px] text-neutral-500">
-        <span title={n.lastSentAt?.toISOString() ?? "Nunca enviada"}>
+        <span title={toIso(n.lastSentAt) ?? "Nunca enviada"}>
           {n.lastSentAt ? `Enviada ${relativeDate(n.lastSentAt)}` : "Sin enviar"}
         </span>
         {n.templatePreviewLink && (

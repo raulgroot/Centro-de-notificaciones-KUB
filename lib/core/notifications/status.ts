@@ -19,14 +19,22 @@ export interface NotificationStatusInfo {
   label: string;
 }
 
+import { toDate } from "./dates";
+
+/**
+ * Acepta `Date | string | null` porque `unstable_cache` serializa a JSON
+ * y los Date salen como ISO strings en cache hits — ver lib/core/
+ * notifications/dates.ts para el contexto completo.
+ */
 export function computeStatus(
-  lastSentAt: Date | null,
+  lastSentAt: Date | string | null,
   now: Date = new Date(),
 ): NotificationStatusInfo {
-  if (!lastSentAt) {
+  const last = toDate(lastSentAt);
+  if (!last) {
     return { status: "never", daysSinceLastSent: null, label: "Sin enviar" };
   }
-  const days = Math.floor((now.getTime() - lastSentAt.getTime()) / DAY_MS);
+  const days = Math.floor((now.getTime() - last.getTime()) / DAY_MS);
   if (days <= ACTIVE_THRESHOLD_DAYS) {
     return { status: "active", daysSinceLastSent: days, label: "Activa" };
   }

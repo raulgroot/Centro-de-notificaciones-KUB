@@ -10,6 +10,7 @@
 
 import type { NotificationRecord } from "@/lib/ports/notification-source";
 import { computeStatus, type NotificationStatus } from "./status";
+import { toEpoch } from "./dates";
 
 const UNCLASSIFIED_MOVEMENT = "Sin clasificar";
 const UNCLASSIFIED_PRODUCT = "Sin producto";
@@ -51,9 +52,9 @@ function summarize(items: NotificationRecord[], now: Date): MovementGroupSummary
 }
 
 function sortByRecentSendDesc(a: NotificationRecord, b: NotificationRecord): number {
-  const at = a.lastSentAt?.getTime() ?? 0;
-  const bt = b.lastSentAt?.getTime() ?? 0;
-  return bt - at;
+  // toEpoch maneja el caso Date|string|null — ver dates.ts para por qué
+  // pueden venir como string desde unstable_cache.
+  return toEpoch(b.lastSentAt) - toEpoch(a.lastSentAt);
 }
 
 function bucketByProduct(items: NotificationRecord[], now: Date): ProductSubgroup[] {
