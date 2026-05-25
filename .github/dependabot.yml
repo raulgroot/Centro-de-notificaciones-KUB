@@ -1,0 +1,43 @@
+# Dependabot automatiza updates de dependencias.
+# Abre PRs semanales con las actualizaciones agrupadas para que el CI valide
+# antes de mergear. Tú decides mergear o no.
+#
+# Estrategia: groups para que no explote en 30 PRs sueltos cada semana.
+
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "08:00"
+      timezone: America/Mexico_City
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+    groups:
+      # Updates menor/patch de todas las deps en un solo PR semanal.
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+      # Major updates van solos para que los revises uno por uno.
+      next-and-react:
+        patterns:
+          - next
+          - next-*
+          - react
+          - react-*
+          - "@types/react*"
+        update-types:
+          - major
+
+  # GitHub Actions también — mantienen los workflows actualizados.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+    labels:
+      - dependencies
+      - ci
