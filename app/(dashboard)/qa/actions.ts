@@ -6,6 +6,7 @@ import { auth } from "@/auth";
 import { kublauSendsSource } from "@/lib/adapters/clickhouse-kublau/sends-source";
 import type { LastSend } from "@/lib/ports/sends-source";
 import { createBatch } from "@/lib/adapters/supabase/qa-batches";
+import { parseReferenceDate } from "@/lib/core/qa/parse-reference-date";
 
 /** One row in the QA result table. */
 export interface QARow {
@@ -150,20 +151,8 @@ const computeStatus = (
   return sentAt >= modifiedAt ? "ready" : "pending";
 };
 
-/**
- * Convierte `YYYY-MM-DD` del date input HTML a un Date en el inicio de ese
- * día en CDMX (UTC-6, sin DST porque México lo eliminó en 2022). Eso
- * coincide con el modelo mental del usuario "subí mis cambios el día X" —
- * cualquier envío de Kublau en ese día o después cuenta como "después de
- * los cambios".
- *
- * Devuelve null si el string no es una fecha válida.
- */
-const parseReferenceDate = (raw: string | null): Date | null => {
-  if (!raw || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
-  const d = new Date(`${raw}T00:00:00-06:00`);
-  return Number.isNaN(d.getTime()) ? null : d;
-};
+// parseReferenceDate vive en lib/core/qa/parse-reference-date.ts para poder
+// testearse aparte (este archivo es "use server" y solo puede exportar async).
 
 export async function processQASheet(formData: FormData): Promise<QAResult> {
   const file = formData.get("file");
