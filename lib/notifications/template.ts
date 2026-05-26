@@ -37,18 +37,34 @@
 import { load, type CheerioAPI } from "cheerio";
 import type { DraftCopy, DraftHeroImage } from "@/lib/db/schema";
 import { HSBC_BASE_HTML } from "./templates/hsbc-base";
+import { HSBC_LOGO_DATA_URL } from "./hsbc-logo";
 
 /** Products that should keep the HSBC+VIVA top header art. */
 const VIVA_PRODUCTS = new Set(["viva", "vivaplus", "hsbc viva", "hsbc viva plus"]);
 
-/** Public URL of the HSBC-only logo (no product overlay). */
-const HSBC_ONLY_LOGO_URL = "https://centro-de-notificaciones-kub.vercel.app/hsbc-logo.svg";
+/** Logo HSBC-only embebido como data URL. Antes apuntaba a la URL pública
+ * del proyecto viejo (centro-de-notificaciones-kub.vercel.app) que dio 404
+ * al renombrar/eliminar el proyecto. Data URL = no depende del dominio. */
+const HSBC_ONLY_LOGO_URL = HSBC_LOGO_DATA_URL;
 
 /** Color rojo HSBC (Masterbrand) — usado para saludos y acentos. */
 const HSBC_RED = "#DB0011";
 
 function escapeAttr(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+}
+
+/**
+ * Hash determinístico djb2 → base36 corto. Para IDs estables (mismo input →
+ * mismo output) y evitar hydration mismatches que causaría Math.random()
+ * al renderear el preview en server y client.
+ */
+function djb2(str: string): string {
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash * 33) ^ str.charCodeAt(i);
+  }
+  return (hash >>> 0).toString(36);
 }
 
 function escapeHtml(s: string): string {
@@ -68,6 +84,16 @@ function escapeHtml(s: string): string {
  * by `<br><br>` because the real HSBC body uses inline text inside one
  * `<div>` rather than multiple `<p>` tags.
  */
+/**
+ * Convierte markdown bold (`**texto**`) a `<strong>` en HTML ya escapado.
+ * El AI emite los datos clave (producto, montos, fechas, terminación) en
+ * `**` y aquí los volvemos negritas reales. Post-escape para no romper el
+ * escapado de cheerio.
+ */
+function applyMarkdownBold(html: string): string {
+  return html.replace(/\*\*([^*\n]+?)\*\*/g, "<strong>$1</strong>");
+}
+
 function bodyToInlineHtml($: CheerioAPI, body: string): string {
   const escaped = body
     .split("\n")
@@ -76,7 +102,7 @@ function bodyToInlineHtml($: CheerioAPI, body: string): string {
       return div.html() ?? "";
     })
     .join("<br/>");
-  return escaped;
+  return applyMarkdownBold(escaped);
 }
 
 /**
@@ -103,7 +129,11 @@ function bodyToInlineHtml($: CheerioAPI, body: string): string {
  */
 function heroBlockHtml(args: { headline: string; imageUrl: string; alt: string }): string {
   const { headline, imageUrl, alt } = args;
-  const safeHeadline = escapeHtml(headline || "");
+  // El headline también puede traer datos en `**bold**`. Escapamos y luego
+  // convertimos a <strong>. Como el h1 ya es font-weight:700, el bold no se
+  // nota visualmente aquí, pero mantiene consistencia si el headline tiene
+  // datos que en otros lados van en negritas.
+  const safeHeadline = applyMarkdownBold(escapeHtml(headline || ""));
   const safeUrl = escapeAttr(imageUrl);
   const safeAlt = escapeAttr(alt || "Imagen");
 
@@ -112,9 +142,9 @@ function heroBlockHtml(args: { headline: string; imageUrl: string; alt: string }
   // wrapping SVG's `width` attribute.
   const HEX_PATH = "M112.5 278 L0 165.5 L165.5 0 L383.5 0 L383.5 278 Z";
 
-  // Each render gets a unique clipPath id so multiple hex blocks in the
-  // same email body don't collide.
-  const clipId = `hsbc-hero-hex-${Math.random().toString(36).slice(2, 8)}`;
+  // clipPath id determinístico (hash del imageUrl) en lugar de Math.random()
+  // para que el HTML sea idéntico en server y client → sin hydration mismatch.
+  const clipId = `hsbc-hero-hex-${djb2(imageUrl || "no-image")}`;
 
   const heroImage = safeUrl
     ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 278" width="372" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;height:auto;max-width:372px;" role="img" aria-label="${safeAlt}">
@@ -164,6 +194,25 @@ export function renderEmailHtml(args: {
       (wrap.length > 0 ? wrap : $(el)).remove();
     }
   });
+
+  // 0a-bis. Quitar el bloque de soporte/rastreo hardcoded ("Cualquier duda
+  //   relacionada con la entrega... Quiero localizar mi tarjeta de crédito").
+  //   Es texto del email original de tracking VIVA — solo aplica a piezas de
+  //   ENVÍO, no a notificaciones genéricas. Lo borramos siempre, junto con
+  //   su wrapper .spaced-section para no dejar padding fantasma.
+  const supportBlock = $("div")
+    .filter((_i, el) => {
+      const t = $(el).text();
+      return (
+        t.includes("Quiero localizar mi tarjeta") ||
+        t.includes("Cualquier duda relacionada con la entrega")
+      );
+    })
+    .last();
+  if (supportBlock.length > 0) {
+    const wrap = supportBlock.closest("div.spaced-section");
+    (wrap.length > 0 ? wrap : supportBlock).remove();
+  }
 
   // 0b. Top brand header: only show the HSBC+VIVA art for Viva-family
   //     products; otherwise swap for the plain HSBC logo.
@@ -232,10 +281,25 @@ export function renderEmailHtml(args: {
   //    `[Nombre]` que MKT/CRM puede reemplazar con la variable real del MTA
   //    (ej. `{{first_name}}` en Postmark / `%%FNAME%%` en Salesforce).
   if (copy.body) {
-    const bodyTarget = $('strong:contains("Tarjeta de Crédito")').first().closest("div");
+    // OJO: NO anclar a `strong:contains("Tarjeta de Crédito")`. Desde que el
+    // AI mete el producto en negritas, el HEADLINE (en el hero block, arriba)
+    // también tiene ese <strong>, y el selector terminaba reemplazando el
+    // HERO en lugar del cuerpo (borrando la imagen, dejando texto de Puebla).
+    // Anclamos al texto ÚNICO del bloque de cuerpo original ("ha sido
+    // generada" + "rastreo"), que nunca aparece en un headline ni en un body
+    // generado. `.last()` toma el div más interno.
+    const bodyTarget = $("div")
+      .filter((_i, el) => {
+        const t = $(el).text();
+        return t.includes("ha sido generada") && t.includes("rastreo");
+      })
+      .last();
     if (bodyTarget.length > 0) {
       const greeting = `<p style="margin:0 0 16px 0;font-family:'Univers Next',Arial,sans-serif;font-size:18px;line-height:1.3;font-weight:700;color:${HSBC_RED};">¡Hola, [Nombre]!</p>`;
-      bodyTarget.html(greeting + bodyToInlineHtml($, copy.body));
+      // El div destino hereda font-size:1rem (chico). Forzamos 16px explícito
+      // para que el cuerpo matchee el tamaño del resto del email.
+      const bodyBlock = `<div style="font-family:'Univers Next',Arial,sans-serif;font-size:16px;line-height:1.5;color:#333333;">${bodyToInlineHtml($, copy.body)}</div>`;
+      bodyTarget.html(greeting + bodyBlock);
     }
   }
 

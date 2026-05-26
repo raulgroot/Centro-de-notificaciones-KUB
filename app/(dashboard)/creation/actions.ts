@@ -17,6 +17,16 @@ import {
   type NotificationCopy,
 } from "@/lib/ai/notification-copy";
 import { searchHeroImages, type FreepikImage } from "@/lib/adapters/freepik/client";
+import {
+  searchHeroImages as searchUnsplash,
+  type UnsplashImage,
+} from "@/lib/adapters/unsplash/client";
+import {
+  generateImages as generateImagesViaGemini,
+  generateImagesForVariations,
+  type GeneratedImage,
+} from "@/lib/adapters/google-genai/client";
+import { buildImagePromptVariations } from "@/lib/notifications/image-prompt";
 import { createDraft, deleteDraft, updateDraft } from "@/lib/adapters/supabase/notification-drafts";
 import { renderEmailHtml } from "@/lib/notifications/template";
 import type { DraftBrief, DraftCopy, DraftHeroImage } from "@/lib/db/schema";
@@ -74,9 +84,57 @@ export async function refineFieldAction(args: {
   return refineField(args);
 }
 
-/** Search Freepik for hero candidates. */
+/** Search Freepik for hero candidates. Mantenido por compat con UI vieja. */
 export async function searchImagesAction(query: string): Promise<FreepikImage[]> {
   return searchHeroImages({ query });
+}
+
+/**
+ * Search Unsplash. Reemplaza Freepik en el wizard. Devuelve un array vacío
+ * en lugar de tirar si Unsplash falla — la UI ya tiene fallback a upload
+ * o copiar prompt, no queremos bloquear al usuario por un proveedor.
+ */
+export async function searchUnsplashAction(query: string): Promise<UnsplashImage[]> {
+  try {
+    return await searchUnsplash({ query });
+  } catch (e) {
+    // Logueamos pero no propagamos — el UI mostrará lista vacía + el
+    // usuario puede usar las otras 2 opciones (upload o prompt).
+    console.error("[unsplash] search failed:", e instanceof Error ? e.message : e);
+    throw e;
+  }
+}
+
+/**
+ * Genera N imágenes con Google Gemini ("Nano Banana") directamente desde
+ * el wizard. El prompt viene pre-armado por buildImagePrompt y respeta
+ * las reglas de marca HSBC (rojo, sin contacto visual, sonrisa genuina,
+ * cuadrantes 1-2, 16:9).
+ */
+export async function generateImagesAction(args: {
+  prompt: string;
+  count?: number;
+}): Promise<GeneratedImage[]> {
+  return generateImagesViaGemini(args);
+}
+
+/**
+ * Genera UNA imagen por cada una de las 3 variaciones del prompt
+ * (editorial, contextual, cinemática). Sirviendo al wizard con "3 opciones
+ * para elegir, cada una con un look distinto". Construye los 3 prompts
+ * server-side desde el brief y delega al adapter de Gemini.
+ */
+export async function generateImageVariationsAction(args: {
+  brief: DraftBrief;
+}): Promise<GeneratedImage[]> {
+  const variations = buildImagePromptVariations(args.brief);
+  return generateImagesForVariations({
+    variations: variations.map((v) => ({
+      id: v.id,
+      name: v.name,
+      prompt: v.prompt,
+    })),
+  });
 }
 
 /** Delete a draft and bounce back to the list. */

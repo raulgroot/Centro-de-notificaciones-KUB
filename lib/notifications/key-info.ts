@@ -12,6 +12,32 @@
 import type { DraftKeyInfo } from "@/lib/db/schema";
 
 /**
+ * Nombres "vendibles" de cada producto HSBC, en el formato exacto que el
+ * AI debe usar en la copy ("Tarjeta de Crédito HSBC X"). El wizard solo
+ * captura un id corto ("viva", "vivaplus"); aquí lo expandimos al naming
+ * oficial que HSBC quiere ver en sus piezas.
+ */
+const PRODUCT_DISPLAY_NAMES: Record<string, string> = {
+  viva: "Tarjeta de Crédito HSBC Viva",
+  vivaplus: "Tarjeta de Crédito HSBC Viva Plus",
+  "2now": "Tarjeta de Crédito HSBC 2Now",
+  advance: "Tarjeta de Crédito HSBC Advance",
+  air: "Tarjeta de Crédito HSBC Air",
+  premier: "Tarjeta de Crédito HSBC Premier",
+  clasica: "Tarjeta de Crédito HSBC Clásica",
+  zero: "Tarjeta de Crédito HSBC Zero",
+};
+
+/**
+ * Devuelve el nombre vendible del producto si está en el catálogo, o el
+ * id tal cual si no lo conocemos (drafts viejos / productos custom).
+ */
+export function productDisplayName(productId: string | undefined): string {
+  if (!productId) return "";
+  return PRODUCT_DISPLAY_NAMES[productId.toLowerCase()] ?? productId;
+}
+
+/**
  * Formatea una fecha ISO (YYYY-MM-DD) a texto en español, ej.
  * "15 de junio de 2026". Si la fecha es inválida o no hay valor, devuelve
  * el string original (mejor mostrar algo que romper).
@@ -42,7 +68,10 @@ export function serializeKeyInfoTags(tags: DraftKeyInfo | undefined): string {
     parts.push(`Tarjeta con terminación ${tags.cardEnding.trim()}`);
   }
   if (tags.amount && tags.amount.trim()) {
-    parts.push(`Monto / premio: ${tags.amount.trim()}`);
+    // Pasamos el valor tal cual lo escribió el usuario; el AI lo normalizará
+    // al formato HSBC oficial ("$X,XXX M.N.") según las reglas del system
+    // prompt. Indicarlo explícitamente aquí evita ambigüedad.
+    parts.push(`Monto / premio (formatéalo como "$X,XXX M.N." en la copy): ${tags.amount.trim()}`);
   }
   if (tags.deadline) {
     parts.push(`Fecha límite: ${formatDateEs(tags.deadline)}`);

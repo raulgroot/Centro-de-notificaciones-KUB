@@ -22,14 +22,24 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   generateCopyAction,
+  generateImageVariationsAction,
   refineFieldAction,
   saveDraftAction,
   searchImagesAction,
+  searchUnsplashAction,
 } from "../actions";
 import type { NotificationDraft } from "@/lib/adapters/supabase/notification-drafts";
 import type { DraftBrief, DraftCopy, DraftHeroImage, DraftKeyInfo } from "@/lib/db/schema";
 import { renderEmailHtml } from "@/lib/notifications/template";
 import type { FreepikImage } from "@/lib/adapters/freepik/client";
+import type { UnsplashImage } from "@/lib/adapters/unsplash/client";
+import type { GeneratedImage } from "@/lib/adapters/google-genai/client";
+import { buildImagePromptVariations, type PromptVariation } from "@/lib/notifications/image-prompt";
+import {
+  UNIVERS_NEXT_REGULAR_WOFF2,
+  UNIVERS_NEXT_MEDIUM_WOFF2,
+  UNIVERS_NEXT_BOLD_WOFF2,
+} from "@/lib/notifications/univers-font";
 import {
   ArrowLeft,
   ArrowRight,
@@ -167,6 +177,10 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
   // the user has gone through the first generation). They can re-open it
   // anytime to tweak the inputs.
   const [briefOpen, setBriefOpen] = useState<boolean>(!draft.copy.subject);
+  // Toggle de preview dark mode. Por default light (que es como llega el
+  // email al cliente). Útil para verificar legibilidad si el cliente tiene
+  // dark mode forzado en su mail app.
+  const [previewDark, setPreviewDark] = useState<boolean>(false);
 
   // Wizard step index. When re-opening the brief after a generation we jump
   // straight to the last step so the user can review/regenerate without
@@ -365,310 +379,325 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
           When closed it disappears completely and only a small "Editar brief"
           button remains in the toolbar so copy + preview get the full screen. */}
       {briefOpen && (
-        <div className="flex flex-1 overflow-y-auto bg-gradient-to-b from-neutral-50/80 to-white">
-          <div className="mx-auto flex w-full max-w-3xl flex-col justify-center px-6 py-12">
-            {/* Progress dots — clickable to jump back to any visited step. */}
-            <div className="mb-6 flex items-center justify-center gap-1.5">
-              {WIZARD_STEPS.map((s, i) => {
-                const filled = isStepValid(brief, s.id);
-                const current = i === stepIdx;
-                return (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => setStepIdx(i)}
-                    aria-label={`Paso ${i + 1}`}
-                    className={`h-1.5 rounded-full transition-all ${
-                      current
-                        ? "bg-brand-600 w-8"
-                        : filled
-                          ? "bg-brand-600/40 hover:bg-brand-600/60 w-4"
-                          : "w-4 bg-neutral-300 hover:bg-neutral-400"
-                    }`}
-                  />
-                );
-              })}
-            </div>
-
-            {/* Current step content */}
-            <div className="min-h-[280px]">
-              {currentStep.id === "product" && (
-                <WizardStep
-                  title="¿Para cuál tarjeta es esta notificación?"
-                  hint="Determina el logo y los acentos visuales del email."
-                >
-                  <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-                    {PRODUCTS.map((p) => {
-                      const active = brief.product === p.id;
-                      return (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() => setBrief({ ...brief, product: p.id })}
-                          className={`group flex flex-col items-center gap-2 rounded-xl border p-3 text-sm font-medium transition ${
-                            active
-                              ? "border-brand-600 bg-brand-50 text-brand-700 ring-brand-600/15 ring-2"
-                              : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300 hover:bg-neutral-50"
-                          }`}
-                        >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={p.icon} alt="" className="h-10 w-16 object-contain" />
-                          <span className="text-xs">{p.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </WizardStep>
-              )}
-
-              {currentStep.id === "objective" && (
-                <WizardStep
-                  title="¿Qué quieres que haga el usuario?"
-                  hint="Una acción concreta. Ancla el headline y el CTA."
-                >
-                  <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-                    {OBJECTIVES.map((o) => {
-                      const active = brief.objective === o.id && !otherMode.objective;
-                      return (
-                        <button
-                          key={o.id}
-                          type="button"
-                          onClick={() => {
-                            setOtherMode((m) => ({ ...m, objective: false }));
-                            setBrief({ ...brief, objective: o.id });
-                          }}
-                          className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition ${
-                            active
-                              ? "border-brand-600 bg-brand-50 ring-brand-600/15 ring-2"
-                              : "border-neutral-200 bg-white hover:border-neutral-300 hover:bg-neutral-50"
-                          }`}
-                        >
-                          <span
-                            className={`text-sm font-semibold ${active ? "text-brand-700" : "text-neutral-900"}`}
-                          >
-                            {o.label}
-                          </span>
-                          <span className="text-[11px] leading-tight text-neutral-500">
-                            {o.help}
-                          </span>
-                        </button>
-                      );
-                    })}
-                    {/* "Otro" — toggles inline text input. When active, brief.objective
-                        holds the free-form text the user types. */}
+        <div className="relative flex-1 bg-gradient-to-b from-neutral-50/80 to-white">
+          {/* Layout con positioning absoluto en lugar de flex-1+min-h-0.
+              Intentamos varias variantes con flex pero el scroll seguía
+              comportándose raro en algunos casos. Con `absolute inset-0`
+              + `pb-24` (espacio para el footer) el navegador SIEMPRE permite
+              el scroll cuando el contenido excede la altura visible. */}
+          <div className="absolute inset-0 overflow-y-auto">
+            <div className="mx-auto w-full max-w-3xl px-6 pt-8 pb-32">
+              {/* Progress dots — clickable to jump back to any visited step. */}
+              <div className="mb-6 flex items-center justify-center gap-1.5">
+                {WIZARD_STEPS.map((s, i) => {
+                  const filled = isStepValid(brief, s.id);
+                  const current = i === stepIdx;
+                  return (
                     <button
+                      key={s.id}
                       type="button"
-                      onClick={() => {
-                        setOtherMode((m) => ({ ...m, objective: true }));
-                        // Clear stored id if user came from a preset.
-                        if (brief.objective && OBJECTIVES.some((o) => o.id === brief.objective)) {
-                          setBrief({ ...brief, objective: "" });
-                        }
-                      }}
-                      className={`flex flex-col items-start gap-1 rounded-xl border border-dashed p-3 text-left transition ${
-                        otherMode.objective
-                          ? "border-brand-600 bg-brand-50 ring-brand-600/15 ring-2"
-                          : "border-neutral-300 bg-white hover:border-neutral-400 hover:bg-neutral-50"
+                      onClick={() => setStepIdx(i)}
+                      aria-label={`Paso ${i + 1}`}
+                      className={`h-1.5 rounded-full transition-all ${
+                        current
+                          ? "bg-brand-600 w-8"
+                          : filled
+                            ? "bg-brand-600/40 hover:bg-brand-600/60 w-4"
+                            : "w-4 bg-neutral-300 hover:bg-neutral-400"
                       }`}
-                    >
-                      <span
-                        className={`text-sm font-semibold ${otherMode.objective ? "text-brand-700" : "text-neutral-900"}`}
-                      >
-                        Otro
-                      </span>
-                      <span className="text-[11px] leading-tight text-neutral-500">
-                        Describe el objetivo a tu manera.
-                      </span>
-                    </button>
-                  </div>
-                  {otherMode.objective && (
-                    <input
-                      autoFocus
-                      type="text"
-                      value={brief.objective ?? ""}
-                      onChange={(e) => setBrief({ ...brief, objective: e.target.value })}
-                      placeholder="Ej. Avisar que la tarjeta llega un día tarde por contingencia."
-                      className="focus:border-brand-600 focus:ring-brand-600/15 mt-3 w-full rounded-lg border border-neutral-300 bg-white px-3.5 py-3 text-sm placeholder:text-neutral-400 focus:ring-2 focus:outline-none"
                     />
-                  )}
-                </WizardStep>
-              )}
+                  );
+                })}
+              </div>
 
-              {currentStep.id === "topic" && (
-                <WizardStep
-                  title="¿De qué se trata exactamente?"
-                  hint="Cuéntame en una o dos frases qué pasa, qué cambia, qué debe saber el usuario."
-                >
-                  <textarea
-                    autoFocus
-                    value={brief.topic ?? ""}
-                    onChange={(e) => setBrief({ ...brief, topic: e.target.value })}
-                    rows={5}
-                    placeholder="Ej. Su tarjeta VIVA ya fue generada y le llegará en 5-10 días hábiles. Puede rastrearla por la app. Si necesita actualizar la dirección, hay un botón directo."
-                    className="focus:border-brand-600 focus:ring-brand-600/15 w-full rounded-lg border border-neutral-300 bg-white px-3.5 py-3 text-sm placeholder:text-neutral-400 focus:ring-2 focus:outline-none"
-                  />
-                  <p className="mt-1.5 text-[11px] text-neutral-500">
-                    Mínimo 10 caracteres.{" "}
-                    <span className="text-neutral-400">({(brief.topic ?? "").trim().length})</span>
-                  </p>
-                </WizardStep>
-              )}
-
-              {currentStep.id === "keyInfo" && (
-                <WizardStep
-                  title="¿Hay datos que SÍ o SÍ deben aparecer?"
-                  hint="Opcional. Activa los chips que apliquen y llena el dato. Evita que Claude se invente cosas."
-                >
-                  <KeyInfoChips
-                    tags={brief.keyInfoTags ?? {}}
-                    onChange={(tags) => setBrief({ ...brief, keyInfoTags: tags })}
-                  />
-                  {/* Si el draft viene con `keyInfo` libre (drafts viejos),
-                      mostramos un textarea editable para no perder ese dato. */}
-                  {brief.keyInfo && brief.keyInfo.trim() !== "" && (
-                    <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50/60 p-3">
-                      <div className="mb-1.5 text-[11px] font-semibold tracking-wider text-amber-700 uppercase">
-                        Información clave (formato libre, draft anterior)
-                      </div>
-                      <textarea
-                        value={brief.keyInfo ?? ""}
-                        onChange={(e) => setBrief({ ...brief, keyInfo: e.target.value })}
-                        rows={3}
-                        className="w-full rounded border border-amber-200 bg-white px-2.5 py-2 text-xs placeholder:text-neutral-400 focus:border-amber-400 focus:ring-2 focus:ring-amber-300/30 focus:outline-none"
-                      />
-                      <p className="mt-1 text-[10px] text-amber-700">
-                        Esta info se manda al AI tal cual, junto con los chips de arriba.
-                      </p>
+              {/* Current step content */}
+              <div className="min-h-[280px]">
+                {currentStep.id === "product" && (
+                  <WizardStep
+                    title="¿Para cuál tarjeta es esta notificación?"
+                    hint="Determina el logo y los acentos visuales del email."
+                  >
+                    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                      {PRODUCTS.map((p) => {
+                        const active = brief.product === p.id;
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => setBrief({ ...brief, product: p.id })}
+                            className={`group flex flex-col items-center gap-2 rounded-xl border p-3 text-sm font-medium transition ${
+                              active
+                                ? "border-brand-600 bg-brand-50 text-brand-700 ring-brand-600/15 ring-2"
+                                : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300 hover:bg-neutral-50"
+                            }`}
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={p.icon} alt="" className="h-10 w-16 object-contain" />
+                            <span className="text-xs">{p.label}</span>
+                          </button>
+                        );
+                      })}
                     </div>
-                  )}
-                  <p className="mt-3 text-[11px] text-neutral-500">
-                    Puedes saltar este paso si no aplica.
-                  </p>
-                </WizardStep>
-              )}
+                  </WizardStep>
+                )}
 
-              {currentStep.id === "audience" && (
-                <WizardStep
-                  title="¿Quién va a recibir esto?"
-                  hint="El segmento cambia el tono y los supuestos del mensaje."
-                >
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    {AUDIENCES.map((a) => {
-                      const active = brief.audience === a.id && !otherMode.audience;
-                      return (
-                        <button
-                          key={a.id}
-                          type="button"
-                          onClick={() => {
-                            setOtherMode((m) => ({ ...m, audience: false }));
-                            setBrief({ ...brief, audience: a.id });
-                          }}
-                          className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition ${
-                            active
-                              ? "border-brand-600 bg-brand-50 ring-brand-600/15 ring-2"
-                              : "border-neutral-200 bg-white hover:border-neutral-300 hover:bg-neutral-50"
-                          }`}
-                        >
-                          <span
-                            className={`text-sm font-semibold ${active ? "text-brand-700" : "text-neutral-900"}`}
+                {currentStep.id === "objective" && (
+                  <WizardStep
+                    title="¿Qué quieres que haga el usuario?"
+                    hint="Una acción concreta. Ancla el headline y el CTA."
+                  >
+                    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+                      {OBJECTIVES.map((o) => {
+                        const active = brief.objective === o.id && !otherMode.objective;
+                        return (
+                          <button
+                            key={o.id}
+                            type="button"
+                            onClick={() => {
+                              setOtherMode((m) => ({ ...m, objective: false }));
+                              setBrief({ ...brief, objective: o.id });
+                            }}
+                            className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition ${
+                              active
+                                ? "border-brand-600 bg-brand-50 ring-brand-600/15 ring-2"
+                                : "border-neutral-200 bg-white hover:border-neutral-300 hover:bg-neutral-50"
+                            }`}
                           >
-                            {a.label}
-                          </span>
-                          <span className="text-[11px] leading-tight text-neutral-500">
-                            {a.help}
-                          </span>
-                        </button>
-                      );
-                    })}
-                    {/* "Otro" — toggles inline text input for a custom audience. */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setOtherMode((m) => ({ ...m, audience: true }));
-                        if (brief.audience && AUDIENCES.some((a) => a.id === brief.audience)) {
-                          setBrief({ ...brief, audience: "" });
-                        }
-                      }}
-                      className={`flex flex-col items-start gap-1 rounded-xl border border-dashed p-3 text-left transition ${
-                        otherMode.audience
-                          ? "border-brand-600 bg-brand-50 ring-brand-600/15 ring-2"
-                          : "border-neutral-300 bg-white hover:border-neutral-400 hover:bg-neutral-50"
-                      }`}
-                    >
-                      <span
-                        className={`text-sm font-semibold ${otherMode.audience ? "text-brand-700" : "text-neutral-900"}`}
+                            <span
+                              className={`text-sm font-semibold ${active ? "text-brand-700" : "text-neutral-900"}`}
+                            >
+                              {o.label}
+                            </span>
+                            <span className="text-[11px] leading-tight text-neutral-500">
+                              {o.help}
+                            </span>
+                          </button>
+                        );
+                      })}
+                      {/* "Otro" — toggles inline text input. When active, brief.objective
+                        holds the free-form text the user types. */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOtherMode((m) => ({ ...m, objective: true }));
+                          // Clear stored id if user came from a preset.
+                          if (brief.objective && OBJECTIVES.some((o) => o.id === brief.objective)) {
+                            setBrief({ ...brief, objective: "" });
+                          }
+                        }}
+                        className={`flex flex-col items-start gap-1 rounded-xl border border-dashed p-3 text-left transition ${
+                          otherMode.objective
+                            ? "border-brand-600 bg-brand-50 ring-brand-600/15 ring-2"
+                            : "border-neutral-300 bg-white hover:border-neutral-400 hover:bg-neutral-50"
+                        }`}
                       >
-                        Otro
-                      </span>
-                      <span className="text-[11px] leading-tight text-neutral-500">
-                        Describe la audiencia a tu manera.
-                      </span>
-                    </button>
-                  </div>
-                  {otherMode.audience && (
-                    <input
-                      autoFocus
-                      type="text"
-                      value={brief.audience ?? ""}
-                      onChange={(e) => setBrief({ ...brief, audience: e.target.value })}
-                      placeholder="Ej. Clientes en CDMX con plan de pago a meses sin intereses."
-                      className="focus:border-brand-600 focus:ring-brand-600/15 mt-3 w-full rounded-lg border border-neutral-300 bg-white px-3.5 py-3 text-sm placeholder:text-neutral-400 focus:ring-2 focus:outline-none"
-                    />
-                  )}
-                </WizardStep>
-              )}
-
-              {currentStep.id === "urgency" && (
-                <WizardStep
-                  title="¿Qué tan urgente es?"
-                  hint="Determina la intensidad del lenguaje y el CTA."
-                >
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                    {URGENCIES.map((u) => {
-                      const active = brief.urgency === u.id;
-                      return (
-                        <button
-                          key={u.id}
-                          type="button"
-                          onClick={() => setBrief({ ...brief, urgency: u.id })}
-                          className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition ${
-                            active
-                              ? "border-brand-600 bg-brand-50 ring-brand-600/15 ring-2"
-                              : "border-neutral-200 bg-white hover:border-neutral-300 hover:bg-neutral-50"
-                          }`}
+                        <span
+                          className={`text-sm font-semibold ${otherMode.objective ? "text-brand-700" : "text-neutral-900"}`}
                         >
-                          <span
-                            className={`text-sm font-semibold ${active ? "text-brand-700" : "text-neutral-900"}`}
+                          Otro
+                        </span>
+                        <span className="text-[11px] leading-tight text-neutral-500">
+                          Describe el objetivo a tu manera.
+                        </span>
+                      </button>
+                    </div>
+                    {otherMode.objective && (
+                      <input
+                        autoFocus
+                        type="text"
+                        value={brief.objective ?? ""}
+                        onChange={(e) => setBrief({ ...brief, objective: e.target.value })}
+                        placeholder="Ej. Avisar que la tarjeta llega un día tarde por contingencia."
+                        className="focus:border-brand-600 focus:ring-brand-600/15 mt-3 w-full rounded-lg border border-neutral-300 bg-white px-3.5 py-3 text-sm placeholder:text-neutral-400 focus:ring-2 focus:outline-none"
+                      />
+                    )}
+                  </WizardStep>
+                )}
+
+                {currentStep.id === "topic" && (
+                  <WizardStep
+                    title="¿De qué se trata exactamente?"
+                    hint="Cuéntame en una o dos frases qué pasa, qué cambia, qué debe saber el usuario."
+                  >
+                    <textarea
+                      autoFocus
+                      value={brief.topic ?? ""}
+                      onChange={(e) => setBrief({ ...brief, topic: e.target.value })}
+                      rows={5}
+                      placeholder="Ej. Su tarjeta VIVA ya fue generada y le llegará en 5-10 días hábiles. Puede rastrearla por la app. Si necesita actualizar la dirección, hay un botón directo."
+                      className="focus:border-brand-600 focus:ring-brand-600/15 w-full rounded-lg border border-neutral-300 bg-white px-3.5 py-3 text-sm placeholder:text-neutral-400 focus:ring-2 focus:outline-none"
+                    />
+                    <p className="mt-1.5 text-[11px] text-neutral-500">
+                      Mínimo 10 caracteres.{" "}
+                      <span className="text-neutral-400">
+                        ({(brief.topic ?? "").trim().length})
+                      </span>
+                    </p>
+                  </WizardStep>
+                )}
+
+                {currentStep.id === "keyInfo" && (
+                  <WizardStep
+                    title="¿Hay datos que SÍ o SÍ deben aparecer?"
+                    hint="Opcional. Activa los chips que apliquen y llena el dato. Evita que Claude se invente cosas."
+                  >
+                    <KeyInfoChips
+                      tags={brief.keyInfoTags ?? {}}
+                      onChange={(tags) => setBrief({ ...brief, keyInfoTags: tags })}
+                    />
+                    {/* Si el draft viene con `keyInfo` libre (drafts viejos),
+                      mostramos un textarea editable para no perder ese dato. */}
+                    {brief.keyInfo && brief.keyInfo.trim() !== "" && (
+                      <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50/60 p-3">
+                        <div className="mb-1.5 text-[11px] font-semibold tracking-wider text-amber-700 uppercase">
+                          Información clave (formato libre, draft anterior)
+                        </div>
+                        <textarea
+                          value={brief.keyInfo ?? ""}
+                          onChange={(e) => setBrief({ ...brief, keyInfo: e.target.value })}
+                          rows={3}
+                          className="w-full rounded border border-amber-200 bg-white px-2.5 py-2 text-xs placeholder:text-neutral-400 focus:border-amber-400 focus:ring-2 focus:ring-amber-300/30 focus:outline-none"
+                        />
+                        <p className="mt-1 text-[10px] text-amber-700">
+                          Esta info se manda al AI tal cual, junto con los chips de arriba.
+                        </p>
+                      </div>
+                    )}
+                    <p className="mt-3 text-[11px] text-neutral-500">
+                      Puedes saltar este paso si no aplica.
+                    </p>
+                  </WizardStep>
+                )}
+
+                {currentStep.id === "audience" && (
+                  <WizardStep
+                    title="¿Quién va a recibir esto?"
+                    hint="El segmento cambia el tono y los supuestos del mensaje."
+                  >
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      {AUDIENCES.map((a) => {
+                        const active = brief.audience === a.id && !otherMode.audience;
+                        return (
+                          <button
+                            key={a.id}
+                            type="button"
+                            onClick={() => {
+                              setOtherMode((m) => ({ ...m, audience: false }));
+                              setBrief({ ...brief, audience: a.id });
+                            }}
+                            className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition ${
+                              active
+                                ? "border-brand-600 bg-brand-50 ring-brand-600/15 ring-2"
+                                : "border-neutral-200 bg-white hover:border-neutral-300 hover:bg-neutral-50"
+                            }`}
                           >
-                            {u.label}
-                          </span>
-                          <span className="text-[11px] leading-tight text-neutral-500">
-                            {u.help}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </WizardStep>
-              )}
+                            <span
+                              className={`text-sm font-semibold ${active ? "text-brand-700" : "text-neutral-900"}`}
+                            >
+                              {a.label}
+                            </span>
+                            <span className="text-[11px] leading-tight text-neutral-500">
+                              {a.help}
+                            </span>
+                          </button>
+                        );
+                      })}
+                      {/* "Otro" — toggles inline text input for a custom audience. */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOtherMode((m) => ({ ...m, audience: true }));
+                          if (brief.audience && AUDIENCES.some((a) => a.id === brief.audience)) {
+                            setBrief({ ...brief, audience: "" });
+                          }
+                        }}
+                        className={`flex flex-col items-start gap-1 rounded-xl border border-dashed p-3 text-left transition ${
+                          otherMode.audience
+                            ? "border-brand-600 bg-brand-50 ring-brand-600/15 ring-2"
+                            : "border-neutral-300 bg-white hover:border-neutral-400 hover:bg-neutral-50"
+                        }`}
+                      >
+                        <span
+                          className={`text-sm font-semibold ${otherMode.audience ? "text-brand-700" : "text-neutral-900"}`}
+                        >
+                          Otro
+                        </span>
+                        <span className="text-[11px] leading-tight text-neutral-500">
+                          Describe la audiencia a tu manera.
+                        </span>
+                      </button>
+                    </div>
+                    {otherMode.audience && (
+                      <input
+                        autoFocus
+                        type="text"
+                        value={brief.audience ?? ""}
+                        onChange={(e) => setBrief({ ...brief, audience: e.target.value })}
+                        placeholder="Ej. Clientes en CDMX con plan de pago a meses sin intereses."
+                        className="focus:border-brand-600 focus:ring-brand-600/15 mt-3 w-full rounded-lg border border-neutral-300 bg-white px-3.5 py-3 text-sm placeholder:text-neutral-400 focus:ring-2 focus:outline-none"
+                      />
+                    )}
+                  </WizardStep>
+                )}
 
-              {currentStep.id === "image" && (
-                <WizardStep
-                  title="¿Qué imagen va en el hero?"
-                  hint="Opcional. Sube una imagen tuya. (La búsqueda Freepik está temporalmente fuera mientras movemos a otro proveedor.)"
-                >
-                  <WizardImagePicker
-                    heroImage={heroImage}
-                    onPick={(img) => setHeroImage(img)}
-                    onClear={() => setHeroImage(null)}
-                    onError={setError}
-                  />
-                </WizardStep>
-              )}
+                {currentStep.id === "urgency" && (
+                  <WizardStep
+                    title="¿Qué tan urgente es?"
+                    hint="Determina la intensidad del lenguaje y el CTA."
+                  >
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                      {URGENCIES.map((u) => {
+                        const active = brief.urgency === u.id;
+                        return (
+                          <button
+                            key={u.id}
+                            type="button"
+                            onClick={() => setBrief({ ...brief, urgency: u.id })}
+                            className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition ${
+                              active
+                                ? "border-brand-600 bg-brand-50 ring-brand-600/15 ring-2"
+                                : "border-neutral-200 bg-white hover:border-neutral-300 hover:bg-neutral-50"
+                            }`}
+                          >
+                            <span
+                              className={`text-sm font-semibold ${active ? "text-brand-700" : "text-neutral-900"}`}
+                            >
+                              {u.label}
+                            </span>
+                            <span className="text-[11px] leading-tight text-neutral-500">
+                              {u.help}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </WizardStep>
+                )}
+
+                {currentStep.id === "image" && (
+                  <WizardStep
+                    title="¿Qué imagen va en el hero?"
+                    hint="Opcional. Tres formas: busca en Unsplash, sube la tuya, o copia un prompt para generarla en tu IA preferida."
+                  >
+                    <WizardImagePicker
+                      brief={brief}
+                      heroImage={heroImage}
+                      onPick={(img) => setHeroImage(img)}
+                      onClear={() => setHeroImage(null)}
+                      onError={setError}
+                    />
+                  </WizardStep>
+                )}
+              </div>
             </div>
+          </div>
 
-            {/* Navigation footer */}
-            <div className="mt-6 flex items-center justify-between gap-3 border-t border-neutral-200 pt-4">
+          {/* Navigation footer — POSICIÓN ABSOLUTA al fondo del wizard.
+              Siempre fijo al pie sin importar el scroll del contenido.
+              El padding-bottom del scroll (pb-32) reserva espacio para
+              que nada del contenido quede oculto debajo del footer. */}
+          <div className="absolute inset-x-0 bottom-0 border-t border-neutral-200 bg-white/95 backdrop-blur">
+            <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3 px-6 py-4">
               <div className="flex items-center gap-3">
                 <button
                   type="button"
@@ -972,17 +1001,58 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
             </section>
 
             {/* PREVIEW — right column when 2-col */}
-            <section className="overflow-y-auto bg-neutral-100">
-              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-neutral-200 bg-neutral-100/95 px-5 py-2.5 backdrop-blur">
-                <div className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+            <section
+              className={`overflow-y-auto transition-colors ${
+                previewDark ? "bg-neutral-900" : "bg-neutral-100"
+              }`}
+            >
+              <div
+                className={`sticky top-0 z-10 flex items-center justify-between border-b px-5 py-2.5 backdrop-blur ${
+                  previewDark
+                    ? "border-neutral-700 bg-neutral-900/95"
+                    : "border-neutral-200 bg-neutral-100/95"
+                }`}
+              >
+                <div
+                  className={`text-[11px] font-semibold tracking-wider uppercase ${
+                    previewDark ? "text-neutral-400" : "text-neutral-500"
+                  }`}
+                >
                   Preview HSBC
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setPreviewDark((v) => !v)}
+                  title={previewDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
+                  className={`inline-flex h-7 items-center gap-1 rounded-md border px-2 text-[11px] font-medium transition ${
+                    previewDark
+                      ? "border-neutral-600 bg-neutral-800 text-neutral-200 hover:bg-neutral-700"
+                      : "border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50"
+                  }`}
+                >
+                  {previewDark ? "☀️ Claro" : "🌙 Oscuro"}
+                </button>
               </div>
               <div className="p-5">
-                <div className="mx-auto max-w-[640px] overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-sm">
+                <div
+                  className={`mx-auto max-w-[640px] overflow-hidden rounded-lg border shadow-sm ${
+                    previewDark
+                      ? "border-neutral-700 bg-neutral-800"
+                      : "border-neutral-200 bg-white"
+                  }`}
+                >
                   <iframe
                     title="Email preview"
-                    srcDoc={previewHtml}
+                    // Si activamos modo oscuro, le injectamos un wrapper con
+                    // filter: invert+hue-rotate al body del email. No es el
+                    // dark mode "oficial" del cliente, pero da una idea de
+                    // cómo se vería si el cliente respeta los colores
+                    // y aplicaría su tema oscuro encima.
+                    srcDoc={
+                      previewDark
+                        ? wrapForDark(fixPreviewScale(previewHtml))
+                        : fixPreviewScale(previewHtml)
+                    }
                     className="block h-[calc(100vh-12rem)] w-full border-0"
                     sandbox="allow-same-origin"
                   />
@@ -1107,6 +1177,87 @@ function CopyField({
       )}
     </div>
   );
+}
+
+/**
+ * Envuelve el HTML del email en una capa CSS que simula cómo se vería en
+ * el "dark mode" forzado de algunos clientes de correo (Gmail iOS, Outlook
+ * Windows con tema oscuro, Apple Mail Modo Oscuro). No es perfecto — el
+ * dark mode real es decidido por el cliente del usuario y a veces respeta
+ * `@media (prefers-color-scheme: dark)` y a veces no — pero ayuda a ver
+ * dónde el copy o las imágenes pierden contraste.
+ */
+function wrapForDark(html: string): string {
+  // Inyectamos un style global que invierte los colores claros y mantiene
+  // las imágenes intactas (filter: invert(1) hue-rotate(180deg) preserva
+  // los hues mientras voltea la luminosidad).
+  const darkCss = `
+    <style>
+      html, body { background: #0a0a0a !important; }
+      body { filter: invert(0.92) hue-rotate(180deg); }
+      img, svg { filter: invert(1) hue-rotate(180deg); }
+      a { color: #91b6f6 !important; }
+    </style>
+  `;
+  return injectStyle(html, darkCss);
+}
+
+/**
+ * El template HSBC tiene una pelea en el <html> entre dos declaraciones
+ * de font-size:
+ *   font-size:calc(1.0 * 62.5%)   ← intencional, da 1rem = 10px
+ *   font-size:16px                ← override que rompe la matemática rem
+ *
+ * Con el override de 16px, body (1.6rem) = 25.6px y h1 (4rem) = 64px, lo
+ * que hace que el preview se vea GIGANTE. En un cliente de email real este
+ * problema no se nota porque algunos clientes ignoran el override.
+ *
+ * NO tocamos el HTML del email (es vendor template). En su lugar, en el
+ * preview del editor inyectamos un override `!important` que fuerza 10px
+ * en html, restaurando la matemática que el template asume.
+ */
+function fixPreviewScale(html: string): string {
+  // Univers Next for HSBC embebida como data URLs WOFF2 (Regular 400,
+  // Medium 500, Bold 700). El @font-face del template apunta a
+  // rastreo.kublau.com con URL firmada temporal que no carga fiable dentro
+  // del iframe srcDoc (origen opaco) — los data URLs siempre cargan.
+  //
+  // Ahora SÍ tenemos el peso Bold real: los <strong> renderean con la
+  // Univers Bold nativa (no faux-bold). Archivos oficiales de HSBC.
+  const fixCss = `
+    <style>
+      @font-face {
+        font-family: 'Univers Next';
+        src: url('${UNIVERS_NEXT_REGULAR_WOFF2}') format('woff2');
+        font-weight: 400;
+        font-style: normal;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: 'Univers Next';
+        src: url('${UNIVERS_NEXT_MEDIUM_WOFF2}') format('woff2');
+        font-weight: 500;
+        font-style: normal;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: 'Univers Next';
+        src: url('${UNIVERS_NEXT_BOLD_WOFF2}') format('woff2');
+        font-weight: 700;
+        font-style: normal;
+        font-display: swap;
+      }
+    </style>
+  `;
+  return injectStyle(html, fixCss);
+}
+
+/** Inserta un <style> antes de </head>, o al inicio si no hay head. */
+function injectStyle(html: string, styleTag: string): string {
+  if (html.includes("</head>")) {
+    return html.replace("</head>", `${styleTag}</head>`);
+  }
+  return `${styleTag}${html}`;
 }
 
 /* ─────────────────── Chips de "información clave" ─────────────────── */
@@ -1294,20 +1445,115 @@ function FieldRow({ label, children }: { label: string; children: React.ReactNod
 /* ─────────────────── Image picker dentro del wizard ─────────────────── */
 
 /**
- * Selector de imagen en el wizard. Reutiliza el upload propio del editor.
- * Por ahora la búsqueda Freepik no está expuesta aquí (la deshabilitamos
- * mientras decidimos qué proveedor de stock usar).
+ * Selector de imagen del wizard con 3 modos: Buscar (Unsplash), Subir,
+ * o Copiar prompt para generar en un servicio externo de imágenes (Midjourney,
+ * DALL·E, etc.). El prompt se construye desde el brief del wizard
+ * (`lib/notifications/image-prompt.ts`).
  */
 function WizardImagePicker({
+  brief,
   heroImage,
   onPick,
   onClear,
   onError,
 }: {
+  brief: DraftBrief;
   heroImage: DraftHeroImage | null;
   onPick: (img: DraftHeroImage) => void;
   onClear: () => void;
   onError: (e: string | null) => void;
+}) {
+  const [tab, setTab] = useState<"search" | "upload" | "prompt">("upload");
+
+  return (
+    <div className="space-y-4">
+      {/* Imagen actual (si ya seleccionaste una) */}
+      {heroImage?.url && (
+        <div className="flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50/40 p-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={heroImage.url}
+            alt={heroImage.alt ?? ""}
+            className="h-24 w-40 rounded border border-neutral-200 object-cover"
+          />
+          <div className="flex-1 text-sm">
+            <div className="font-medium text-neutral-800">
+              {heroImage.alt || "Imagen seleccionada"}
+            </div>
+            <div className="text-[11px] text-neutral-500">Fuente: {heroImage.source}</div>
+            <button
+              type="button"
+              onClick={onClear}
+              className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-rose-600 hover:underline"
+            >
+              <X className="h-3 w-3" />
+              Quitar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Tabs de las 3 opciones */}
+      <div className="flex gap-1.5 rounded-lg border border-neutral-200 bg-neutral-50 p-1">
+        <TabButton active={tab === "search"} onClick={() => setTab("search")}>
+          <Wand2 className="h-3.5 w-3.5" />
+          Buscar (Unsplash)
+        </TabButton>
+        <TabButton active={tab === "upload"} onClick={() => setTab("upload")}>
+          <Upload className="h-3.5 w-3.5" />
+          Subir mía
+        </TabButton>
+        <TabButton active={tab === "prompt"} onClick={() => setTab("prompt")}>
+          <Sparkles className="h-3.5 w-3.5" />
+          Generar con IA
+        </TabButton>
+      </div>
+
+      {tab === "upload" && (
+        <UploadPanel onPick={onPick} onError={onError} disabled={Boolean(heroImage?.url)} />
+      )}
+      {tab === "search" && <UnsplashPanel onPick={onPick} onError={onError} />}
+      {tab === "prompt" && <ImagePromptPanel brief={brief} onPick={onPick} onError={onError} />}
+
+      <p className="text-[11px] text-neutral-500">
+        Puedes saltar este paso y agregar la imagen después desde el editor.
+      </p>
+    </div>
+  );
+}
+
+function TabButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition ${
+        active ? "bg-white text-neutral-900 shadow-sm" : "text-neutral-600 hover:text-neutral-900"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+/* ─── Tab: Subir imagen propia ─── */
+
+function UploadPanel({
+  onPick,
+  onError,
+  disabled,
+}: {
+  onPick: (img: DraftHeroImage) => void;
+  onError: (e: string | null) => void;
+  disabled: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -1344,61 +1590,378 @@ function WizardImagePicker({
   }
 
   return (
-    <div className="space-y-3">
-      {heroImage?.url ? (
-        <div className="flex items-start gap-3 rounded-lg border border-neutral-200 bg-neutral-50/60 p-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={heroImage.url}
-            alt={heroImage.alt ?? ""}
-            className="h-24 w-40 rounded border border-neutral-200 object-cover"
-          />
-          <div className="flex-1 text-sm">
-            <div className="font-medium text-neutral-800">
-              {heroImage.alt || "Imagen seleccionada"}
-            </div>
-            <div className="text-[11px] text-neutral-500">Fuente: {heroImage.source}</div>
-            <button
-              type="button"
-              onClick={onClear}
-              className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-rose-600 hover:underline"
-            >
-              <X className="h-3 w-3" />
-              Quitar
-            </button>
-          </div>
-        </div>
-      ) : (
-        <input
-          ref={inputRef}
-          type="file"
-          accept="image/png,image/jpeg,image/webp"
-          className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) void onFile(f);
-          }}
-        />
-      )}
+    <div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void onFile(f);
+        }}
+      />
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        disabled={uploading || disabled}
+        className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-dashed border-neutral-300 bg-white px-4 text-sm font-medium text-neutral-700 transition hover:border-neutral-400 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+        {disabled ? "Quita la imagen actual para subir otra" : "Subir mi imagen"}
+        {!disabled && <span className="text-xs text-neutral-400">PNG, JPG, WebP · 3 MB</span>}
+      </button>
+    </div>
+  );
+}
 
-      {!heroImage?.url && (
+/* ─── Tab: Buscar Unsplash ─── */
+
+function UnsplashPanel({
+  onPick,
+  onError,
+}: {
+  onPick: (img: DraftHeroImage) => void;
+  onError: (e: string | null) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<UnsplashImage[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  async function onSearch() {
+    const q = query.trim();
+    if (!q) return;
+    setBusy(true);
+    onError(null);
+    try {
+      const r = await searchUnsplashAction(q);
+      setResults(r);
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "Falló la búsqueda.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function pick(img: UnsplashImage) {
+    onPick({
+      url: img.url,
+      alt: img.alt || img.description || query,
+      source: "url",
+      query,
+    });
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              void onSearch();
+            }
+          }}
+          placeholder="Ej. mujer mexicana sonriendo con tarjeta"
+          className="focus:border-brand-600 focus:ring-brand-600/15 h-9 flex-1 rounded-md border border-neutral-300 bg-white px-3 text-sm placeholder:text-neutral-400 focus:ring-2 focus:outline-none"
+        />
         <button
           type="button"
-          onClick={() => inputRef.current?.click()}
-          disabled={uploading}
-          className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-dashed border-neutral-300 bg-white px-4 text-sm font-medium text-neutral-700 transition hover:border-neutral-400 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60"
+          onClick={onSearch}
+          disabled={busy || !query.trim()}
+          className="inline-flex h-9 items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-3 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {uploading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+          {busy ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
           ) : (
-            <Upload className="h-4 w-4" />
+            <Wand2 className="h-3.5 w-3.5" />
           )}
-          Subir mi imagen
-          <span className="text-xs text-neutral-400">PNG, JPG, WebP · 3 MB</span>
+          Buscar
         </button>
+      </div>
+
+      {results.length > 0 && (
+        <div className="grid grid-cols-3 gap-2">
+          {results.map((img) => (
+            <button
+              key={img.id}
+              type="button"
+              onClick={() => pick(img)}
+              className="hover:ring-brand-600 group relative overflow-hidden rounded border border-neutral-200 transition hover:ring-2"
+              title={img.attribution}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={img.thumbUrl} alt={img.alt || ""} className="h-20 w-full object-cover" />
+            </button>
+          ))}
+        </div>
       )}
+
+      {results.length === 0 && !busy && (
+        <p className="text-[11px] text-neutral-500">
+          Las imágenes vienen de Unsplash. Si no encuentras nada, prueba en inglés (suele dar
+          mejores resultados).
+        </p>
+      )}
+    </div>
+  );
+}
+
+/* ─── Tab: Generar con IA (copy prompt) ─── */
+
+/**
+ * Atajos a generadores de imagen populares. El usuario hace click, le
+ * copiamos el prompt al clipboard, y le abrimos el tool en nueva pestaña
+ * para que solo pegue (Cmd+V). Cada tool tiene su propio link de "imagine".
+ *
+ * Cuando alguno de los tools tenga API pública de URL params, podemos
+ * pasar el prompt en la URL directamente. Hoy ninguno lo soporta de forma
+ * fiable, así que el patrón clipboard+open es lo más robusto.
+ */
+const AI_IMAGE_GENERATORS = [
+  { id: "chatgpt", label: "ChatGPT", url: "https://chat.openai.com" },
+  { id: "midjourney", label: "Midjourney", url: "https://www.midjourney.com/imagine" },
+  { id: "imagen", label: "Imagen (Gemini)", url: "https://gemini.google.com/app" },
+  { id: "firefly", label: "Adobe Firefly", url: "https://firefly.adobe.com" },
+] as const;
+
+function ImagePromptPanel({
+  brief,
+  onPick,
+  onError,
+}: {
+  brief: DraftBrief;
+  onPick: (img: DraftHeroImage) => void;
+  onError: (e: string | null) => void;
+}) {
+  // 3 variaciones del prompt — el usuario puede ver/copiar la que quiera.
+  // Generar 3 manda UNA imagen por variación al modelo.
+  const variations: PromptVariation[] = useMemo(() => buildImagePromptVariations(brief), [brief]);
+  const [activeVar, setActiveVar] = useState<PromptVariation["id"]>("editorial");
+  const activeVariation = variations.find((v) => v.id === activeVar) ?? variations[0]!;
+  const prompt = activeVariation.prompt;
+  const [copied, setCopied] = useState(false);
+  const [pasting, setPasting] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [generated, setGenerated] = useState<GeneratedImage[]>([]);
+
+  async function copyToClipboard(): Promise<boolean> {
+    try {
+      await navigator.clipboard.writeText(prompt);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async function onCopy() {
+    const ok = await copyToClipboard();
+    if (ok) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    }
+  }
+
+  async function onOpenGenerator(toolId: string, url: string) {
+    // Pre-copia el prompt para que el usuario solo pegue al abrir el tool.
+    setPasting(toolId);
+    await copyToClipboard();
+    // Pequeño delay para que el usuario vea "Copiando..." antes de irse.
+    setTimeout(() => {
+      window.open(url, "_blank", "noopener,noreferrer");
+      setPasting(null);
+    }, 350);
+  }
+
+  async function onGenerateWithBanana() {
+    setGenerating(true);
+    onError(null);
+    setGenerated([]);
+    try {
+      // Manda las 3 variaciones — el server las construye desde el brief
+      // y devuelve 1 imagen por variación.
+      const results = await generateImageVariationsAction({ brief });
+      if (results.length === 0) {
+        onError(
+          "Nano Banana no devolvió ninguna imagen. Puede ser rate limit o quota. Espera 1 min e intenta otra vez, o usa otro generador.",
+        );
+      }
+      setGenerated(results);
+    } catch (e) {
+      onError(
+        e instanceof Error
+          ? `No pude generar con Nano Banana: ${e.message}`
+          : "Falló la generación con Nano Banana.",
+      );
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  function pickGenerated(img: GeneratedImage) {
+    onPick({
+      url: img.url,
+      alt: img.altSummary,
+      source: "upload",
+    });
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* ★ Atajo principal: generar 3 variaciones distintas con Nano Banana */}
+      <div className="bg-brand-50/40 border-brand-200 rounded-lg border p-3.5">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <div>
+            <div className="text-brand-800 text-sm font-semibold">✨ Generar con Nano Banana</div>
+            <div className="text-[11px] text-neutral-600">
+              3 variaciones distintas (editorial / contextual / cinemática). ~15–25 seg.
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onGenerateWithBanana}
+            disabled={generating}
+            className="bg-brand-600 hover:bg-brand-700 inline-flex h-9 items-center gap-1.5 rounded-md px-4 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {generating ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Generando 3 variaciones…
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-4 w-4" />
+                Generar 3
+              </>
+            )}
+          </button>
+        </div>
+
+        {generated.length > 0 && (
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            {generated.map((img, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => pickGenerated(img)}
+                className="hover:ring-brand-600 group relative overflow-hidden rounded-lg border border-neutral-200 transition hover:ring-2"
+                title={img.variationName ?? "Generada"}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={img.url} alt={img.altSummary} className="h-32 w-full object-cover" />
+                {img.variationName && (
+                  <div className="absolute top-1 left-1 rounded bg-black/65 px-1.5 py-0.5 text-[9px] font-semibold tracking-wider text-white uppercase">
+                    {img.variationName}
+                  </div>
+                )}
+                <div className="bg-brand-600/0 group-hover:bg-brand-600/15 absolute inset-0 flex items-center justify-center transition">
+                  <span className="rounded bg-white/95 px-2 py-0.5 text-[10px] font-semibold text-neutral-900 opacity-0 transition group-hover:opacity-100">
+                    Usar esta
+                  </span>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="text-center text-[10px] tracking-widest text-neutral-400 uppercase">
+        o copia el prompt y úsalo en otro generador
+      </div>
+
+      <div className="rounded-lg border border-neutral-200 bg-neutral-50/60 p-3">
+        {/* Tabs para alternar entre las 3 variaciones del prompt */}
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <div className="flex gap-1 rounded bg-neutral-100 p-0.5">
+            {variations.map((v) => (
+              <button
+                key={v.id}
+                type="button"
+                onClick={() => {
+                  setActiveVar(v.id);
+                  setCopied(false);
+                }}
+                className={`rounded px-2.5 py-1 text-[11px] font-medium transition ${
+                  activeVar === v.id
+                    ? "bg-white text-neutral-900 shadow-sm"
+                    : "text-neutral-600 hover:text-neutral-900"
+                }`}
+              >
+                {v.name}
+              </button>
+            ))}
+          </div>
+          {/* Copy rápido al lado de las tabs */}
+          <button
+            type="button"
+            onClick={onCopy}
+            className="inline-flex h-6 items-center gap-1 rounded border border-neutral-300 bg-white px-2 text-[10px] font-medium text-neutral-600 transition hover:bg-neutral-50"
+          >
+            {copied ? "✓ Copiado" : "Copiar"}
+          </button>
+        </div>
+        <div className="mb-1.5 text-[10px] text-neutral-500">{activeVariation.description}</div>
+        <textarea
+          readOnly
+          value={prompt}
+          rows={12}
+          className="w-full resize-none rounded border border-neutral-200 bg-white px-3 py-2 font-mono text-[11px] leading-relaxed text-neutral-700"
+        />
+      </div>
+
+      {/* Botón principal de copiar */}
+      <button
+        type="button"
+        onClick={onCopy}
+        className="bg-brand-600 hover:bg-brand-700 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold text-white transition"
+      >
+        {copied ? (
+          "✓ Prompt copiado al portapapeles"
+        ) : (
+          <>
+            <Sparkles className="h-4 w-4" />
+            Copiar prompt al portapapeles
+          </>
+        )}
+      </button>
+
+      {/* Atajos a generadores */}
+      <div className="rounded-lg border border-neutral-200 bg-white p-3">
+        <div className="mb-2 text-[11px] font-medium text-neutral-600">
+          O abre directo un generador (te copiamos el prompt y lo abrimos en nueva pestaña — solo
+          pega con Cmd+V):
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {AI_IMAGE_GENERATORS.map((g) => (
+            <button
+              key={g.id}
+              type="button"
+              onClick={() => onOpenGenerator(g.id, g.url)}
+              disabled={pasting !== null}
+              className="inline-flex items-center justify-center gap-1.5 rounded-md border border-neutral-300 bg-white px-3 py-2 text-xs font-medium text-neutral-700 transition hover:border-neutral-400 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {pasting === g.id ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Copiando…
+                </>
+              ) : (
+                <>
+                  {g.label}
+                  <ArrowRight className="h-3 w-3" />
+                </>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <p className="text-[11px] text-neutral-500">
-        Puedes saltar este paso y agregar la imagen después desde el editor.
+        Cuando tengas la imagen generada, vuelve aquí, ve a la pestaña <strong>Subir mía</strong> y
+        súbela.
       </p>
     </div>
   );

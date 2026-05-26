@@ -18,7 +18,7 @@ import { generateObject, generateText } from "ai";
 import { z } from "zod";
 import { anthropicEnv } from "@/lib/env";
 import type { DraftBrief, DraftCopy } from "@/lib/db/schema";
-import { serializeKeyInfoTags } from "@/lib/notifications/key-info";
+import { serializeKeyInfoTags, productDisplayName } from "@/lib/notifications/key-info";
 
 /** What the wizard receives back after a "Generar" click. */
 export const NotificationCopySchema = z.object({
@@ -92,6 +92,16 @@ function systemPrompt(): string {
     "- cta_label: verbo en imperativo (Activa, Verifica, Confirma...). Sin punto.",
     "- sms: <=160 chars total. Pueden incluir un placeholder tipo {{tracking_link}} si aplica.",
     "",
+    "Formato de datos clave (negritas markdown con doble asterisco):",
+    "- El NOMBRE COMPLETO DEL PRODUCTO (ej. 'Tarjeta de Credito HSBC 2Now') va en negritas EN CADA APARICION: **Tarjeta de Credito HSBC 2Now**.",
+    "- Terminacion de tarjeta en negritas: **4823**.",
+    "- MONTOS: formato SIEMPRE '$X,XXX M.N.' en negritas. Correcto: **$5,000 M.N.**, **$150 M.N.**. INCORRECTO: $5,000 MXN, $5000, 5000 pesos.",
+    "- Fechas en negritas: **15 de junio de 2026**.",
+    "- URLs / codigos en negritas: **PROMO2026**.",
+    "- Aplica en subject, headline, body y sms cuando esos datos aparezcan.",
+    "- SOLO usa ** para esos datos especificos, NO para enfatizar otras palabras.",
+    "- IMPORTANTE: el campo body es TEXTO PLANO con markdown, NO un objeto JSON. NO envuelvas el body en {...}.",
+    "",
     "Output: SIEMPRE el objeto JSON definido por el schema. Nada antes ni despues.",
   ].join("\n");
 }
@@ -127,7 +137,15 @@ const URGENCY_HINT: Record<string, string> = {
 
 function briefToUserPrompt(brief: DraftBrief): string {
   const lines: string[] = ["Datos del brief:"];
-  if (brief.product) lines.push(`- Producto: ${brief.product}`);
+  if (brief.product) {
+    lines.push(`- Producto: ${brief.product}`);
+    const displayName = productDisplayName(brief.product);
+    if (displayName && displayName !== brief.product) {
+      lines.push(
+        `- Nombre completo del producto (úsalo así, EN NEGRITAS en cada aparición): **${displayName}**`,
+      );
+    }
+  }
   if (brief.objective) {
     const hint = OBJECTIVE_HINT[brief.objective] ?? "";
     lines.push(`- Objetivo: ${brief.objective}${hint ? ` — ${hint}` : ""}`);
@@ -160,6 +178,25 @@ function briefToUserPrompt(brief: DraftBrief): string {
   return lines.join("\n");
 }
 
+/**
+ * Defensa: ocasionalmente el modelo emite un field de string envuelto en
+ * JSON anidado (ej. body = '{"body":"texto real"}'). Lo detectamos y
+ * desenvolvemos para que el template renderee texto plano.
+ */
+function unwrapAccidentalJsonField(value: string, fieldName: string): string {
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) return value;
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (parsed && typeof parsed === "object" && typeof parsed[fieldName] === "string") {
+      return parsed[fieldName];
+    }
+  } catch {
+    /* no es JSON, dejar tal cual */
+  }
+  return value;
+}
+
 /** Generate a full copy bundle from a brief. */
 export async function generateNotificationCopy(brief: DraftBrief): Promise<NotificationCopy> {
   const { object } = await generateObject({
@@ -169,7 +206,15 @@ export async function generateNotificationCopy(brief: DraftBrief): Promise<Notif
     prompt: briefToUserPrompt(brief),
     temperature: 0.7,
   });
-  return object;
+  // Sanitizar cada field por si el modelo wrapeó en JSON anidado.
+  return {
+    subject: unwrapAccidentalJsonField(object.subject, "subject"),
+    preheader: unwrapAccidentalJsonField(object.preheader, "preheader"),
+    headline: unwrapAccidentalJsonField(object.headline, "headline"),
+    body: unwrapAccidentalJsonField(object.body, "body"),
+    cta_label: unwrapAccidentalJsonField(object.cta_label, "cta_label"),
+    sms: unwrapAccidentalJsonField(object.sms, "sms"),
+  };
 }
 
 /**

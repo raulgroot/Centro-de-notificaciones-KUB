@@ -46,8 +46,10 @@ describe("serializeKeyInfoTags", () => {
     expect(serializeKeyInfoTags({ cardEnding: "4823" })).toBe("Tarjeta con terminación 4823");
   });
 
-  it("serializa amount", () => {
-    expect(serializeKeyInfoTags({ amount: "$5,000 MXN" })).toBe("Monto / premio: $5,000 MXN");
+  it("serializa amount con instrucción de formato HSBC", () => {
+    expect(serializeKeyInfoTags({ amount: "5000" })).toBe(
+      'Monto / premio (formatéalo como "$X,XXX M.N." en la copy): 5000',
+    );
   });
 
   it("serializa deadline en formato español", () => {
@@ -89,7 +91,7 @@ describe("serializeKeyInfoTags", () => {
       deadline: "2026-06-30",
     });
     expect(result).toBe(
-      "Tarjeta con terminación 4823. Monto / premio: $2,500. Fecha límite: 30 de junio de 2026",
+      'Tarjeta con terminación 4823. Monto / premio (formatéalo como "$X,XXX M.N." en la copy): $2,500. Fecha límite: 30 de junio de 2026',
     );
   });
 

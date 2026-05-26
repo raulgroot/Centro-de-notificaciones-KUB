@@ -77,6 +77,34 @@ export const freepikEnv = () => ({
 });
 
 /**
+ * Unsplash API para buscar fotos lifestyle en el wizard de creación.
+ * Reemplaza al provider Freepik (cuya cuenta gratis se agotó). El Access
+ * Key se saca gratis en https://unsplash.com/developers — el free tier
+ * de "demo app" cubre 50 requests/hora, suficiente para uso interno.
+ */
+export const unsplashEnv = () => ({
+  accessKey: requireEnv("UNSPLASH_ACCESS_KEY"),
+});
+
+/**
+ * Google AI Studio (Gemini / "Nano Banana") para generación text-to-image
+ * directa en el wizard. Key gratis en https://aistudio.google.com/apikey.
+ *
+ * El default `gemini-3-pro-image-preview` es lo que coloquialmente se
+ * conoce como "Nano Banana" — la última generación de modelos de imagen
+ * de Google (preview), que está gratis durante el periodo de preview.
+ * Es el modelo de mayor calidad y SÍ tiene free tier sin billing.
+ *
+ * Si ese modelo se gradúa de preview y empieza a requerir billing,
+ * caer a `gemini-3.1-flash-image-preview` (más rápido, también free
+ * en preview) vía `GEMINI_IMAGE_MODEL`.
+ */
+export const googleGenAiEnv = () => ({
+  apiKey: requireEnv("GEMINI_API_KEY"),
+  model: process.env.GEMINI_IMAGE_MODEL ?? "gemini-3-pro-image-preview",
+});
+
+/**
  * Postmark server token for cross-referencing the HSBC catalog against the
  * real outbound logs. Accepts both POSTMARK_API_KEY (alias) and
  * POSTMARK_SERVER_TOKEN (Postmark's canonical name) so it's hard to misname
