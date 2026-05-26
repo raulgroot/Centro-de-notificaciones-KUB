@@ -36,7 +36,7 @@ type Gender = "woman" | "man";
  * default de "her" es "his"; el único caso objeto frecuente ("to her") se
  * maneja explícitamente antes.
  */
-function toMasculine(text: string): string {
+export function toMasculine(text: string): string {
   return text
     .replace(/\bto her\b/g, "to him")
     .replace(/\bWomen\b/g, "Men")

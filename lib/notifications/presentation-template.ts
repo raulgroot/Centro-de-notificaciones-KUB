@@ -45,7 +45,7 @@ function esc(s: string | undefined | null): string {
  * y nunca los asteriscos crudos. Los `*` no se escapan, así que la regex
  * sigue funcionando después de `esc`.
  */
-function escBold(s: string | undefined | null): string {
+export function escBold(s: string | undefined | null): string {
   return esc(s).replace(/\*\*([^*\n]+?)\*\*/g, "<strong>$1</strong>");
 }
 
