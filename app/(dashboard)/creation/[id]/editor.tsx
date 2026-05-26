@@ -27,7 +27,7 @@ import {
   searchImagesAction,
 } from "../actions";
 import type { NotificationDraft } from "@/lib/adapters/supabase/notification-drafts";
-import type { DraftBrief, DraftCopy, DraftHeroImage } from "@/lib/db/schema";
+import type { DraftBrief, DraftCopy, DraftHeroImage, DraftKeyInfo } from "@/lib/db/schema";
 import { renderEmailHtml } from "@/lib/notifications/template";
 import type { FreepikImage } from "@/lib/adapters/freepik/client";
 import {
@@ -87,20 +87,25 @@ const URGENCIES = [
   { id: "alta", label: "Alta", help: "Acción inmediata, enfatiza tiempos." },
 ] as const;
 
-const TONES = [
-  { id: "informativo", label: "Informativo" },
-  { id: "cercano", label: "Cercano" },
-  { id: "celebratorio", label: "Celebratorio" },
-  { id: "urgente", label: "Urgente" },
-  { id: "formal", label: "Formal" },
-] as const;
+// Antes había una constante TONES con 5 opciones (informativo / cercano /
+// celebratorio / urgente / formal). El paso fue removido del wizard: el AI
+// ahora infiere el tono de objetivo + audiencia + urgencia, lo que reduce
+// fricción. Si en algún momento queremos reintroducirlo, agrégalo de vuelta
+// como un step opcional y un campo en DraftBrief.
 
 type CopyField = keyof DraftCopy;
 
 /**
  * The wizard's ordered list of steps. `required` controls whether the user
- * can skip to the next step. `keyInfo` is optional (some notifications have
- * no hard data to pin down).
+ * can skip to the next step.
+ *
+ * Cambios respecto al wizard original:
+ *   - `keyInfo` ahora usa chips multi-select (terminación de tarjeta,
+ *     monto, fecha límite, rango de fechas, URL/código promo).
+ *   - Se quitó el paso `tone` — el AI lo infiere de objetivo + audiencia
+ *     + urgencia, y reduce fricción en el wizard.
+ *   - Se agregó `image` al final para que llegues al editor con la pieza
+ *     ya completa (en vez de tener que ir a buscar la imagen aparte).
  */
 const WIZARD_STEPS = [
   { id: "product", required: true },
@@ -109,7 +114,7 @@ const WIZARD_STEPS = [
   { id: "keyInfo", required: false },
   { id: "audience", required: true },
   { id: "urgency", required: true },
-  { id: "tone", required: true },
+  { id: "image", required: false },
 ] as const;
 
 type WizardStepId = (typeof WIZARD_STEPS)[number]["id"];
@@ -124,13 +129,13 @@ function isStepValid(brief: DraftBrief, step: WizardStepId): boolean {
     case "topic":
       return Boolean(brief.topic && brief.topic.trim().length >= 10);
     case "keyInfo":
-      return true; // optional
+      return true; // optional — chips multi-select
     case "audience":
       return Boolean(brief.audience);
     case "urgency":
       return Boolean(brief.urgency);
-    case "tone":
-      return Boolean(brief.tone);
+    case "image":
+      return true; // optional — el usuario puede llegar al editor sin imagen
     default:
       return false;
   }
@@ -350,6 +355,10 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden">
+      {/* Overlay creativo durante la generación. Cycla frases tipo "cocina"
+          mientras Claude trabaja. */}
+      <GeneratingOverlay visible={Boolean(busy.generate)} />
+
       {/* TOP BAR: brief wizard — conversational step-by-step (Claude-design style).
           Each step is its own focused screen with a big question, an answer
           input, and progress dots + back/next buttons.
@@ -508,17 +517,31 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
               {currentStep.id === "keyInfo" && (
                 <WizardStep
                   title="¿Hay datos que SÍ o SÍ deben aparecer?"
-                  hint="Opcional. Fechas, montos, últimos 4 de la tarjeta, IDs de rastreo. Evita que Claude se invente cosas."
+                  hint="Opcional. Activa los chips que apliquen y llena el dato. Evita que Claude se invente cosas."
                 >
-                  <textarea
-                    autoFocus
-                    value={brief.keyInfo ?? ""}
-                    onChange={(e) => setBrief({ ...brief, keyInfo: e.target.value })}
-                    rows={4}
-                    placeholder="Ej. Fecha de corte: 15 de junio. Monto mínimo: $1,250. Tarjeta terminación 4823."
-                    className="focus:border-brand-600 focus:ring-brand-600/15 w-full rounded-lg border border-neutral-300 bg-white px-3.5 py-3 text-sm placeholder:text-neutral-400 focus:ring-2 focus:outline-none"
+                  <KeyInfoChips
+                    tags={brief.keyInfoTags ?? {}}
+                    onChange={(tags) => setBrief({ ...brief, keyInfoTags: tags })}
                   />
-                  <p className="mt-1.5 text-[11px] text-neutral-500">
+                  {/* Si el draft viene con `keyInfo` libre (drafts viejos),
+                      mostramos un textarea editable para no perder ese dato. */}
+                  {brief.keyInfo && brief.keyInfo.trim() !== "" && (
+                    <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50/60 p-3">
+                      <div className="mb-1.5 text-[11px] font-semibold tracking-wider text-amber-700 uppercase">
+                        Información clave (formato libre, draft anterior)
+                      </div>
+                      <textarea
+                        value={brief.keyInfo ?? ""}
+                        onChange={(e) => setBrief({ ...brief, keyInfo: e.target.value })}
+                        rows={3}
+                        className="w-full rounded border border-amber-200 bg-white px-2.5 py-2 text-xs placeholder:text-neutral-400 focus:border-amber-400 focus:ring-2 focus:ring-amber-300/30 focus:outline-none"
+                      />
+                      <p className="mt-1 text-[10px] text-amber-700">
+                        Esta info se manda al AI tal cual, junto con los chips de arriba.
+                      </p>
+                    </div>
+                  )}
+                  <p className="mt-3 text-[11px] text-neutral-500">
                     Puedes saltar este paso si no aplica.
                   </p>
                 </WizardStep>
@@ -629,30 +652,17 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                 </WizardStep>
               )}
 
-              {currentStep.id === "tone" && (
+              {currentStep.id === "image" && (
                 <WizardStep
-                  title="¿Con qué tono lo decimos?"
-                  hint="El último ajuste antes de generar."
+                  title="¿Qué imagen va en el hero?"
+                  hint="Opcional. Sube una imagen tuya. (La búsqueda Freepik está temporalmente fuera mientras movemos a otro proveedor.)"
                 >
-                  <div className="flex flex-wrap gap-2">
-                    {TONES.map((t) => {
-                      const active = brief.tone === t.id;
-                      return (
-                        <button
-                          key={t.id}
-                          type="button"
-                          onClick={() => setBrief({ ...brief, tone: t.id })}
-                          className={`inline-flex items-center rounded-full border px-4 py-2 text-sm font-medium transition ${
-                            active
-                              ? "border-brand-600 bg-brand-600 text-white"
-                              : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300 hover:bg-neutral-50"
-                          }`}
-                        >
-                          {t.label}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <WizardImagePicker
+                    heroImage={heroImage}
+                    onPick={(img) => setHeroImage(img)}
+                    onClear={() => setHeroImage(null)}
+                    onError={setError}
+                  />
                 </WizardStep>
               )}
             </div>
@@ -1095,6 +1105,392 @@ function CopyField({
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+/* ─────────────────── Chips de "información clave" ─────────────────── */
+
+/**
+ * Las definiciones de cada chip. El renderer mapea sobre estas y muestra
+ * los inputs correspondientes al activarse. Si agregas un nuevo chip,
+ * acuérdate de extender `DraftKeyInfo` en `lib/db/schema.ts` y
+ * `serializeKeyInfoTags` en `lib/notifications/key-info.ts`.
+ */
+const KEY_INFO_CHIPS = [
+  { id: "cardEnding", label: "Terminación de tarjeta", icon: "🎯" },
+  { id: "amount", label: "Monto / premio", icon: "💰" },
+  { id: "deadline", label: "Fecha límite", icon: "📅" },
+  { id: "dateRange", label: "Rango de fechas", icon: "📆" },
+  { id: "promoUrl", label: "URL / código promo", icon: "🔗" },
+] as const;
+
+type ChipId = (typeof KEY_INFO_CHIPS)[number]["id"];
+
+function KeyInfoChips({
+  tags,
+  onChange,
+}: {
+  tags: DraftKeyInfo;
+  onChange: (tags: DraftKeyInfo) => void;
+}) {
+  /** Un chip está "activo" cuando su campo tiene valor (o el usuario lo activó vacío). */
+  const [explicit, setExplicit] = useState<Set<ChipId>>(() => {
+    const s = new Set<ChipId>();
+    if (tags.cardEnding) s.add("cardEnding");
+    if (tags.amount) s.add("amount");
+    if (tags.deadline) s.add("deadline");
+    if (tags.dateRange?.from || tags.dateRange?.to) s.add("dateRange");
+    if (tags.promoUrl) s.add("promoUrl");
+    return s;
+  });
+
+  function toggle(id: ChipId) {
+    const next = new Set(explicit);
+    if (next.has(id)) {
+      next.delete(id);
+      // Al desactivar el chip, también limpiamos el valor para que no se
+      // mande al AI por error.
+      const cleared: DraftKeyInfo = { ...tags };
+      if (id === "cardEnding") delete cleared.cardEnding;
+      if (id === "amount") delete cleared.amount;
+      if (id === "deadline") delete cleared.deadline;
+      if (id === "dateRange") delete cleared.dateRange;
+      if (id === "promoUrl") delete cleared.promoUrl;
+      onChange(cleared);
+    } else {
+      next.add(id);
+    }
+    setExplicit(next);
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* Fila de chips */}
+      <div className="flex flex-wrap gap-2">
+        {KEY_INFO_CHIPS.map((c) => {
+          const active = explicit.has(c.id);
+          return (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => toggle(c.id)}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition ${
+                active
+                  ? "border-brand-600 bg-brand-600 text-white"
+                  : "border-neutral-300 bg-white text-neutral-700 hover:border-neutral-400 hover:bg-neutral-50"
+              }`}
+            >
+              <span aria-hidden>{c.icon}</span>
+              <span>{c.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Inputs por chip activo. El orden refleja el de la lista de chips. */}
+      {explicit.size > 0 && (
+        <div className="space-y-2.5 rounded-lg border border-neutral-200 bg-neutral-50/60 p-3.5">
+          {explicit.has("cardEnding") && (
+            <FieldRow label="Terminación de tarjeta (4 dígitos)">
+              <input
+                inputMode="numeric"
+                maxLength={4}
+                value={tags.cardEnding ?? ""}
+                onChange={(e) =>
+                  onChange({
+                    ...tags,
+                    cardEnding: e.target.value.replace(/[^0-9]/g, ""),
+                  })
+                }
+                placeholder="4823"
+                className="focus:border-brand-600 focus:ring-brand-600/15 w-32 rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-sm tracking-widest tabular-nums placeholder:text-neutral-400 focus:ring-2 focus:outline-none"
+              />
+            </FieldRow>
+          )}
+          {explicit.has("amount") && (
+            <FieldRow label="Monto / premio">
+              <input
+                type="text"
+                value={tags.amount ?? ""}
+                onChange={(e) => onChange({ ...tags, amount: e.target.value })}
+                placeholder="$5,000 MXN · 2,500 puntos · 15% de cashback"
+                className="focus:border-brand-600 focus:ring-brand-600/15 w-full rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-sm placeholder:text-neutral-400 focus:ring-2 focus:outline-none"
+              />
+            </FieldRow>
+          )}
+          {explicit.has("deadline") && (
+            <FieldRow label="Fecha límite">
+              <input
+                type="date"
+                value={tags.deadline ?? ""}
+                onChange={(e) => onChange({ ...tags, deadline: e.target.value })}
+                className="focus:border-brand-600 focus:ring-brand-600/15 rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-sm focus:ring-2 focus:outline-none"
+              />
+            </FieldRow>
+          )}
+          {explicit.has("dateRange") && (
+            <FieldRow label="Rango de fechas">
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={tags.dateRange?.from ?? ""}
+                  onChange={(e) =>
+                    onChange({
+                      ...tags,
+                      dateRange: { ...tags.dateRange, from: e.target.value },
+                    })
+                  }
+                  className="focus:border-brand-600 focus:ring-brand-600/15 rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-sm focus:ring-2 focus:outline-none"
+                />
+                <span className="text-xs text-neutral-500">a</span>
+                <input
+                  type="date"
+                  value={tags.dateRange?.to ?? ""}
+                  onChange={(e) =>
+                    onChange({
+                      ...tags,
+                      dateRange: { ...tags.dateRange, to: e.target.value },
+                    })
+                  }
+                  className="focus:border-brand-600 focus:ring-brand-600/15 rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-sm focus:ring-2 focus:outline-none"
+                />
+              </div>
+            </FieldRow>
+          )}
+          {explicit.has("promoUrl") && (
+            <FieldRow label="URL o código promo">
+              <input
+                type="text"
+                value={tags.promoUrl ?? ""}
+                onChange={(e) => onChange({ ...tags, promoUrl: e.target.value })}
+                placeholder="hsbc.com/promo · CÓDIGO2026"
+                className="focus:border-brand-600 focus:ring-brand-600/15 w-full rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-sm placeholder:text-neutral-400 focus:ring-2 focus:outline-none"
+              />
+            </FieldRow>
+          )}
+        </div>
+      )}
+
+      {explicit.size === 0 && (
+        <p className="text-[11px] text-neutral-500">
+          Si no aplica nada, sigue al siguiente paso. El AI escribirá la notificación sin amarrarse
+          a datos específicos.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-[11px] font-medium text-neutral-600">{label}</span>
+      {children}
+    </div>
+  );
+}
+
+/* ─────────────────── Image picker dentro del wizard ─────────────────── */
+
+/**
+ * Selector de imagen en el wizard. Reutiliza el upload propio del editor.
+ * Por ahora la búsqueda Freepik no está expuesta aquí (la deshabilitamos
+ * mientras decidimos qué proveedor de stock usar).
+ */
+function WizardImagePicker({
+  heroImage,
+  onPick,
+  onClear,
+  onError,
+}: {
+  heroImage: DraftHeroImage | null;
+  onPick: (img: DraftHeroImage) => void;
+  onClear: () => void;
+  onError: (e: string | null) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  async function onFile(file: File) {
+    if (!ALLOWED_HERO_MIME.includes(file.type as (typeof ALLOWED_HERO_MIME)[number])) {
+      onError("Solo se aceptan imágenes PNG, JPG o WebP.");
+      return;
+    }
+    if (file.size > MAX_HERO_UPLOAD_BYTES) {
+      onError(`La imagen pesa ${(file.size / (1024 * 1024)).toFixed(1)} MB. Máx 3 MB.`);
+      return;
+    }
+    setUploading(true);
+    onError(null);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result));
+        r.onerror = () => reject(new Error("No pude leer el archivo."));
+        r.readAsDataURL(file);
+      });
+      onPick({
+        url: dataUrl,
+        alt: file.name.replace(/\.[^.]+$/, ""),
+        source: "upload",
+      });
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "Falló la carga.");
+    } finally {
+      setUploading(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      {heroImage?.url ? (
+        <div className="flex items-start gap-3 rounded-lg border border-neutral-200 bg-neutral-50/60 p-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={heroImage.url}
+            alt={heroImage.alt ?? ""}
+            className="h-24 w-40 rounded border border-neutral-200 object-cover"
+          />
+          <div className="flex-1 text-sm">
+            <div className="font-medium text-neutral-800">
+              {heroImage.alt || "Imagen seleccionada"}
+            </div>
+            <div className="text-[11px] text-neutral-500">Fuente: {heroImage.source}</div>
+            <button
+              type="button"
+              onClick={onClear}
+              className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-rose-600 hover:underline"
+            >
+              <X className="h-3 w-3" />
+              Quitar
+            </button>
+          </div>
+        </div>
+      ) : (
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void onFile(f);
+          }}
+        />
+      )}
+
+      {!heroImage?.url && (
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          disabled={uploading}
+          className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-dashed border-neutral-300 bg-white px-4 text-sm font-medium text-neutral-700 transition hover:border-neutral-400 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {uploading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Upload className="h-4 w-4" />
+          )}
+          Subir mi imagen
+          <span className="text-xs text-neutral-400">PNG, JPG, WebP · 3 MB</span>
+        </button>
+      )}
+      <p className="text-[11px] text-neutral-500">
+        Puedes saltar este paso y agregar la imagen después desde el editor.
+      </p>
+    </div>
+  );
+}
+
+/* ─────────────────── Generating overlay (frases creativas) ─────────────────── */
+
+/**
+ * Frases que cyclamos durante la llamada al AI. Estilo "cocina" porque
+ * resuena con "armar receta de notificación". Si se acaban antes de que
+ * Claude responda, hacemos loop al inicio.
+ */
+const GENERATING_PHRASES = [
+  "Mezclando los ingredientes…",
+  "Calentando la sartén creativa…",
+  "Agregando una pizca de magia…",
+  "Probando el sazón con HSBC…",
+  "Aplicando el toque Kublau…",
+  "Afinando el copy a fuego lento…",
+  "Salteando con palabras frescas…",
+  "Reduciendo a lo esencial…",
+  "Emplatando con elegancia…",
+  "Sirviendo en plato bonito…",
+] as const;
+
+export function GeneratingOverlay({ visible }: { visible: boolean }) {
+  const [phraseIdx, setPhraseIdx] = useState(0);
+
+  useEffect(() => {
+    // React 19 prohibe setState directo en effects (react-hooks/set-state-in-effect),
+    // así que NO reseteamos a 0 cuando se cierra — la frase reanuda desde
+    // donde quedó la próxima vez, lo cual es UX inocuo.
+    if (!visible) return;
+    const t = setInterval(() => {
+      setPhraseIdx((i) => (i + 1) % GENERATING_PHRASES.length);
+    }, 1800);
+    return () => clearInterval(t);
+  }, [visible]);
+
+  if (!visible) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/50 backdrop-blur-sm"
+      role="status"
+      aria-live="polite"
+    >
+      <div className="mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+        <div className="flex items-center gap-3">
+          <div className="bg-brand-50 inline-flex h-10 w-10 items-center justify-center rounded-full">
+            <Sparkles className="text-brand-600 h-5 w-5 animate-pulse" />
+          </div>
+          <div className="flex-1">
+            <div className="text-sm font-semibold text-neutral-900">Generando tu pieza</div>
+            <div className="text-xs text-neutral-500">Esto suele tardar 5 a 15 segundos</div>
+          </div>
+        </div>
+        {/* Frase creativa que cicla */}
+        <div className="mt-5 h-6 overflow-hidden">
+          <div
+            key={phraseIdx}
+            className="text-brand-700 animate-[fadeIn_0.35s_ease-in] text-sm font-medium"
+          >
+            {GENERATING_PHRASES[phraseIdx]}
+          </div>
+        </div>
+        {/* Barra de progreso animada (visual, no refleja % real) */}
+        <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-neutral-100">
+          <div className="bg-brand-600 h-full w-1/3 animate-[slide_2s_ease-in-out_infinite] rounded-full" />
+        </div>
+      </div>
+      <style jsx global>{`
+        @keyframes slide {
+          0%,
+          100% {
+            transform: translateX(-100%);
+          }
+          50% {
+            transform: translateX(280%);
+          }
+        }
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(4px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
     </div>
   );
 }

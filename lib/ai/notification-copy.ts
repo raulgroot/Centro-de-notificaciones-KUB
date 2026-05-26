@@ -18,6 +18,7 @@ import { generateObject, generateText } from "ai";
 import { z } from "zod";
 import { anthropicEnv } from "@/lib/env";
 import type { DraftBrief, DraftCopy } from "@/lib/db/schema";
+import { serializeKeyInfoTags } from "@/lib/notifications/key-info";
 
 /** What the wizard receives back after a "Generar" click. */
 export const NotificationCopySchema = z.object({
@@ -132,9 +133,14 @@ function briefToUserPrompt(brief: DraftBrief): string {
     lines.push(`- Objetivo: ${brief.objective}${hint ? ` — ${hint}` : ""}`);
   }
   if (brief.topic) lines.push(`- De qué se trata: ${brief.topic}`);
-  if (brief.keyInfo) {
+  // Prefer chips estructurados (keyInfoTags) sobre el texto libre legacy
+  // (keyInfo). Si ambos vienen, mandamos los dos: lo estructurado se
+  // serializa formal, lo libre como notas extra.
+  const tagsText = serializeKeyInfoTags(brief.keyInfoTags);
+  const keyInfoText = [tagsText, brief.keyInfo].filter(Boolean).join(". ");
+  if (keyInfoText) {
     lines.push(
-      `- Información clave (debe aparecer en la copy, sin inventar nada extra): ${brief.keyInfo}`,
+      `- Información clave (debe aparecer en la copy, sin inventar nada extra): ${keyInfoText}`,
     );
   }
   if (brief.audience) {
