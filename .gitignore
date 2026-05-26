@@ -39,3 +39,14 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# database backups (manual dumps via scripts/backup-supabase.ts) — locales,
+# nunca al repo. Súbelos a iCloud/Drive si quieres respaldo off-site.
+/backups
+
+# exports generados por scripts (xlsx, csv, etc.) — datos de clientes
+# NUNCA al repo.
+/exports
+
+# PDFs de presentación generados por scripts (regenerables)
+/flujo-*.pdf

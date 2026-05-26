@@ -1,1 +1,22 @@
+#!/usr/bin/env sh
+
+# Pre-commit hook — corre verificaciones rápidas antes de aceptar el commit.
+#
+# Orden importa: lint-staged primero (rápido, edita en sitio), luego typecheck
+# (más lento pero atrapa errores que lint no ve), y al final tests (los más
+# críticos van al final para fallar pronto si es algo trivial).
+#
+# Si necesitas saltarte esto en una emergencia (NO recomendado), usa:
+#   git commit --no-verify -m "..."
+# Y abre un issue para arreglar lo que se saltó.
+
+set -e
+
+echo "→ lint-staged"
 pnpm exec lint-staged
+
+echo "→ typecheck"
+pnpm typecheck
+
+echo "→ tests"
+pnpm test

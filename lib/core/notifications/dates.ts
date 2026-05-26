@@ -17,10 +17,14 @@
  *   directos sobre los campos cuando los datos puedan venir cacheados.
  */
 
-/** Normaliza a Date o null. Acepta Date, ISO string, o null/undefined. */
+/** Normaliza a Date o null. Acepta Date, ISO string, o null/undefined.
+ *  También filtra Date con tiempo NaN (`new Date("invalid")`) para que el
+ *  contrato downstream sea sólido — toEpoch/toIso asumen un Date válido. */
 export function toDate(value: Date | string | null | undefined): Date | null {
   if (!value) return null;
-  if (value instanceof Date) return value;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
   const d = new Date(value);
   return Number.isNaN(d.getTime()) ? null : d;
 }

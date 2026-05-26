@@ -38,9 +38,15 @@ import {
   Pencil,
   Presentation,
   Sparkles,
+  Upload,
   Wand2,
   X,
 } from "lucide-react";
+
+/** Max raw size for an uploaded hero image. ~3MB keeps the data URL under
+ * ~4MB after base64, which jsonb in Supabase tolerates without complaints. */
+const MAX_HERO_UPLOAD_BYTES = 3 * 1024 * 1024;
+const ALLOWED_HERO_MIME = ["image/png", "image/jpeg", "image/webp"] as const;
 
 /** Products that have an official HSBC card icon under /public/cards/. */
 const PRODUCTS = [
@@ -143,8 +149,10 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
     generate?: boolean;
     refine?: CopyField;
     search?: boolean;
+    upload?: boolean;
     download?: "image" | "presentation";
   }>({});
+  const uploadInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [imageQuery, setImageQuery] = useState<string>("");
   const [imageResults, setImageResults] = useState<FreepikImage[]>([]);
@@ -259,6 +267,46 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
       freepikId: img.id,
       query: imageQuery,
     });
+  }
+
+  /**
+   * Read a user-selected file as a data URL so we can embed it directly in
+   * the rendered HTML / PDF without needing an external host. This is the
+   * fallback when Freepik is unavailable or the user wants to bring their
+   * own asset. Stored under source:"upload" in the draft.
+   */
+  async function onUploadFile(file: File) {
+    if (!ALLOWED_HERO_MIME.includes(file.type as (typeof ALLOWED_HERO_MIME)[number])) {
+      setError("Solo se aceptan imágenes PNG, JPG o WebP.");
+      return;
+    }
+    if (file.size > MAX_HERO_UPLOAD_BYTES) {
+      const mb = (file.size / (1024 * 1024)).toFixed(1);
+      setError(`La imagen pesa ${mb} MB. El máximo es 3 MB.`);
+      return;
+    }
+
+    setBusy((b) => ({ ...b, upload: true }));
+    setError(null);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error("No pude leer el archivo."));
+        reader.readAsDataURL(file);
+      });
+      setHeroImage({
+        url: dataUrl,
+        alt: file.name.replace(/\.[^.]+$/, ""),
+        source: "upload",
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Falló la carga de la imagen.");
+    } finally {
+      setBusy((b) => ({ ...b, upload: false }));
+      // Reset the input so the same file can be re-selected after removing it.
+      if (uploadInputRef.current) uploadInputRef.current.value = "";
+    }
   }
 
   /**
@@ -855,6 +903,41 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                       Buscar
                     </button>
                   </div>
+
+                  {/* Upload propio — atajo cuando Freepik no devuelve lo que buscamos
+                      o cuando ya tienes la imagen lista (Adobe, captura, etc.). */}
+                  <div className="mt-2 flex items-center gap-2">
+                    <div className="h-px flex-1 bg-neutral-200" />
+                    <span className="text-[10px] font-medium tracking-wider text-neutral-400 uppercase">
+                      o
+                    </span>
+                    <div className="h-px flex-1 bg-neutral-200" />
+                  </div>
+                  <input
+                    ref={uploadInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) void onUploadFile(f);
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => uploadInputRef.current?.click()}
+                    disabled={busy.upload}
+                    className="mt-2 inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-neutral-300 bg-white px-3 text-xs font-medium text-neutral-700 transition hover:border-neutral-400 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    title="Sube tu propio PNG, JPG o WebP (máx. 3 MB)"
+                  >
+                    {busy.upload ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Upload className="h-3.5 w-3.5" />
+                    )}
+                    Subir mi imagen
+                    <span className="text-neutral-400">· PNG, JPG, WebP · 3 MB</span>
+                  </button>
                   {imageResults.length > 0 && (
                     <div className="mt-3 grid grid-cols-3 gap-2">
                       {imageResults.map((img) => (
