@@ -13,6 +13,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
   generateNotificationCopy,
+  improveTopic,
   refineField,
   type NotificationCopy,
 } from "@/lib/ai/notification-copy";
@@ -72,6 +73,14 @@ export async function saveDraftAction(args: {
 /** Call Claude with the brief; return a fresh structured copy bundle. */
 export async function generateCopyAction(brief: DraftBrief): Promise<NotificationCopy> {
   return generateNotificationCopy(brief);
+}
+
+/** Mejora la redacción del "topic" del wizard con IA (sin inventar datos). */
+export async function improveTopicAction(args: {
+  topic: string;
+  brief: DraftBrief;
+}): Promise<string> {
+  return improveTopic(args);
 }
 
 /** Refine one field with a natural-language instruction. */

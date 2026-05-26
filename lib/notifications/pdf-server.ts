@@ -37,22 +37,35 @@ const CHROMIUM_TARBALL =
 /**
  * Decide which Chromium binary to use based on the runtime environment.
  *
- *   - Vercel (any env): @sparticuz/chromium-min downloads the tarball
- *     above into /tmp on cold start and extracts a Lambda-tuned binary.
- *   - Local mac dev: fall back to the system Chrome.app. The
- *     PUPPETEER_EXECUTABLE_PATH env var lets devs override (e.g., Brave,
- *     Chromium, Edge).
+ *   - Linux serverless (Vercel / Lambda): @sparticuz/chromium-min downloads
+ *     the tarball above into /tmp on cold start and extracts a Lambda-tuned
+ *     binary.
+ *   - Local dev (mac/win/linux desktop): fall back to the system Chrome.
+ *     The PUPPETEER_EXECUTABLE_PATH env var lets devs override (Brave,
+ *     Chromium, Edge, or a custom path).
+ *
+ * IMPORTANTE — por qué NO usamos `process.env.VERCEL` para decidir:
+ * `vercel env pull` escribe `VERCEL="1"` (y `VERCEL_ENV`, etc.) dentro de
+ * `.env.local`, lo que contamina el dev local. Si decidiéramos por esa var,
+ * en una Mac intentaríamos ejecutar el binario Linux x64 de @sparticuz, que
+ * truena con `spawn Unknown system error -8` (ENOEXEC: el binario no es del
+ * arch/OS correcto). El binario de @sparticuz SOLO corre en Linux serverless,
+ * así que gateamos por `process.platform === "linux"` y además exigimos una
+ * señal de runtime real (AWS_LAMBDA_FUNCTION_NAME se inyecta en ejecución, no
+ * por `env pull`). Así el dev local SIEMPRE usa el Chrome del sistema.
  */
 async function launchBrowser(): Promise<Browser> {
-  const isVercel = Boolean(process.env.VERCEL);
+  const isServerlessLinux =
+    process.platform === "linux" &&
+    Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.VERCEL);
 
   // `--hide-scrollbars` is the only way to reliably suppress the viewport
   // scrollbar when the document is taller than the viewport (our 5-page
   // presentation body is ~55in tall, so CSS overflow:hidden alone wasn't
-  // enough). Applied to both Vercel and local launches.
+  // enough). Applied to both serverless and local launches.
   const sharedArgs = ["--hide-scrollbars"];
 
-  if (isVercel) {
+  if (isServerlessLinux) {
     const chromium = (await import("@sparticuz/chromium-min")).default;
     return puppeteer.launch({
       args: [...chromium.args, ...sharedArgs],

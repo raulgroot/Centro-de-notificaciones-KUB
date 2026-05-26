@@ -57,21 +57,24 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     );
   }
 
-  const draft = await getDraft(id);
-  if (!draft) {
-    return NextResponse.json({ error: "Draft no encontrado." }, { status: 404 });
-  }
-
-  // Re-render the email HTML from current draft state. We don't trust
-  // `draft.renderedHtml` because auto-save may have lagged the latest copy
-  // edit on the client (and besides, re-render is ~5ms with cheerio).
-  const emailHtml = renderEmailHtml({
-    copy: draft.copy,
-    heroImage: draft.heroImage,
-    product: draft.brief.product,
-  });
-
   try {
+    // getDraft puede lanzar (ej. id con formato de UUID inválido → PostgREST
+    // error, o DB caída). Lo metemos dentro del try para devolver JSON limpio
+    // en vez de un 500 sin cuerpo.
+    const draft = await getDraft(id);
+    if (!draft) {
+      return NextResponse.json({ error: "Draft no encontrado." }, { status: 404 });
+    }
+
+    // Re-render the email HTML from current draft state. We don't trust
+    // `draft.renderedHtml` because auto-save may have lagged the latest copy
+    // edit on the client (and besides, re-render is ~5ms with cheerio).
+    const emailHtml = renderEmailHtml({
+      copy: draft.copy,
+      heroImage: draft.heroImage,
+      product: draft.brief.product,
+    });
+
     const buffer =
       mode === "image"
         ? await renderPiecePng(emailHtml)

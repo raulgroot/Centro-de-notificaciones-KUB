@@ -1,21 +1,14 @@
 /**
- * HTML template for the "presentación" PDF — el deck que Kublau le manda
+ * HTML template for the "presentación" PDF — la hoja que Kublau le manda
  * a HSBC MKT para revisión.
  *
- * Design intent (post-feedback round 1):
- *   - Editorial vibe, no "form-with-cards"
- *   - Type-led hierarchy: jumbo titles, generous breathing room
- *   - One focal point per page; metadata as quiet supporting text
- *   - The pieza page embebe el email como IMAGEN (PNG hi-res) dentro de
- *     un marco con sombra. Esto evita el reflow raro que pasaba cuando
- *     metíamos el HTML del email crudo en una página letter.
- *
- * Structure (5 páginas):
- *   1. Cover            — proyecto, producto, fecha, accent bar lateral
- *   2. Brief            — el resumen editorial de los parámetros
- *   3. Asunto+preheader — bandeja mockup + textos completos
- *   4. Pieza            — PNG del email centrado, marco + sombra
- *   5. SMS              — iPhone mockup + texto completo
+ * Design intent (post-feedback round 2):
+ *   - UNA sola hoja (letter), no un deck multi-página.
+ *   - Layout de 2 columnas: a la IZQUIERDA la pieza (PNG hi-res del email
+ *     dentro de un marco con sombra), a la DERECHA los textos de Asunto,
+ *     Preheader y SMS.
+ *   - El texto se muestra como RESULTADO FINAL: el markdown `**negritas**`
+ *     se convierte a <strong> real, nunca se ven los asteriscos crudos.
  *
  * Puppeteer renderiza con margin:0 y el CSS controla padding/footer.
  */
@@ -26,7 +19,6 @@ const HSBC_RED = "#DB0011";
 const INK = "#0F0F10";
 const INK_MUTED = "#6B6B70";
 const RULE = "#E6E6E8";
-const BG_SOFT = "#F7F7F8";
 
 const TODAY = () =>
   new Date().toLocaleDateString("es-MX", {
@@ -44,6 +36,17 @@ function esc(s: string | undefined | null): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+/**
+ * Escapa el HTML y DESPUÉS convierte el markdown `**negritas**` en
+ * <strong>. Es la MISMA regla que `applyMarkdownBold` del template del
+ * email, para que el PDF muestre el resultado final (texto en negritas)
+ * y nunca los asteriscos crudos. Los `*` no se escapan, así que la regex
+ * sigue funcionando después de `esc`.
+ */
+function escBold(s: string | undefined | null): string {
+  return esc(s).replace(/\*\*([^*\n]+?)\*\*/g, "<strong>$1</strong>");
 }
 
 /** id interno → label humano para el deck. */
@@ -93,14 +96,14 @@ export function buildPresentationHtml(args: {
   const date = TODAY();
   const projectName = draft.name?.trim() || "Notificación sin nombre";
   const productLabel = label(brief.product);
+  const smsLen = (copy.sms ?? "").length;
 
   // ─────────────────── CSS ───────────────────
   const css = `
     @page { size: letter; margin: 0; }
     * { box-sizing: border-box; }
-    /* Hide Chrome's viewport scrollbar — puppeteer's default viewport is
-       shorter than 11", so without this Chrome draws a vertical scrollbar
-       on the right edge that ends up baked into the PDF. */
+    /* Hide Chrome's viewport scrollbar — sin esto Chrome dibuja una barra
+       vertical que termina horneada en el PDF. */
     ::-webkit-scrollbar { display: none; width: 0; height: 0; }
     html, body {
       margin: 0;
@@ -116,14 +119,12 @@ export function buildPresentationHtml(args: {
     .page {
       width: 8.5in;
       height: 11in;
-      padding: 0.9in 0.9in 0.85in 0.9in;
+      padding: 0.9in 0.8in 0.8in 0.85in;
       position: relative;
-      page-break-after: always;
       overflow: hidden;
     }
-    .page:last-child { page-break-after: auto; }
 
-    /* Side accent bar — vertical red strip on left edge of every page. */
+    /* Barra roja vertical en el borde izquierdo. */
     .side-accent {
       position: absolute;
       top: 0; bottom: 0; left: 0;
@@ -132,9 +133,9 @@ export function buildPresentationHtml(args: {
     }
     .page-header {
       position: absolute;
-      top: 0.5in;
-      left: 0.9in;
-      right: 0.9in;
+      top: 0.45in;
+      left: 0.85in;
+      right: 0.8in;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -147,9 +148,9 @@ export function buildPresentationHtml(args: {
     .page-header .brand { color: ${INK}; }
     .page-footer {
       position: absolute;
-      bottom: 0.5in;
-      left: 0.9in;
-      right: 0.9in;
+      bottom: 0.45in;
+      left: 0.85in;
+      right: 0.8in;
       display: flex;
       justify-content: space-between;
       align-items: baseline;
@@ -157,448 +158,143 @@ export function buildPresentationHtml(args: {
       color: ${INK_MUTED};
       letter-spacing: 0.04em;
     }
-    .page-num {
-      font-variant-numeric: tabular-nums;
-      font-weight: 600;
-      color: ${INK};
-    }
 
-    .eyebrow {
+    /* ───── Encabezado de la hoja ───── */
+    .deck-head { margin-bottom: 22pt; }
+    .deck-head .eyebrow {
       font-size: 9pt;
       letter-spacing: 0.22em;
       text-transform: uppercase;
       color: ${HSBC_RED};
       font-weight: 700;
-      margin-bottom: 14px;
-    }
-    h1.title {
-      font-size: 36pt;
-      font-weight: 800;
-      letter-spacing: -0.025em;
-      line-height: 1.02;
-      margin: 0 0 14px 0;
-      color: ${INK};
-    }
-    p.lede {
-      font-size: 13pt;
-      line-height: 1.45;
-      color: ${INK_MUTED};
-      max-width: 520pt;
-      margin: 0 0 36px 0;
-    }
-
-    /* ───── Cover ───── */
-    .cover {
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-    }
-    .cover .stage { margin-top: 1.2in; }
-    .cover h1.cover-title {
-      font-size: 56pt;
-      font-weight: 800;
-      letter-spacing: -0.035em;
-      line-height: 0.98;
-      color: ${INK};
-      margin: 18px 0 0 0;
-    }
-    .cover .cover-meta {
-      margin-top: 56pt;
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 22pt 36pt;
-      max-width: 480pt;
-    }
-    .cover .meta-row .meta-key {
-      font-size: 8pt;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      color: ${INK_MUTED};
-      font-weight: 700;
-    }
-    .cover .meta-row .meta-value {
-      font-size: 14pt;
-      font-weight: 600;
-      color: ${INK};
-      margin-top: 4px;
-    }
-    .cover .cover-bottom {
-      border-top: 1px solid ${RULE};
-      padding-top: 14px;
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-end;
-    }
-    .cover .confidential {
-      font-size: 8.5pt;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      color: ${INK_MUTED};
-      font-weight: 600;
-    }
-    .cover .version {
-      font-size: 8.5pt;
-      color: ${INK_MUTED};
-      font-variant-numeric: tabular-nums;
-    }
-
-    /* ───── Brief — editorial ───── */
-    .brief-list { margin-top: 8px; }
-    .brief-row {
-      display: grid;
-      grid-template-columns: 140pt 1fr;
-      align-items: baseline;
-      padding: 14pt 0;
-      border-bottom: 1px solid ${RULE};
-    }
-    .brief-row .k {
-      font-size: 9pt;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      color: ${INK_MUTED};
-      font-weight: 700;
-    }
-    .brief-row .v {
-      font-size: 14pt;
-      color: ${INK};
-      font-weight: 500;
-    }
-    .brief-narrative {
-      margin-top: 32pt;
-    }
-    .brief-narrative .label {
-      font-size: 9pt;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      color: ${HSBC_RED};
-      font-weight: 700;
       margin-bottom: 8pt;
     }
-    .brief-narrative .body {
-      font-size: 13pt;
-      line-height: 1.55;
-      color: ${INK};
-      white-space: pre-wrap;
-    }
-    .brief-narrative + .brief-narrative { margin-top: 22pt; }
-
-    /* ───── Asunto + preheader ───── */
-    .inbox {
-      border: 1px solid ${RULE};
-      border-radius: 12pt;
-      padding: 18pt 20pt;
-      background: ${BG_SOFT};
-      display: flex;
-      gap: 14pt;
-      align-items: flex-start;
-      box-shadow: 0 4pt 14pt -8pt rgba(0,0,0,0.15);
-    }
-    .inbox .avatar {
-      width: 40pt; height: 40pt;
-      border-radius: 50%;
-      background: ${HSBC_RED};
-      color: white;
-      font-size: 14pt;
+    .deck-head h1 {
+      font-size: 19pt;
       font-weight: 800;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-    }
-    .inbox .lines { flex: 1; min-width: 0; }
-    .inbox .sender { font-size: 10pt; font-weight: 700; color: ${INK}; letter-spacing: 0.02em; }
-    .inbox .subject { font-size: 11pt; font-weight: 600; color: ${INK}; margin-top: 3pt; line-height: 1.3; }
-    .inbox .preheader { font-size: 9.5pt; color: ${INK_MUTED}; margin-top: 3pt; line-height: 1.35; }
-    .field {
-      margin-top: 28pt;
-    }
-    .field .k {
-      font-size: 9pt;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      color: ${HSBC_RED};
-      font-weight: 700;
-    }
-    .field .v {
-      font-size: 14pt;
-      line-height: 1.45;
+      letter-spacing: -0.015em;
+      line-height: 1.05;
+      margin: 0;
       color: ${INK};
+    }
+    .deck-head .meta {
       margin-top: 8pt;
+      font-size: 10pt;
+      color: ${INK_MUTED};
       font-weight: 500;
     }
+    .deck-head .meta strong { color: ${INK}; font-weight: 700; }
 
-    /* ───── Pieza ───── */
-    .piece-stage {
+    /* ───── Dos columnas: pieza | info ───── */
+    .two-col {
       display: flex;
-      justify-content: center;
-      margin-top: 14pt;
+      gap: 30pt;
+      align-items: flex-start;
     }
+    .col-piece { flex: 0 0 auto; }
     .piece-frame {
-      max-width: 460pt;
-      width: 100%;
+      display: inline-block;
       background: white;
       border-radius: 10pt;
-      box-shadow:
-        0 1pt 2pt rgba(0,0,0,0.06),
-        0 18pt 36pt -16pt rgba(0,0,0,0.18);
       overflow: hidden;
       border: 1px solid ${RULE};
+      box-shadow:
+        0 1pt 2pt rgba(0,0,0,0.06),
+        0 16pt 34pt -18pt rgba(0,0,0,0.20);
     }
     .piece-frame img {
       display: block;
-      width: 100%;
+      max-width: 3.5in;
+      max-height: 7.7in;
+      width: auto;
       height: auto;
     }
     .piece-caption {
-      text-align: center;
-      font-size: 9pt;
+      font-size: 8pt;
       color: ${INK_MUTED};
-      margin-top: 18pt;
+      margin-top: 9pt;
+      max-width: 3.5in;
       letter-spacing: 0.02em;
     }
 
-    /* ───── SMS ───── */
-    .sms-stage {
-      display: flex;
-      gap: 40pt;
-      align-items: flex-start;
-      margin-top: 18pt;
+    .col-info { flex: 1; min-width: 0; }
+    .info-field + .info-field {
+      margin-top: 22pt;
+      padding-top: 22pt;
+      border-top: 1px solid ${RULE};
     }
-    .phone {
-      width: 220pt;
-      height: 440pt;
-      border: 6pt solid #1A1A1B;
-      border-radius: 36pt;
-      background: #FFFFFF;
-      position: relative;
-      flex-shrink: 0;
-      box-shadow:
-        0 4pt 8pt rgba(0,0,0,0.08),
-        0 24pt 48pt -20pt rgba(0,0,0,0.25);
-    }
-    .phone .notch {
-      position: absolute;
-      top: 8pt;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 90pt;
-      height: 18pt;
-      background: #1A1A1B;
-      border-radius: 9pt;
-    }
-    .phone .status-bar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 14pt 22pt 0 22pt;
-      font-size: 8pt;
-      font-weight: 700;
-      color: ${INK};
-    }
-    .phone .header-row {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 16pt 0 12pt 0;
-      border-bottom: 0.5pt solid #E8E8EA;
-    }
-    .phone .header-row .avatar-small {
-      width: 38pt; height: 38pt;
-      border-radius: 50%;
-      background: ${HSBC_RED};
-      color: white;
-      font-size: 13pt;
-      font-weight: 800;
-      display: flex; align-items: center; justify-content: center;
-      margin-bottom: 5pt;
-    }
-    .phone .header-row .name { font-size: 9pt; font-weight: 600; color: ${INK}; }
-    .phone .messages { padding: 14pt 12pt; }
-    .phone .bubble {
-      background: #E9E9EB;
-      color: ${INK};
-      padding: 8pt 12pt;
-      border-radius: 16pt;
-      border-bottom-left-radius: 4pt;
+    .info-field .k {
       font-size: 9pt;
-      line-height: 1.4;
-      max-width: 84%;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: ${HSBC_RED};
+      font-weight: 700;
     }
-    .sms-info { flex: 1; }
-    .sms-info .field { margin-top: 0; }
-    .sms-info .count {
+    .info-field .v {
+      font-size: 13pt;
+      line-height: 1.5;
+      color: ${INK};
+      margin-top: 9pt;
+      font-weight: 500;
+    }
+    .info-field .v.lg { font-size: 15pt; line-height: 1.4; }
+    .info-field .v strong { font-weight: 800; color: ${INK}; }
+    .info-field .count {
       font-size: 9pt;
       color: ${INK_MUTED};
       margin-top: 8pt;
       font-variant-numeric: tabular-nums;
     }
+    .info-field .count.over { color: ${HSBC_RED}; font-weight: 700; }
   `;
 
-  // ─────────────────── helpers de render ───────────────────
-  const pageHeader = (subtitle: string) => `
+  // ─────────────────── render ───────────────────
+  const headerBar = `
     <div class="side-accent"></div>
     <div class="page-header">
-      <div class="brand">KUBLAU × HSBC</div>
-      <div>${esc(subtitle)}</div>
+      <div>Propuesta de notificación</div>
     </div>`;
 
-  const pageFooter = (idx: number, total: number, project: string) => `
+  const footerBar = `
     <div class="page-footer">
-      <div>${esc(project)} · ${esc(date)}</div>
-      <div class="page-num">${idx} / ${total}</div>
+      <div>${esc(projectName)} · ${esc(date)}</div>
+      <div>Confidencial · Para revisión HSBC</div>
     </div>`;
 
-  const briefRow = (k: string, v: string) => `
-    <div class="brief-row">
-      <div class="k">${esc(k)}</div>
-      <div class="v">${esc(v) || "—"}</div>
-    </div>`;
-
-  const TOTAL_PAGES = 5;
-
-  // ─────────────────── páginas ───────────────────
-  const coverPage = `
-    <section class="page cover">
-      ${pageHeader("Cover")}
-      <div class="stage">
-        <div class="eyebrow">Propuesta de notificación</div>
-        <h1 class="cover-title">${esc(projectName)}</h1>
-        <div class="cover-meta">
-          <div class="meta-row">
-            <div class="meta-key">Producto</div>
-            <div class="meta-value">HSBC ${esc(productLabel)}</div>
-          </div>
-          <div class="meta-row">
-            <div class="meta-key">Audiencia</div>
-            <div class="meta-value">${esc(label(brief.audience))}</div>
-          </div>
-          <div class="meta-row">
-            <div class="meta-key">Objetivo</div>
-            <div class="meta-value">${esc(label(brief.objective))}</div>
-          </div>
-          <div class="meta-row">
-            <div class="meta-key">Fecha</div>
-            <div class="meta-value">${esc(date)}</div>
-          </div>
-        </div>
-      </div>
-      <div class="cover-bottom">
-        <div class="confidential">Confidencial · Para revisión HSBC</div>
-        <div class="version">v1.0</div>
-      </div>
-      ${pageFooter(1, TOTAL_PAGES, projectName)}
-    </section>`;
-
-  const briefPage = `
+  const page = `
     <section class="page">
-      ${pageHeader("Brief")}
-      <div style="margin-top:24pt;">
-        <div class="eyebrow">01 · Brief</div>
-        <h1 class="title">El brief</h1>
-        <p class="lede">Los parámetros que recibimos del equipo HSBC para construir esta pieza.</p>
-        <div class="brief-list">
-          ${briefRow("Producto", `HSBC ${productLabel}`)}
-          ${briefRow("Objetivo", label(brief.objective))}
-          ${briefRow("Audiencia", label(brief.audience))}
-          ${briefRow("Urgencia", label(brief.urgency))}
-          ${briefRow("Tono", label(brief.tone))}
-        </div>
-        ${
-          brief.topic
-            ? `<div class="brief-narrative">
-                <div class="label">De qué se trata</div>
-                <div class="body">${esc(brief.topic)}</div>
-              </div>`
-            : ""
-        }
-        ${
-          brief.keyInfo
-            ? `<div class="brief-narrative">
-                <div class="label">Información clave</div>
-                <div class="body">${esc(brief.keyInfo)}</div>
-              </div>`
-            : ""
-        }
-      </div>
-      ${pageFooter(2, TOTAL_PAGES, projectName)}
-    </section>`;
+      ${headerBar}
 
-  const subjectPage = `
-    <section class="page">
-      ${pageHeader("Bandeja")}
-      <div style="margin-top:24pt;">
-        <div class="eyebrow">02 · Bandeja</div>
-        <h1 class="title">Asunto y preheader</h1>
-        <p class="lede">Cómo se ve la pieza cuando llega a la bandeja del cliente, antes de abrir.</p>
-        <div class="inbox">
-          <div class="avatar">H</div>
-          <div class="lines">
-            <div class="sender">HSBC México</div>
-            <div class="subject">${esc(copy.subject)}</div>
-            <div class="preheader">${esc(copy.preheader)}</div>
-          </div>
-        </div>
-        <div class="field">
-          <div class="k">Asunto</div>
-          <div class="v">${esc(copy.subject) || "—"}</div>
-        </div>
-        <div class="field">
-          <div class="k">Preheader</div>
-          <div class="v">${esc(copy.preheader) || "—"}</div>
-        </div>
+      <div class="deck-head">
+        <div class="eyebrow">Pieza HSBC ${esc(productLabel)}</div>
+        <h1>${esc(projectName)}</h1>
       </div>
-      ${pageFooter(3, TOTAL_PAGES, projectName)}
-    </section>`;
 
-  const piecePage = `
-    <section class="page">
-      ${pageHeader("Pieza")}
-      <div style="margin-top:24pt;">
-        <div class="eyebrow">03 · Pieza</div>
-        <h1 class="title">El email</h1>
-        <p class="lede">Render real del email con base en la plantilla MKT-aprobada de HSBC.</p>
-        <div class="piece-stage">
+      <div class="two-col">
+        <div class="col-piece">
           <div class="piece-frame">
             <img src="${emailPngDataUrl}" alt="Render del email" />
           </div>
         </div>
-        <div class="piece-caption">Captura a tamaño nativo del template (600 px). DPR 2× para nitidez.</div>
-      </div>
-      ${pageFooter(4, TOTAL_PAGES, projectName)}
-    </section>`;
 
-  const smsPage = `
-    <section class="page">
-      ${pageHeader("SMS")}
-      <div style="margin-top:24pt;">
-        <div class="eyebrow">04 · SMS</div>
-        <h1 class="title">Mensaje SMS</h1>
-        <p class="lede">Versión móvil — máximo 160 caracteres, centrada en el call-to-action.</p>
-        <div class="sms-stage">
-          <div class="phone">
-            <div class="notch"></div>
-            <div class="status-bar">
-              <span>9:41</span>
-              <span>•••</span>
-            </div>
-            <div class="header-row">
-              <div class="avatar-small">H</div>
-              <div class="name">HSBC</div>
-            </div>
-            <div class="messages">
-              <div class="bubble">${esc(copy.sms) || "—"}</div>
-            </div>
+        <div class="col-info">
+          <div class="info-field">
+            <div class="k">Asunto</div>
+            <div class="v lg">${escBold(copy.subject) || "—"}</div>
           </div>
-          <div class="sms-info">
-            <div class="field">
-              <div class="k">Texto completo</div>
-              <div class="v">${esc(copy.sms) || "—"}</div>
-              <div class="count">${(copy.sms ?? "").length} / 160 caracteres</div>
-            </div>
+          <div class="info-field">
+            <div class="k">Preheader</div>
+            <div class="v">${escBold(copy.preheader) || "—"}</div>
+          </div>
+          <div class="info-field">
+            <div class="k">SMS</div>
+            <div class="v">${escBold(copy.sms) || "—"}</div>
+            <div class="count${smsLen > 160 ? " over" : ""}">${smsLen} / 160 caracteres</div>
           </div>
         </div>
       </div>
-      ${pageFooter(5, TOTAL_PAGES, projectName)}
+
+      ${footerBar}
     </section>`;
 
   return `<!DOCTYPE html>
@@ -609,11 +305,7 @@ export function buildPresentationHtml(args: {
   <style>${css}</style>
 </head>
 <body>
-  ${coverPage}
-  ${briefPage}
-  ${subjectPage}
-  ${piecePage}
-  ${smsPage}
+  ${page}
 </body>
 </html>`;
 }

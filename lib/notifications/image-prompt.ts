@@ -21,6 +21,60 @@ import type { DraftBrief } from "@/lib/db/schema";
 import { productDisplayName, serializeKeyInfoTags } from "./key-info";
 
 /**
+ * Género del sujeto de la imagen. Por default las piezas usaban siempre una
+ * mujer; ahora alternamos hombre/mujer entre las variaciones para que la
+ * campaña no sea monótona (requisito de HSBC). El texto base se escribe en
+ * femenino y, si toca hombre, lo convertimos con `toMasculine`.
+ */
+type Gender = "woman" | "man";
+
+/**
+ * Convierte los pronombres/sustantivos femeninos del prompt a masculinos.
+ * Usa límites de palabra (`\b`) para no tocar substrings dentro de otras
+ * palabras (ej. "other", "where", "gather" NO se rompen). El prompt base
+ * está casi siempre en posesivo ("her face", "her hands"), por eso el
+ * default de "her" es "his"; el único caso objeto frecuente ("to her") se
+ * maneja explícitamente antes.
+ */
+function toMasculine(text: string): string {
+  return text
+    .replace(/\bto her\b/g, "to him")
+    .replace(/\bWomen\b/g, "Men")
+    .replace(/\bwomen\b/g, "men")
+    .replace(/\bWoman\b/g, "Man")
+    .replace(/\bwoman\b/g, "man")
+    .replace(/\bShe\b/g, "He")
+    .replace(/\bshe\b/g, "he")
+    .replace(/\bHerself\b/g, "Himself")
+    .replace(/\bherself\b/g, "himself")
+    .replace(/\bHers\b/g, "His")
+    .replace(/\bhers\b/g, "his")
+    .replace(/\bHer\b/g, "His")
+    .replace(/\bher\b/g, "his");
+}
+
+/**
+ * Restricciones que aplican a TODAS las variaciones (requisito HSBC):
+ *   - Sin marcas / logos / packaging reconocible en ningún lado.
+ *   - El personaje NUNCA bebe ni sostiene bebidas alcohólicas.
+ */
+const NO_BRAND_NO_ALCOHOL =
+  "MANDATORY restrictions (apply to EVERY image, no exceptions): absolutely NO brand logos, trademarks, wordmarks, or recognizable branded packaging anywhere in the frame — not on clothing, phones, laptops, cups, bags, bottles, or background signage. The subject must NEVER be drinking, holding, or positioned near any alcoholic beverage — no wine, beer, champagne, cocktails, or spirits. If a drink appears it must be clearly non-alcoholic (coffee, tea, water, juice).";
+
+/** Fragmento que se antepone a cada lista "Avoid:" para reforzar lo anterior. */
+const SHARED_AVOID =
+  "visible brand logos, trademarks or branded packaging of any kind, any alcoholic beverage (wine, beer, champagne, cocktails, spirits) or the subject drinking/holding alcohol, ";
+
+/**
+ * Línea que se inyecta cerca del sujeto para fijar el género de ESTA imagen
+ * y dejar claro que la campaña alterna a propósito (no siempre mujer).
+ */
+function genderDirective(gender: Gender): string {
+  const noun = gender === "man" ? "man" : "woman";
+  return `SUBJECT FOR THIS IMAGE: a Mexican ${noun}. The campaign deliberately alternates between men and women across pieces — this variation is intentional, do not default to always using the same gender.`;
+}
+
+/**
  * Mapa de objetivo → actividad concreta que la persona debe estar haciendo
  * + accesorios visuales que refuerzan ese objetivo. Cada entrada cambia
  * drásticamente la composición.
@@ -107,7 +161,7 @@ const PRODUCT_VIBE: Record<string, string> = {
   zero: "minimalist no-fee lifestyle, smart financial choices, simplicity over flash, modern frugality",
 };
 
-export function buildImagePrompt(brief: DraftBrief): string {
+export function buildImagePrompt(brief: DraftBrief, gender: Gender = "woman"): string {
   const product = productDisplayName(brief.product) || "an HSBC credit card";
   const productVibe = brief.product ? (PRODUCT_VIBE[brief.product.toLowerCase()] ?? "") : "";
 
@@ -130,12 +184,17 @@ export function buildImagePrompt(brief: DraftBrief): string {
     "Editorial lifestyle photograph in the style of HSBC's premium banking brand campaigns. Cinematic but believable, never stock-photo generic.",
     "",
 
-    // Subject — varía por audiencia
+    // Subject — varía por audiencia + género
+    genderDirective(gender),
     `Subject: ${subjectDescription}. She has a genuine warm smile that reaches her eyes, natural makeup, hair styled but not overdone.`,
     "",
 
-    // ★ Regla obligatoria 1 — algo rojo
-    "MANDATORY brand element (RED): There MUST be something noticeably red in the frame — preferably a wearable item (a red blazer, sweater, scarf, blouse, lipstick, bag, or shoes) or, if not a garment, a contextual object in the scene (red flowers, a red book, a red mug, a red accent wall, a red object on the table). The red must feel organic and intentional, NEVER painted on or forced. This references HSBC brand red (#DB0011) without showing any logo.",
+    // ★ Regla obligatoria 1 — el sujeto SIEMPRE lleva una prenda roja
+    "ABSOLUTELY MANDATORY brand element (RED CLOTHING) — this is the #1 requirement: the subject MUST be WEARING a clearly visible, vivid RED article of clothing as their main garment — for example a red blazer, red sweater, red blouse, red dress, red jacket, red shirt, or red cardigan. The red garment must be obvious and prominent, occupying a significant part of the frame, in vivid HSBC brand red (#DB0011 — saturated true red, NOT maroon, burgundy, pink, or orange). Do NOT rely on small accessories or background objects for the red — it must be the clothing the person is wearing. No logos on the garment.",
+    "",
+
+    // ★ Restricciones globales (sin marcas / sin alcohol)
+    NO_BRAND_NO_ALCOHOL,
     "",
 
     // ★ Regla obligatoria 2 — no mira a la cámara
@@ -182,10 +241,11 @@ export function buildImagePrompt(brief: DraftBrief): string {
     "",
 
     // Negatives
-    "Avoid: Direct eye contact with camera (forbidden), generic stock photo look, exaggerated cheesy smiles, plastic skin, AI artifacts, oversaturated colors, harsh shadows, blurry details on the subject's face, visible bank logos or competitor branding, low-resolution texture, neutral palette with NO red element, subject placed on the LEFT side of the frame (must be RIGHT).",
+    `Avoid: ${SHARED_AVOID}Direct eye contact with camera (forbidden), generic stock photo look, exaggerated cheesy smiles, plastic skin, AI artifacts, oversaturated colors, harsh shadows, blurry details on the subject's face, low-resolution texture, subject NOT wearing a red garment (the red clothing is mandatory), maroon/burgundy/pink instead of vivid red, subject placed on the LEFT side of the frame (must be RIGHT).`,
   ];
 
-  return lines.filter((l) => l !== "").join("\n");
+  const text = lines.filter((l) => l !== "").join("\n");
+  return gender === "man" ? toMasculine(text) : text;
 }
 
 /**
@@ -203,7 +263,7 @@ export function buildImagePrompt(brief: DraftBrief): string {
  *   - Sujeto en cuadrantes 1-2 (lado derecho)
  *   - Elemento rojo presente
  */
-function buildContextualPrompt(brief: DraftBrief): string {
+function buildContextualPrompt(brief: DraftBrief, gender: Gender = "woman"): string {
   const topic = brief.topic?.trim() ?? "everyday positive moment";
   const product = productDisplayName(brief.product) || "an HSBC credit card";
   const keyInfo = serializeKeyInfoTags(brief.keyInfoTags);
@@ -213,11 +273,16 @@ function buildContextualPrompt(brief: DraftBrief): string {
     "",
 
     // Subject more contextual: dressed FOR the topic, not for a banking ad
+    genderDirective(gender),
     "Subject: A Mexican woman in her 30s, dressed appropriately for the specific moment described in the topic below. Her clothing, posture, and surroundings ALL match the literal context of what's happening. Hair and makeup natural and situation-appropriate (not over-styled).",
     "",
 
-    // ★ Mandatory rules — same 4 + red element
-    "MANDATORY brand element (RED): There MUST be a noticeable red element in the frame — ideally something integrated naturally into the topic context (red lucha libre mask if topic is lucha libre, red luggage tag if topic is travel, red dish if topic is dining, red flowers in a restaurant, red event signage, etc.). HSBC brand red feel without showing the HSBC logo.",
+    // ★ Mandatory rules — el sujeto SIEMPRE lleva una prenda roja
+    "ABSOLUTELY MANDATORY brand element (RED CLOTHING) — this is the #1 requirement: the subject MUST be WEARING a clearly visible, vivid RED garment (red blazer, red sweater, red blouse, red dress, red jacket, red shirt, or red cardigan), styled appropriately for the situation in the topic. The red clothing must be obvious and prominent, in vivid HSBC brand red (#DB0011 — saturated true red, NOT maroon, burgundy, pink, or orange). The red must come from what the person is WEARING, not just background objects or props. No logos on the garment.",
+    "",
+
+    // ★ Restricciones globales (sin marcas / sin alcohol)
+    NO_BRAND_NO_ALCOHOL,
     "",
     "MANDATORY composition (NO EYE CONTACT): She is NEVER looking at the camera. Captured mid-action, mid-laugh, mid-glance at something happening in the scene. Gaze can be anywhere except the lens.",
     "",
@@ -253,10 +318,11 @@ function buildContextualPrompt(brief: DraftBrief): string {
     "Quality: 4K resolution, professional documentary photography, 35mm or 50mm lens equivalent, natural f/2.8-f/4 aperture. Could feel like a magazine editorial or National Geographic moment.",
     "",
 
-    "Avoid: Direct eye contact (forbidden), studio look, posed model vibes, plastic skin, generic banking stock imagery, AI artifacts, oversaturated brand colors, missing or hidden topic — the topic MUST be visually present and recognizable, subject on the LEFT side (must be RIGHT), neutral palette with NO red element.",
+    `Avoid: ${SHARED_AVOID}Direct eye contact (forbidden), studio look, posed model vibes, plastic skin, generic banking stock imagery, AI artifacts, oversaturated brand colors, missing or hidden topic — the topic MUST be visually present and recognizable, subject on the LEFT side (must be RIGHT), subject NOT wearing a red garment (the red clothing is mandatory), maroon/burgundy/pink instead of vivid red.`,
   ];
 
-  return lines.filter((l) => l !== "").join("\n");
+  const text = lines.filter((l) => l !== "").join("\n");
+  return gender === "man" ? toMasculine(text) : text;
 }
 
 /**
@@ -268,7 +334,7 @@ function buildContextualPrompt(brief: DraftBrief): string {
  *
  * MISMAS reglas inmutables.
  */
-function buildCinematicPrompt(brief: DraftBrief): string {
+function buildCinematicPrompt(brief: DraftBrief, gender: Gender = "woman"): string {
   const topic = brief.topic?.trim() ?? "a meaningful personal moment";
   const product = productDisplayName(brief.product) || "an HSBC credit card";
   const audience = brief.audience ?? "todos";
@@ -286,11 +352,16 @@ function buildCinematicPrompt(brief: DraftBrief): string {
     "Cinematic film still — feels like a frame pulled from a beautifully shot Spanish-language drama or a premium TV commercial. Mood-driven, story-rich, emotionally resonant. NOT a corporate banking ad — more like a moment from a character's life.",
     "",
 
+    genderDirective(gender),
     "Subject: A Mexican woman in her 30s, portrayed with dignity and depth. Wardrobe is character-specific (chosen to tell a story, not just fashion). Lighting carves her features dramatically. She feels like a protagonist.",
     "",
 
-    // ★ Same 4 mandatory rules
-    "MANDATORY brand element (RED): There MUST be a striking red element — and in this cinematic style, the red can be used DRAMATICALLY (a single red garment as the focal color in an otherwise muted palette, a red door, red neon signage in a window, a single red light source, red curtains, red wine, etc.). The red should feel deliberate and symbolic, like in a Wong Kar-wai film.",
+    // ★ Same 4 mandatory rules — el ROJO en la ROPA es lo más crítico
+    "ABSOLUTELY MANDATORY brand element (RED CLOTHING) — THIS IS THE #1 REQUIREMENT: the image is unusable if the subject is not WEARING vivid red. The subject MUST be WEARING a bold, clearly visible RED garment (a red coat, red dress, red blazer, red sweater, or red shirt) used DRAMATICALLY as the single focal color in an otherwise muted/desaturated cinematic palette. Use HSBC brand red (#DB0011 — vivid, saturated true red, NOT maroon, burgundy, pink, or orange). The red garment must read instantly and feel deliberate and symbolic, like in a Wong Kar-wai film. Do NOT rely on background objects for the red — it must be the clothing. Do NOT produce a fully neutral or monochrome image.",
+    "",
+
+    // ★ Restricciones globales (sin marcas / sin alcohol)
+    NO_BRAND_NO_ALCOHOL,
     "",
     "MANDATORY composition (NO EYE CONTACT): She is NEVER looking at the camera. Her gaze is contemplative, directed at something off-screen or downward in thought. Classic cinema convention: the protagonist looks INTO her world, not at us.",
     "",
@@ -321,10 +392,11 @@ function buildCinematicPrompt(brief: DraftBrief): string {
     "Quality: 4K resolution, anamorphic cinematic look, 85mm or 100mm prime lens equivalent, f/2.0 aperture for shallow cinematic depth. Color graded like a film. Could win a cinematography award.",
     "",
 
-    "Avoid: Direct eye contact (forbidden), bright flat lighting, generic stock look, exaggerated emotion, plastic skin, AI artifacts, oversaturated cartoonish colors, sterile corporate aesthetic, subject on the LEFT side (must be RIGHT), neutral palette with NO red element.",
+    `Avoid: ${SHARED_AVOID}Direct eye contact (forbidden), bright flat lighting, generic stock look, exaggerated emotion, plastic skin, AI artifacts, oversaturated cartoonish colors, sterile corporate aesthetic, subject on the LEFT side (must be RIGHT), maroon/burgundy/pink instead of vivid red, and — most importantly — the subject NOT wearing a vivid red garment (the red clothing is mandatory; a fully neutral/monochrome outfit is unacceptable).`,
   ];
 
-  return lines.filter((l) => l !== "").join("\n");
+  const text = lines.filter((l) => l !== "").join("\n");
+  return gender === "man" ? toMasculine(text) : text;
 }
 
 /**
@@ -345,25 +417,28 @@ export interface PromptVariation {
 }
 
 export function buildImagePromptVariations(brief: DraftBrief): PromptVariation[] {
+  // Alternamos el género entre variaciones para que las 3 imágenes no sean
+  // siempre mujeres: editorial → mujer, contextual → hombre, cinemática →
+  // mujer. Así cada generación trae una mezcla.
   return [
     {
       id: "editorial",
       name: "Editorial Lifestyle",
       description: "Corporate-safe, profesional, luz suave. Ideal para piezas formales.",
-      prompt: buildImagePrompt(brief),
+      prompt: buildImagePrompt(brief, "woman"),
     },
     {
       id: "contextual",
       name: "Contextual / Real",
       description:
         "Documentary, literal al topic. La persona vive el momento real del notification.",
-      prompt: buildContextualPrompt(brief),
+      prompt: buildContextualPrompt(brief, "man"),
     },
     {
       id: "cinematic",
       name: "Cinemática",
       description: "Mood dramático, film still aesthetic. Peso emocional, narrativo.",
-      prompt: buildCinematicPrompt(brief),
+      prompt: buildCinematicPrompt(brief, "woman"),
     },
   ];
 }

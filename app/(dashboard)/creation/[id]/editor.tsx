@@ -23,6 +23,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   generateCopyAction,
   generateImageVariationsAction,
+  improveTopicAction,
   refineFieldAction,
   saveDraftAction,
   searchImagesAction,
@@ -165,6 +166,7 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
     refine?: CopyField;
     search?: boolean;
     upload?: boolean;
+    improveTopic?: boolean;
     download?: "image" | "presentation";
   }>({});
   const uploadInputRef = useRef<HTMLInputElement>(null);
@@ -260,6 +262,32 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
       setError(e instanceof Error ? e.message : "Falló el refinamiento.");
     } finally {
       setBusy((b) => ({ ...b, refine: undefined }));
+    }
+  }
+
+  // Selección + auto-avance para pasos de opción ÚNICA (producto, objetivo,
+  // audiencia, urgencia). Al hacer click en una opción, pasamos solos al
+  // siguiente paso tras un pequeño delay (para que se vea el highlight de la
+  // selección). Los pasos de texto libre y chips multi-select NO auto-avanzan.
+  function selectAndAdvance(patch: Partial<DraftBrief>) {
+    setBrief((b) => ({ ...b, ...patch }));
+    window.setTimeout(() => {
+      setStepIdx((i) => Math.min(WIZARD_STEPS.length - 1, i + 1));
+    }, 200);
+  }
+
+  async function onImproveTopic() {
+    const current = (brief.topic ?? "").trim();
+    if (current.length < 3) return;
+    setBusy((b) => ({ ...b, improveTopic: true }));
+    setError(null);
+    try {
+      const improved = await improveTopicAction({ topic: current, brief });
+      if (improved) setBrief((b) => ({ ...b, topic: improved }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Falló la mejora del texto con IA.");
+    } finally {
+      setBusy((b) => ({ ...b, improveTopic: false }));
     }
   }
 
@@ -386,7 +414,7 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
               + `pb-24` (espacio para el footer) el navegador SIEMPRE permite
               el scroll cuando el contenido excede la altura visible. */}
           <div className="absolute inset-0 overflow-y-auto">
-            <div className="mx-auto w-full max-w-3xl px-6 pt-8 pb-32">
+            <div className="mx-auto w-full max-w-3xl px-6 pt-8 pb-12">
               {/* Progress dots — clickable to jump back to any visited step. */}
               <div className="mb-6 flex items-center justify-center gap-1.5">
                 {WIZARD_STEPS.map((s, i) => {
@@ -411,7 +439,7 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
               </div>
 
               {/* Current step content */}
-              <div className="min-h-[280px]">
+              <div className="min-h-[160px]">
                 {currentStep.id === "product" && (
                   <WizardStep
                     title="¿Para cuál tarjeta es esta notificación?"
@@ -424,7 +452,7 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                           <button
                             key={p.id}
                             type="button"
-                            onClick={() => setBrief({ ...brief, product: p.id })}
+                            onClick={() => selectAndAdvance({ product: p.id })}
                             className={`group flex flex-col items-center gap-2 rounded-xl border p-3 text-sm font-medium transition ${
                               active
                                 ? "border-brand-600 bg-brand-50 text-brand-700 ring-brand-600/15 ring-2"
@@ -455,7 +483,7 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                             type="button"
                             onClick={() => {
                               setOtherMode((m) => ({ ...m, objective: false }));
-                              setBrief({ ...brief, objective: o.id });
+                              selectAndAdvance({ objective: o.id });
                             }}
                             className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition ${
                               active
@@ -527,11 +555,32 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                       placeholder="Ej. Su tarjeta VIVA ya fue generada y le llegará en 5-10 días hábiles. Puede rastrearla por la app. Si necesita actualizar la dirección, hay un botón directo."
                       className="focus:border-brand-600 focus:ring-brand-600/15 w-full rounded-lg border border-neutral-300 bg-white px-3.5 py-3 text-sm placeholder:text-neutral-400 focus:ring-2 focus:outline-none"
                     />
-                    <p className="mt-1.5 text-[11px] text-neutral-500">
-                      Mínimo 10 caracteres.{" "}
-                      <span className="text-neutral-400">
-                        ({(brief.topic ?? "").trim().length})
-                      </span>
+                    <div className="mt-1.5 flex items-center justify-between gap-3">
+                      <p className="text-[11px] text-neutral-500">
+                        Mínimo 10 caracteres.{" "}
+                        <span className="text-neutral-400">
+                          ({(brief.topic ?? "").trim().length})
+                        </span>
+                      </p>
+                      {/* Atajo de IA: aclara/ordena lo que escribió el usuario sin
+                          inventar datos. Útil cuando el texto quedó ambiguo. */}
+                      <button
+                        type="button"
+                        onClick={onImproveTopic}
+                        disabled={busy.improveTopic || (brief.topic ?? "").trim().length < 3}
+                        className="text-brand-700 hover:bg-brand-50 border-brand-200 inline-flex shrink-0 items-center gap-1.5 rounded-md border bg-white px-2.5 py-1.5 text-[11px] font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
+                        title="Claude reescribe tu texto más claro, sin inventar montos ni fechas"
+                      >
+                        {busy.improveTopic ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Sparkles className="h-3.5 w-3.5" />
+                        )}
+                        {busy.improveTopic ? "Mejorando…" : "Mejorar con IA"}
+                      </button>
+                    </div>
+                    <p className="mt-1 text-[10px] text-neutral-400">
+                      La IA solo aclara tu redacción. No inventa datos que no hayas escrito.
                     </p>
                   </WizardStep>
                 )}
@@ -583,7 +632,7 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                             type="button"
                             onClick={() => {
                               setOtherMode((m) => ({ ...m, audience: false }));
-                              setBrief({ ...brief, audience: a.id });
+                              selectAndAdvance({ audience: a.id });
                             }}
                             className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition ${
                               active
@@ -652,7 +701,7 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                           <button
                             key={u.id}
                             type="button"
-                            onClick={() => setBrief({ ...brief, urgency: u.id })}
+                            onClick={() => selectAndAdvance({ urgency: u.id })}
                             className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition ${
                               active
                                 ? "border-brand-600 bg-brand-50 ring-brand-600/15 ring-2"
@@ -689,79 +738,82 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                   </WizardStep>
                 )}
               </div>
-            </div>
-          </div>
 
-          {/* Navigation footer — POSICIÓN ABSOLUTA al fondo del wizard.
-              Siempre fijo al pie sin importar el scroll del contenido.
-              El padding-bottom del scroll (pb-32) reserva espacio para
-              que nada del contenido quede oculto debajo del footer. */}
-          <div className="absolute inset-x-0 bottom-0 border-t border-neutral-200 bg-white/95 backdrop-blur">
-            <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3 px-6 py-4">
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setStepIdx((i) => Math.max(0, i - 1))}
-                  disabled={stepIdx === 0}
-                  className="inline-flex items-center gap-1 rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  <ArrowLeft className="h-3.5 w-3.5" />
-                  Atrás
-                </button>
-                <div className="flex items-center gap-1.5 text-[11px] text-neutral-500">
-                  {isPending && <Loader2 className="h-3 w-3 animate-spin" />}
-                  Paso {stepIdx + 1} de {WIZARD_STEPS.length}
-                </div>
-              </div>
-
-              {isLastStep ? (
-                <button
-                  type="button"
-                  onClick={onGenerate}
-                  disabled={busy.generate || !isBriefComplete(brief)}
-                  className="bg-brand-600 hover:bg-brand-700 inline-flex items-center justify-center gap-2 rounded-md px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {busy.generate ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Generando con IA…
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="h-4 w-4" />
-                      Generar notificación
-                    </>
-                  )}
-                </button>
-              ) : (
-                <div className="flex items-center gap-2">
-                  {!currentStep.required && !canAdvance && (
+              {/* Navigation footer — EN FLUJO, justo debajo del contenido del
+                  paso. Antes estaba pineado con position:absolute al fondo del
+                  viewport, lo que dejaba un hueco enorme entre las tarjetas y
+                  el botón (había que hacer scroll para darle "Siguiente"). En
+                  flujo el botón queda siempre pegado al contenido. */}
+              <div className="mt-8 border-t border-neutral-200 pt-4">
+                <div className="flex w-full items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
                     <button
                       type="button"
-                      onClick={() => setStepIdx((i) => Math.min(WIZARD_STEPS.length - 1, i + 1))}
-                      className="text-xs font-medium text-neutral-500 hover:text-neutral-700"
+                      onClick={() => setStepIdx((i) => Math.max(0, i - 1))}
+                      disabled={stepIdx === 0}
+                      className="inline-flex items-center gap-1 rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-40"
                     >
-                      Saltar
+                      <ArrowLeft className="h-3.5 w-3.5" />
+                      Atrás
                     </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setStepIdx((i) => Math.min(WIZARD_STEPS.length - 1, i + 1))}
-                    disabled={!canAdvance}
-                    className="bg-brand-600 hover:bg-brand-700 inline-flex items-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    Siguiente
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              )}
-            </div>
+                    <div className="flex items-center gap-1.5 text-[11px] text-neutral-500">
+                      {isPending && <Loader2 className="h-3 w-3 animate-spin" />}
+                      Paso {stepIdx + 1} de {WIZARD_STEPS.length}
+                    </div>
+                  </div>
 
-            {error && (
-              <div className="mt-3 rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-700">
-                {error}
+                  {isLastStep ? (
+                    <button
+                      type="button"
+                      onClick={onGenerate}
+                      disabled={busy.generate || !isBriefComplete(brief)}
+                      className="bg-brand-600 hover:bg-brand-700 inline-flex items-center justify-center gap-2 rounded-md px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {busy.generate ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Generando con IA…
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="h-4 w-4" />
+                          Generar notificación
+                        </>
+                      )}
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      {!currentStep.required && !canAdvance && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setStepIdx((i) => Math.min(WIZARD_STEPS.length - 1, i + 1))
+                          }
+                          className="text-xs font-medium text-neutral-500 hover:text-neutral-700"
+                        >
+                          Saltar
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setStepIdx((i) => Math.min(WIZARD_STEPS.length - 1, i + 1))}
+                        disabled={!canAdvance}
+                        className="bg-brand-600 hover:bg-brand-700 inline-flex items-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        Siguiente
+                        <ArrowRight className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {error && (
+                  <div className="mt-3 rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                    {error}
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
         </div>
       )}
@@ -1463,7 +1515,9 @@ function WizardImagePicker({
   onClear: () => void;
   onError: (e: string | null) => void;
 }) {
-  const [tab, setTab] = useState<"search" | "upload" | "prompt">("upload");
+  // Default: "Generar con IA" primero (es lo que más valor da). Luego buscar,
+  // luego subir. El orden de los tabs refleja esa prioridad.
+  const [tab, setTab] = useState<"prompt" | "search" | "upload">("prompt");
 
   return (
     <div className="space-y-4">
@@ -1493,8 +1547,12 @@ function WizardImagePicker({
         </div>
       )}
 
-      {/* Tabs de las 3 opciones */}
+      {/* Tabs de las 3 opciones — orden: Generar con IA, Buscar, Subir */}
       <div className="flex gap-1.5 rounded-lg border border-neutral-200 bg-neutral-50 p-1">
+        <TabButton active={tab === "prompt"} onClick={() => setTab("prompt")}>
+          <Sparkles className="h-3.5 w-3.5" />
+          Generar con IA
+        </TabButton>
         <TabButton active={tab === "search"} onClick={() => setTab("search")}>
           <Wand2 className="h-3.5 w-3.5" />
           Buscar (Unsplash)
@@ -1502,10 +1560,6 @@ function WizardImagePicker({
         <TabButton active={tab === "upload"} onClick={() => setTab("upload")}>
           <Upload className="h-3.5 w-3.5" />
           Subir mía
-        </TabButton>
-        <TabButton active={tab === "prompt"} onClick={() => setTab("prompt")}>
-          <Sparkles className="h-3.5 w-3.5" />
-          Generar con IA
         </TabButton>
       </div>
 

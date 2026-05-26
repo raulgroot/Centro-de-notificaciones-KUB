@@ -20,38 +20,48 @@ import { anthropicEnv } from "@/lib/env";
 import type { DraftBrief, DraftCopy } from "@/lib/db/schema";
 import { serializeKeyInfoTags, productDisplayName } from "@/lib/notifications/key-info";
 
-/** What the wizard receives back after a "Generar" click. */
+/**
+ * What the wizard receives back after a "Generar" click.
+ *
+ * IMPORTANTE sobre los límites: los `.max()` son GENEROSOS a propósito.
+ * `generateObject` rechaza TODA la respuesta si UN solo campo se pasa del
+ * límite (error "response did not match schema"), tirando una pieza por lo
+ * demás buena. Los tamaños "ideales" de marca (subject 5-12 palabras, sms
+ * ≤160, etc.) se piden en el system prompt como guía, y el UI muestra los
+ * contadores. Aquí solo ponemos topes amplios como red de seguridad para
+ * que la generación no truene por unos caracteres de más.
+ */
 export const NotificationCopySchema = z.object({
   subject: z
     .string()
-    .min(5)
-    .max(100)
-    .describe("Asunto del email. Espan~ol mexicano. Sin emojis al inicio."),
+    .min(3)
+    .max(200)
+    .describe("Asunto del email. Ideal 5-12 palabras. Espan~ol mexicano. Sin emojis al inicio."),
   preheader: z
     .string()
-    .max(120)
-    .describe("Preheader (texto que se ve junto al asunto en la bandeja)."),
+    .max(240)
+    .describe("Preheader (texto que se ve junto al asunto en la bandeja). Ideal <=120 chars."),
   headline: z
     .string()
-    .min(5)
-    .max(120)
+    .min(3)
+    .max(240)
     .describe("Titular grande del email. Una frase, sin punto final."),
   body: z
     .string()
-    .min(40)
-    .max(700)
-    .describe("Cuerpo principal del email. 1-2 parrafos, conversacional."),
+    .min(20)
+    .max(1600)
+    .describe("Cuerpo principal del email. Ideal 1-2 parrafos cortos, conversacional."),
   cta_label: z
     .string()
     .min(2)
-    .max(40)
+    .max(80)
     .describe("Texto del boton CTA. Verbo en imperativo. Sin punto final."),
   sms: z
     .string()
-    .min(20)
-    .max(160)
+    .min(10)
+    .max(400)
     .describe(
-      "Texto SMS. Maximo 160 caracteres. Sin emojis. Incluye el call to action en una sola frase.",
+      "Texto SMS. IDEAL maximo 160 caracteres. Sin emojis. Incluye el call to action en una sola frase.",
     ),
 });
 
@@ -199,22 +209,41 @@ function unwrapAccidentalJsonField(value: string, fieldName: string): string {
 
 /** Generate a full copy bundle from a brief. */
 export async function generateNotificationCopy(brief: DraftBrief): Promise<NotificationCopy> {
-  const { object } = await generateObject({
-    model: model(),
-    schema: NotificationCopySchema,
-    system: systemPrompt(),
-    prompt: briefToUserPrompt(brief),
-    temperature: 0.7,
-  });
-  // Sanitizar cada field por si el modelo wrapeó en JSON anidado.
-  return {
-    subject: unwrapAccidentalJsonField(object.subject, "subject"),
-    preheader: unwrapAccidentalJsonField(object.preheader, "preheader"),
-    headline: unwrapAccidentalJsonField(object.headline, "headline"),
-    body: unwrapAccidentalJsonField(object.body, "body"),
-    cta_label: unwrapAccidentalJsonField(object.cta_label, "cta_label"),
-    sms: unwrapAccidentalJsonField(object.sms, "sms"),
-  };
+  // `generateObject` lanza NoObjectGeneratedError si el modelo devuelve algo
+  // que no cuadra con el schema (longitud, JSON mal formado, etc.) y NO lo
+  // reintenta solo. Como con temperature 0.7 cada intento varía, hacemos
+  // hasta 2 intentos antes de rendirnos con un mensaje claro.
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const { object } = await generateObject({
+        model: model(),
+        schema: NotificationCopySchema,
+        system: systemPrompt(),
+        prompt: briefToUserPrompt(brief),
+        temperature: 0.7,
+      });
+      // Sanitizar cada field por si el modelo wrapeó en JSON anidado.
+      return {
+        subject: unwrapAccidentalJsonField(object.subject, "subject"),
+        preheader: unwrapAccidentalJsonField(object.preheader, "preheader"),
+        headline: unwrapAccidentalJsonField(object.headline, "headline"),
+        body: unwrapAccidentalJsonField(object.body, "body"),
+        cta_label: unwrapAccidentalJsonField(object.cta_label, "cta_label"),
+        sms: unwrapAccidentalJsonField(object.sms, "sms"),
+      };
+    } catch (e) {
+      lastError = e;
+      console.error(
+        `[notification-copy] generateObject falló (intento ${attempt + 1}/2):`,
+        e instanceof Error ? e.message : e,
+      );
+    }
+  }
+  throw new Error(
+    "La IA no logró generar una copy válida tras 2 intentos. Intenta de nuevo, o ajusta un poco el brief (a veces un tema muy largo o ambiguo confunde al modelo).",
+    { cause: lastError },
+  );
 }
 
 /**
@@ -263,6 +292,51 @@ export async function refineField(args: {
     temperature: 0.7,
   });
   return text.trim();
+}
+
+/**
+ * Mejora la redacción del "topic" (de qué se trata la notificación) que
+ * escribe el usuario en el wizard. Si el usuario puso algo ambiguo, corto o
+ * desordenado, Claude lo reescribe en 1-3 frases claras y accionables.
+ *
+ * REGLA DURA: NO inventa datos que el usuario no dio (montos, fechas,
+ * terminaciones de tarjeta, nombres). Solo aclara y estructura lo que ya
+ * está. Devuelve texto plano (sin markdown, sin comillas, sin viñetas).
+ */
+export async function improveTopic(args: { topic: string; brief: DraftBrief }): Promise<string> {
+  const { topic, brief } = args;
+
+  const sys = [
+    "Eres un asistente que ayuda a un copywriter de HSBC México a aclarar el brief de una notificación de tarjeta de crédito.",
+    "El usuario escribió, de forma posiblemente ambigua o incompleta, DE QUÉ se trata la notificación.",
+    "Tu tarea: reescribirlo en 1 a 3 frases claras, concretas y accionables en español mexicano.",
+    "",
+    "Reglas duras:",
+    "- NO inventes datos que el usuario no dio: montos, fechas, terminaciones de tarjeta, nombres, porcentajes, plazos. Si no los mencionó, no aparecen.",
+    "- Conserva TODOS los hechos que sí mencionó.",
+    "- No agregues saludo, ni copy final, ni CTA: esto es solo la descripción del tema para el brief, no el mensaje al cliente.",
+    "- Devuelve SOLO el texto mejorado: sin comillas, sin markdown, sin viñetas, sin explicaciones.",
+    "- Si el texto del usuario ya es claro, mejóralo levemente sin cambiar el sentido.",
+  ].join("\n");
+
+  const userPrompt = [
+    briefToUserPrompt(brief),
+    "",
+    "Descripción del tema escrita por el usuario (mejórala):",
+    topic,
+  ].join("\n");
+
+  const { text } = await generateText({
+    model: model(),
+    system: sys,
+    prompt: userPrompt,
+    temperature: 0.5,
+  });
+  // Quita comillas envolventes que el modelo a veces agrega.
+  return text
+    .trim()
+    .replace(/^["“]|["”]$/g, "")
+    .trim();
 }
 
 /**
