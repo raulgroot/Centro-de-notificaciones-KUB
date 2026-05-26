@@ -55,8 +55,20 @@ export const asanaEnv = () => ({
  */
 export const anthropicEnv = () => ({
   apiKey: requireEnv("ANTHROPIC_API_KEY"),
-  /** Override to pin/bump model without code changes. */
-  model: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-5",
+  /** Override to pin/bump model without code changes.
+   *
+   * Historia:
+   *   - `claude-sonnet-4-5` (alias sin sufijo) fue deprecated entre fines
+   *     de 2025 y 2026; Anthropic empezó a devolver 404.
+   *   - El default ahora apunta a `claude-opus-4-7` — la mejor calidad
+   *     disponible. Decisión consciente del costo (~5x Sonnet, ~$6/mes
+   *     al volumen actual) porque las piezas HSBC se benefician de la
+   *     creatividad extra de Opus.
+   *   - Si en algún momento el costo se vuelve relevante, bajar a
+   *     `claude-sonnet-4-6` (alias moderno) o `claude-sonnet-4-5-20250929`
+   *     (versión datada, más estable).
+   */
+  model: process.env.ANTHROPIC_MODEL ?? "claude-opus-4-7",
 });
 
 /** Freepik API for sourcing hero images in the /creation wizard. */
