@@ -9,6 +9,15 @@ const nextConfig: NextConfig = {
   // as external so Vercel's nodejs runtime resolves them from node_modules at
   // request time.
   serverExternalPackages: ["puppeteer-core", "@sparticuz/chromium-min"],
+  // El wizard de creación devuelve 3 imágenes generadas por Nano Banana
+  // como data URLs base64. Cada imagen puede pesar ~500KB-1MB, así que
+  // el payload total de un `generateImageVariationsAction` supera el 1MB
+  // default de Server Actions. Subimos el límite a 10MB para tener holgura.
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "10mb",
+    },
+  },
   images: {
     remotePatterns: [
       // Permite imágenes de Supabase Storage y Freepik (cuando se integren).

@@ -55,13 +55,53 @@ export const asanaEnv = () => ({
  */
 export const anthropicEnv = () => ({
   apiKey: requireEnv("ANTHROPIC_API_KEY"),
-  /** Override to pin/bump model without code changes. */
-  model: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-5",
+  /** Override to pin/bump model without code changes.
+   *
+   * Historia:
+   *   - `claude-sonnet-4-5` (alias sin sufijo) fue deprecated entre fines
+   *     de 2025 y 2026; Anthropic empezó a devolver 404.
+   *   - El default ahora apunta a `claude-opus-4-7` — la mejor calidad
+   *     disponible. Decisión consciente del costo (~5x Sonnet, ~$6/mes
+   *     al volumen actual) porque las piezas HSBC se benefician de la
+   *     creatividad extra de Opus.
+   *   - Si en algún momento el costo se vuelve relevante, bajar a
+   *     `claude-sonnet-4-6` (alias moderno) o `claude-sonnet-4-5-20250929`
+   *     (versión datada, más estable).
+   */
+  model: process.env.ANTHROPIC_MODEL ?? "claude-opus-4-7",
 });
 
 /** Freepik API for sourcing hero images in the /creation wizard. */
 export const freepikEnv = () => ({
   apiKey: requireEnv("FREEPIK_API_KEY"),
+});
+
+/**
+ * Unsplash API para buscar fotos lifestyle en el wizard de creación.
+ * Reemplaza al provider Freepik (cuya cuenta gratis se agotó). El Access
+ * Key se saca gratis en https://unsplash.com/developers — el free tier
+ * de "demo app" cubre 50 requests/hora, suficiente para uso interno.
+ */
+export const unsplashEnv = () => ({
+  accessKey: requireEnv("UNSPLASH_ACCESS_KEY"),
+});
+
+/**
+ * Google AI Studio (Gemini / "Nano Banana") para generación text-to-image
+ * directa en el wizard. Key gratis en https://aistudio.google.com/apikey.
+ *
+ * El default `gemini-3-pro-image-preview` es lo que coloquialmente se
+ * conoce como "Nano Banana" — la última generación de modelos de imagen
+ * de Google (preview), que está gratis durante el periodo de preview.
+ * Es el modelo de mayor calidad y SÍ tiene free tier sin billing.
+ *
+ * Si ese modelo se gradúa de preview y empieza a requerir billing,
+ * caer a `gemini-3.1-flash-image-preview` (más rápido, también free
+ * en preview) vía `GEMINI_IMAGE_MODEL`.
+ */
+export const googleGenAiEnv = () => ({
+  apiKey: requireEnv("GEMINI_API_KEY"),
+  model: process.env.GEMINI_IMAGE_MODEL ?? "gemini-3-pro-image-preview",
 });
 
 /**

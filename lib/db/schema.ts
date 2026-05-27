@@ -298,10 +298,18 @@ export interface DraftBrief {
   /** Free-form: "what is this notification about?". The meat of the prompt. */
   topic?: string;
   /**
-   * Hard facts that MUST appear in the copy (dates, amounts, deadlines,
-   * last-4 of the card, tracking IDs). Optional but encouraged.
+   * Hard facts as free text — kept for backward compat con drafts viejos.
+   * Para drafts nuevos preferimos `keyInfoTags` (estructurado) que el wizard
+   * serializa al AI prompt vía `lib/notifications/key-info.ts`.
    */
   keyInfo?: string;
+  /**
+   * Datos estructurados que SÍ o SÍ deben aparecer en la copy. Reemplaza al
+   * `keyInfo` libre en el wizard nuevo: el usuario activa chips y llena
+   * inputs específicos. Cada campo es opcional; si no se setea ninguno,
+   * el AI ignora el bloque.
+   */
+  keyInfoTags?: DraftKeyInfo;
   /**
    * Audience segment id. Pre-defined options:
    *   "nuevos" | "recurrentes" | "vip" | "morosos" | "todos"
@@ -317,6 +325,23 @@ export interface DraftBrief {
   lifecycle?: string;
   movement?: string;
   context?: string;
+}
+
+/**
+ * Datos estructurados de "información clave" para una pieza. Cada campo
+ * opcional; el wizard activa chips que llenan estos slots.
+ */
+export interface DraftKeyInfo {
+  /** Últimos 4 dígitos de la tarjeta, ej. "4823". */
+  cardEnding?: string;
+  /** Monto / premio en texto libre, ej. "$5,000 MXN" o "2,500 puntos". */
+  amount?: string;
+  /** Fecha límite (ISO YYYY-MM-DD). */
+  deadline?: string;
+  /** Rango de fechas (ISO YYYY-MM-DD). */
+  dateRange?: { from?: string; to?: string };
+  /** URL completa o código alfanumérico de promoción. */
+  promoUrl?: string;
 }
 
 export interface DraftCopy {

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { PenSquare, Plus, Sparkles } from "lucide-react";
 import { listDrafts } from "@/lib/adapters/supabase/notification-drafts";
+import { DeleteDraftButton } from "./delete-draft-button";
 import { PageHeader } from "@/components/feature/page-header";
 import { createDraftAndOpenAction } from "./actions";
 
@@ -36,10 +37,14 @@ export default async function CreationPage() {
           </header>
           <ul className="divide-y divide-neutral-100">
             {active.map((d) => (
-              <li key={d.id}>
+              <li
+                key={d.id}
+                className="group relative grid grid-cols-12 items-center gap-3 transition hover:bg-neutral-50"
+              >
+                {/* El Link cubre toda la fila excepto el botón borrar. */}
                 <Link
                   href={`/creation/${d.id}`}
-                  className="grid grid-cols-12 gap-3 px-5 py-3.5 transition hover:bg-neutral-50"
+                  className="col-span-11 grid grid-cols-11 gap-3 px-5 py-3.5"
                 >
                   <div className="col-span-6 min-w-0">
                     <div className="flex items-center gap-2">
@@ -61,10 +66,13 @@ export default async function CreationPage() {
                       .filter(Boolean)
                       .join(" · ") || "Sin brief"}
                   </div>
-                  <div className="col-span-3 flex items-center justify-end text-xs text-neutral-500">
+                  <div className="col-span-2 flex items-center justify-end text-xs text-neutral-500">
                     {fmt.format(d.updatedAt)}
                   </div>
                 </Link>
+                <div className="col-span-1 flex items-center justify-end pr-5">
+                  <DeleteDraftButton id={d.id} name={d.name || "Sin nombre"} />
+                </div>
               </li>
             ))}
           </ul>
