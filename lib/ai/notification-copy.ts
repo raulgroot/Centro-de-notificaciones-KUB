@@ -19,6 +19,7 @@ import { z } from "zod";
 import { anthropicEnv } from "@/lib/env";
 import type { DraftBrief, DraftCopy } from "@/lib/db/schema";
 import { serializeKeyInfoTags, productDisplayName } from "@/lib/notifications/key-info";
+import { buildPremierPromptBlock, type PillarId } from "@/lib/notifications/premier-rules";
 
 /**
  * What the wizard receives back after a "Generar" click.
@@ -78,11 +79,23 @@ function model() {
 }
 
 /**
- * Compose the system prompt. We bake in HSBC brand voice constraints so the
- * copy comes out usable without 5 rounds of refinement.
+ * ¿La pieza debe seguir el overlay Premier? Centralizado aquí para que
+ * `generateNotificationCopy`, `refineField` e `improveTopic` decidan igual.
  */
-function systemPrompt(): string {
-  return [
+function premierContext(brief: DraftBrief): { isPremier: boolean; pillar: PillarId | null } {
+  return {
+    isPremier: Boolean(brief.isPremier),
+    pillar: brief.premierPillar ?? null,
+  };
+}
+
+/**
+ * Compose the system prompt. We bake in HSBC brand voice constraints so the
+ * copy comes out usable without 5 rounds of refinement. When the brief is
+ * Premier, we append the catalog-driven Premier overlay block.
+ */
+function systemPrompt(brief?: DraftBrief): string {
+  const base = [
     "Eres un copywriter senior de comunicaciones transaccionales de HSBC Mexico.",
     "Tu objetivo: redactar notificaciones de email + SMS para titulares de tarjeta de credito.",
     "",
@@ -114,6 +127,12 @@ function systemPrompt(): string {
     "",
     "Output: SIEMPRE el objeto JSON definido por el schema. Nada antes ni despues.",
   ].join("\n");
+
+  if (brief) {
+    const { isPremier, pillar } = premierContext(brief);
+    if (isPremier) return `${base}\n${buildPremierPromptBlock(pillar)}`;
+  }
+  return base;
 }
 
 /**
@@ -180,6 +199,12 @@ function briefToUserPrompt(brief: DraftBrief): string {
     lines.push(`- Urgencia: ${brief.urgency}${hint ? ` — ${hint}` : ""}`);
   }
   if (brief.tone) lines.push(`- Tono: ${brief.tone}`);
+  if (brief.isPremier) {
+    const pillarLabel = brief.premierPillar ? ` (pilar: ${brief.premierPillar})` : "";
+    lines.push(
+      `- Segmento: HSBC Premier / World Elite${pillarLabel}. Aplica el overlay Premier descrito en las reglas de marca.`,
+    );
+  }
   // Legacy fields (drafts antes de la simplificación). Si vienen, los
   // adjuntamos como contexto extra para no perder lo que ya escribió.
   if (brief.lifecycle) lines.push(`- Etapa del ciclo (legacy): ${brief.lifecycle}`);
@@ -219,7 +244,7 @@ export async function generateNotificationCopy(brief: DraftBrief): Promise<Notif
       const { object } = await generateObject({
         model: model(),
         schema: NotificationCopySchema,
-        system: systemPrompt(),
+        system: systemPrompt(brief),
         prompt: briefToUserPrompt(brief),
         temperature: 0.7,
       });
@@ -269,7 +294,7 @@ export async function refineField(args: {
   };
 
   const sys = [
-    systemPrompt(),
+    systemPrompt(brief),
     "",
     `Estas refinando UN solo campo: ${field}.`,
     `Restriccion del campo: ${constraints[field] ?? ""}`,

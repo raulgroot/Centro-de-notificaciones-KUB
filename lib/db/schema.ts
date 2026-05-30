@@ -320,6 +320,25 @@ export interface DraftBrief {
   urgency?: string;
   /** Tone id: "informativo" | "celebratorio" | "urgente" | "formal" | "cercano". */
   tone?: string;
+  /**
+   * ¿La pieza debe seguir el overlay de marca HSBC Premier (segmento WE)?
+   * Cuando es true, el copy nace en tono Premier (prompt) y el pre-flight
+   * corre las reglas Premier (`lib/notifications/premier-check.ts`). El wizard
+   * puede autosugerirlo con `decideSegmentation()` pero el usuario manda.
+   */
+  isPremier?: boolean;
+  /**
+   * Pilar Premier dominante de la pieza, si aplica:
+   * "patrimonio" | "salud" | "viajes" | "internacional". Habilita las
+   * sugerencias de vocabulario recomendado y el closer por pilar.
+   */
+  premierPillar?: "patrimonio" | "salud" | "viajes" | "internacional";
+  /**
+   * Tipo de comunicación para el árbol de decisión de segmentación:
+   * "regulatoria" | "informativa" | "mantenimiento" | "contingencia".
+   * Solo relevante para autosugerir si se omite el overlay Premier.
+   */
+  omissionType?: "regulatoria" | "informativa" | "mantenimiento" | "contingencia";
   // Legacy fields, kept as-is so drafts created before the simplification
   // still de-serialize without runtime errors. New briefs ignore these.
   lifecycle?: string;
