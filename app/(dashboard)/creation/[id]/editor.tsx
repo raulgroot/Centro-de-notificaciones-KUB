@@ -36,6 +36,9 @@ import type { FreepikImage } from "@/lib/adapters/freepik/client";
 import type { UnsplashImage } from "@/lib/adapters/unsplash/client";
 import type { GeneratedImage } from "@/lib/adapters/google-genai/client";
 import { buildImagePromptVariations, type PromptVariation } from "@/lib/notifications/image-prompt";
+import { runPreflight, type PreflightResult } from "@/lib/notifications/premier-check";
+import { PILLAR_ORDER, PILLARS, type PillarId } from "@/lib/notifications/premier-rules";
+import { PreflightPanel } from "./preflight-panel";
 import {
   UNIVERS_NEXT_REGULAR_WOFF2,
   UNIVERS_NEXT_MEDIUM_WOFF2,
@@ -48,6 +51,7 @@ import {
   Loader2,
   Pencil,
   Presentation,
+  ShieldCheck,
   Sparkles,
   Upload,
   Wand2,
@@ -184,6 +188,10 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
   // dark mode forzado en su mail app.
   const [previewDark, setPreviewDark] = useState<boolean>(false);
 
+  // Pre-flight Premier: el panel se abre bajo demanda (botón "Revisar"), y la
+  // validación corre sobre el copy ya generado/editado (no por carácter).
+  const [preflight, setPreflight] = useState<PreflightResult | null>(null);
+
   // Wizard step index. When re-opening the brief after a generation we jump
   // straight to the last step so the user can review/regenerate without
   // clicking "Siguiente" five times.
@@ -234,6 +242,16 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
     }, 800);
     return () => clearTimeout(t);
   }, [brief, copy, heroImage, draft.id]);
+
+  function onReview() {
+    setPreflight(
+      runPreflight({
+        copy,
+        isPremier: Boolean(brief.isPremier),
+        pillar: brief.premierPillar ?? null,
+      }),
+    );
+  }
 
   async function onGenerate() {
     setBusy((b) => ({ ...b, generate: true }));
@@ -632,7 +650,14 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                             type="button"
                             onClick={() => {
                               setOtherMode((m) => ({ ...m, audience: false }));
-                              selectAndAdvance({ audience: a.id });
+                              // "VIP / Premier" autosugiere el overlay Premier y
+                              // NO auto-avanza: deja visible el toggle + pilar
+                              // para que el usuario lo configure.
+                              if (a.id === "vip") {
+                                setBrief((b) => ({ ...b, audience: a.id, isPremier: true }));
+                              } else {
+                                selectAndAdvance({ audience: a.id });
+                              }
                             }}
                             className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition ${
                               active
@@ -686,6 +711,68 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                         className="focus:border-brand-600 focus:ring-brand-600/15 mt-3 w-full rounded-lg border border-neutral-300 bg-white px-3.5 py-3 text-sm placeholder:text-neutral-400 focus:ring-2 focus:outline-none"
                       />
                     )}
+
+                    {/* Overlay de marca HSBC Premier (segmento World Elite). Solo
+                        este segmento tiene lineamientos especiales; el resto usa
+                        la marca base. Se autosugiere al elegir "VIP / Premier". */}
+                    <div className="mt-5 rounded-xl border border-neutral-200 bg-neutral-50/60 p-4">
+                      <label className="flex cursor-pointer items-start gap-3">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(brief.isPremier)}
+                          onChange={(e) => {
+                            const on = e.target.checked;
+                            setBrief({
+                              ...brief,
+                              isPremier: on,
+                              premierPillar: on ? brief.premierPillar : undefined,
+                            });
+                          }}
+                          className="accent-brand-600 mt-0.5 h-4 w-4"
+                        />
+                        <span>
+                          <span className="block text-sm font-semibold text-neutral-900">
+                            Aplicar overlay HSBC Premier (World Elite)
+                          </span>
+                          <span className="mt-0.5 block text-[11px] leading-tight text-neutral-500">
+                            Activa el tono, vocabulario y reglas de marca del segmento Premier en la
+                            generación y en la revisión.
+                          </span>
+                        </span>
+                      </label>
+
+                      {brief.isPremier && (
+                        <div className="mt-3 pl-7">
+                          <span className="text-[11px] font-medium text-neutral-600">
+                            Pilar dominante (opcional)
+                          </span>
+                          <div className="mt-1.5 flex flex-wrap gap-1.5">
+                            {PILLAR_ORDER.map((id: PillarId) => {
+                              const active = brief.premierPillar === id;
+                              return (
+                                <button
+                                  key={id}
+                                  type="button"
+                                  onClick={() =>
+                                    setBrief({
+                                      ...brief,
+                                      premierPillar: active ? undefined : id,
+                                    })
+                                  }
+                                  className={`rounded-full border px-2.5 py-1 text-xs font-medium transition ${
+                                    active
+                                      ? "border-brand-600 bg-brand-50 text-brand-700"
+                                      : "border-neutral-300 bg-white text-neutral-600 hover:bg-neutral-50"
+                                  }`}
+                                >
+                                  {PILLARS[id].label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </WizardStep>
                 )}
 
@@ -860,6 +947,16 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
               </button>
               {/* Divider */}
               <div className="h-4 w-px bg-neutral-200" />
+              <button
+                type="button"
+                onClick={onReview}
+                disabled={!copy.subject}
+                className="inline-flex items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-50"
+                title="Revisar la copy contra las reglas de marca antes de enviar"
+              >
+                <ShieldCheck className="h-3 w-3" />
+                Revisar
+              </button>
               <button
                 type="button"
                 onClick={() => setBriefOpen(true)}
@@ -1113,6 +1210,15 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
             </section>
           </div>
         </>
+      )}
+
+      {/* Panel de pre-flight (se abre con "Revisar"). */}
+      {preflight && (
+        <PreflightPanel
+          result={preflight}
+          isPremier={Boolean(brief.isPremier)}
+          onClose={() => setPreflight(null)}
+        />
       )}
     </div>
   );
