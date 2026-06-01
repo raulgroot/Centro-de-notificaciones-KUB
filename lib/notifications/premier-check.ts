@@ -183,8 +183,8 @@ function checkForbiddenWords(copy: DraftCopy): Finding[] {
           match: meta.display,
           discriminatory: meta.discriminatory,
           message: meta.discriminatory
-            ? `"${meta.display}" es un término vetado de alto riesgo (exclusión/discriminación). No debe aparecer en comunicaciones Premier.`
-            : `"${meta.display}" no se permite en comunicaciones Premier.`,
+            ? `"${meta.display}" es un término vetado de alto riesgo (exclusión/discriminación). No debe aparecer en comunicaciones World Elite.`
+            : `"${meta.display}" no se permite en comunicaciones World Elite.`,
         });
       }
     }
@@ -264,7 +264,7 @@ function checkCloser(copy: DraftCopy): Finding[] {
       id: "closer-missing",
       severity: "warning",
       rule: "closer-missing",
-      message: `Falta una frase de cierre Premier del catálogo (ej. "${allApprovedClosers()[0]}").`,
+      message: `Falta una frase de cierre World Elite del catálogo (ej. "${allApprovedClosers()[0]}").`,
     },
   ];
 }

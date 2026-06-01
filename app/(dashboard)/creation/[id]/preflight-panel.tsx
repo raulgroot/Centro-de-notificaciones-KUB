@@ -138,8 +138,8 @@ export function PreflightPanel({
             </p>
             <p className="mt-0.5 text-xs text-neutral-600">
               {isPremier
-                ? "Validado contra las reglas HSBC Premier (segmento World Elite)."
-                : "Validación base HSBC (esta pieza no es Premier)."}
+                ? "Validado contra las reglas HSBC World Elite."
+                : "Validación base HSBC (esta pieza no es World Elite)."}
             </p>
           </div>
 

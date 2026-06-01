@@ -70,22 +70,21 @@ describe("buildImagePromptVariations", () => {
     topic: "Su tarjeta ya está lista para usarse en bici.",
   };
 
-  it("devuelve exactamente 3 variaciones con los ids esperados", () => {
+  it("devuelve exactamente 2 variaciones con los ids esperados", () => {
     const v = buildImagePromptVariations(brief);
-    expect(v.map((x) => x.id)).toEqual(["editorial", "contextual", "cinematic"]);
+    expect(v.map((x) => x.id)).toEqual(["editorial", "contextual"]);
   });
 
-  it("alterna género: editorial=mujer, contextual=hombre, cinemática=mujer", () => {
-    const [editorial, contextual, cinematic] = buildImagePromptVariations(brief);
-    // editorial y cinemática conservan el texto base en femenino ("woman").
+  it("ambas variaciones usan una mujer como sujeto", () => {
+    const [editorial, contextual] = buildImagePromptVariations(brief);
     expect(editorial!.prompt).toMatch(/Mexican woman/);
-    expect(cinematic!.prompt).toMatch(/Mexican (woman|protagonist)/);
-    // contextual se reescribe a masculino → no debe contener "woman".
-    expect(contextual!.prompt).not.toMatch(/\bwoman\b/);
-    expect(contextual!.prompt).toMatch(/\bman\b/);
+    expect(contextual!.prompt).toMatch(/Mexican woman/);
+    // Ninguna debe reescribirse a masculino.
+    expect(editorial!.prompt).not.toMatch(/\bman\b/);
+    expect(contextual!.prompt).not.toMatch(/\bman\b/);
   });
 
-  it("las 3 variaciones exigen ROPA roja y prohíben marcas y alcohol", () => {
+  it("las 2 variaciones exigen ROPA roja y prohíben marcas y alcohol", () => {
     for (const variation of buildImagePromptVariations(brief)) {
       expect(variation.prompt).toMatch(/RED CLOTHING/);
       expect(variation.prompt).toMatch(/NO brand logos/i);

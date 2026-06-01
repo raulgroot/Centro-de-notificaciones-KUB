@@ -70,7 +70,7 @@ const PRODUCTS = [
   { id: "2now", label: "2Now", icon: "/cards/2now.png" },
   { id: "advance", label: "Advance", icon: "/cards/advance.png" },
   { id: "air", label: "Air", icon: "/cards/air.png" },
-  { id: "premier", label: "Premier", icon: "/cards/premier.png" },
+  { id: "premier", label: "World Elite", icon: "/cards/premier.png" },
   { id: "clasica", label: "Clásica", icon: "/cards/clasica.png" },
   { id: "zero", label: "Zero", icon: "/cards/zero.png" },
 ] as const;
@@ -92,7 +92,7 @@ const AUDIENCES = [
     label: "Recurrentes",
     help: "Clientes con historial, familiares con la marca.",
   },
-  { id: "vip", label: "VIP / Premier", help: "Tono más sobrio y premium." },
+  { id: "vip", label: "VIP / World Elite", help: "Tono más sobrio y premium." },
   { id: "morosos", label: "Con adeudo", help: "Firme pero respetuoso." },
 ] as const;
 
@@ -732,11 +732,11 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                         />
                         <span>
                           <span className="block text-sm font-semibold text-neutral-900">
-                            Aplicar overlay HSBC Premier (World Elite)
+                            Aplicar overlay HSBC World Elite
                           </span>
                           <span className="mt-0.5 block text-[11px] leading-tight text-neutral-500">
-                            Activa el tono, vocabulario y reglas de marca del segmento Premier en la
-                            generación y en la revisión.
+                            Activa el tono, vocabulario y reglas de marca del segmento World Elite
+                            en la generación y en la revisión.
                           </span>
                         </span>
                       </label>
@@ -1971,13 +1971,13 @@ function ImagePromptPanel({
 
   return (
     <div className="space-y-3">
-      {/* ★ Atajo principal: generar 3 variaciones distintas con Nano Banana */}
+      {/* ★ Atajo principal: generar 2 variaciones distintas con Nano Banana */}
       <div className="bg-brand-50/40 border-brand-200 rounded-lg border p-3.5">
         <div className="mb-2 flex items-center justify-between gap-2">
           <div>
             <div className="text-brand-800 text-sm font-semibold">✨ Generar con Nano Banana</div>
             <div className="text-[11px] text-neutral-600">
-              3 variaciones distintas (editorial / contextual / cinemática). ~15–25 seg.
+              2 variaciones distintas (editorial / contextual). ~10–20 seg.
             </div>
           </div>
           <button

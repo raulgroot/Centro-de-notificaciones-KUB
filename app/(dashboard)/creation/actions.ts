@@ -128,9 +128,9 @@ export async function generateImagesAction(args: {
 }
 
 /**
- * Genera UNA imagen por cada una de las 3 variaciones del prompt
- * (editorial, contextual, cinemática). Sirviendo al wizard con "3 opciones
- * para elegir, cada una con un look distinto". Construye los 3 prompts
+ * Genera UNA imagen por cada una de las 2 variaciones del prompt
+ * (editorial, contextual). Sirviendo al wizard con "2 opciones
+ * para elegir, cada una con un look distinto". Construye los prompts
  * server-side desde el brief y delega al adapter de Gemini.
  */
 export async function generateImageVariationsAction(args: {

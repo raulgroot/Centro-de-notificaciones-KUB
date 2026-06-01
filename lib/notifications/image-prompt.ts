@@ -326,100 +326,24 @@ function buildContextualPrompt(brief: DraftBrief, gender: Gender = "woman"): str
 }
 
 /**
- * ─────────────────── Variación 3: Cinemática / Aspiracional ───────────────────
- *
- * Esta variación es MÁS DRAMÁTICA y story-driven. Se siente como un still
- * de una película o un anuncio de TV de alta calidad. Iluminación cinemática,
- * profundidad emocional, momento narrativo.
- *
- * MISMAS reglas inmutables.
- */
-function buildCinematicPrompt(brief: DraftBrief, gender: Gender = "woman"): string {
-  const topic = brief.topic?.trim() ?? "a meaningful personal moment";
-  const product = productDisplayName(brief.product) || "an HSBC credit card";
-  const audience = brief.audience ?? "todos";
-
-  const audienceMood: Record<string, string> = {
-    todos: "an everyperson moment of triumph",
-    nuevos: "a new-chapter feeling — first time, fresh start, possibility ahead",
-    recurrentes: "a comfortable confidence — established, in her element",
-    vip: "quiet luxury and refined accomplishment",
-    morosos: "the relief and dignity of regaining control",
-  };
-  const moodAnchor = audienceMood[audience] ?? audienceMood.todos;
-
-  const lines: string[] = [
-    "Cinematic film still — feels like a frame pulled from a beautifully shot Spanish-language drama or a premium TV commercial. Mood-driven, story-rich, emotionally resonant. NOT a corporate banking ad — more like a moment from a character's life.",
-    "",
-
-    genderDirective(gender),
-    "Subject: A Mexican woman in her 30s, portrayed with dignity and depth. Wardrobe is character-specific (chosen to tell a story, not just fashion). Lighting carves her features dramatically. She feels like a protagonist.",
-    "",
-
-    // ★ Same 4 mandatory rules — el ROJO en la ROPA es lo más crítico
-    "ABSOLUTELY MANDATORY brand element (RED CLOTHING) — THIS IS THE #1 REQUIREMENT: the image is unusable if the subject is not WEARING vivid red. The subject MUST be WEARING a bold, clearly visible RED garment (a red coat, red dress, red blazer, red sweater, or red shirt) used DRAMATICALLY as the single focal color in an otherwise muted/desaturated cinematic palette. Use HSBC brand red (#DB0011 — vivid, saturated true red, NOT maroon, burgundy, pink, or orange). The red garment must read instantly and feel deliberate and symbolic, like in a Wong Kar-wai film. Do NOT rely on background objects for the red — it must be the clothing. Do NOT produce a fully neutral or monochrome image.",
-    "",
-
-    // ★ Restricciones globales (sin marcas / sin alcohol)
-    NO_BRAND_NO_ALCOHOL,
-    "",
-    "MANDATORY composition (NO EYE CONTACT): She is NEVER looking at the camera. Her gaze is contemplative, directed at something off-screen or downward in thought. Classic cinema convention: the protagonist looks INTO her world, not at us.",
-    "",
-    "MANDATORY emotion (GENUINE JOY): She is happy, but the cinematic style allows for QUIET joy — a small, knowing smile, eyes warm with a private moment of pleasure or pride. Subtle radiance rather than overt celebration. Real, like the moment between two big events.",
-    "",
-
-    // Story moment — varies by topic + audience
-    `Narrative moment: ${moodAnchor}. The topic of the notification provides the context: "${topic}". Build the cinematic moment around what this topic represents emotionally for her, not just literally.`,
-    `Product context (no visible logos): ${product}.`,
-    "",
-
-    // Setting — more dramatic / cinematic
-    "Setting: A moody, atmospheric Mexican location — could be a softly lit interior with chiaroscuro lighting, a rain-slicked street at dusk, a sun-drenched terrace at golden hour, an empty cafe after closing, a hotel lobby with deep shadows, a kitchen with steam and warm lights. The setting feels HEAVY with mood and story.",
-    "",
-
-    // Visual style — full cinema
-    "Visual style: Cinematic film aesthetic — wide anamorphic-look, deep contrast, rich blacks, controlled highlights, color graded with teal/orange or warm/cool tension. Could reference cinematographers like Roger Deakins, Emmanuel Lubezki, or the look of films by Alfonso Cuarón. Shallow depth of field with smooth bokeh. The red brand element should glow against the muted palette.",
-    "",
-
-    // Same composition rules
-    "MANDATORY composition rules (same as all HSBC heroes):",
-    "- Aspect ratio: 16:9 widescreen (horizontal). Wide cinematic framing.",
-    "- Subject placement: She occupies the RIGHT side of the frame, positioned between the 1st and 2nd quadrants. The LEFT two-thirds is the cinematic environment — atmospheric, with the red element placed strategically as a visual anchor.",
-    "- Her gaze points TOWARDS the open LEFT side — into her world, away from the camera.",
-    "- Eye-level or slightly low-angle perspective for cinematic dignity. Sharp focus on her face; background dreamy with cinematic depth.",
-    "",
-
-    "Quality: 4K resolution, anamorphic cinematic look, 85mm or 100mm prime lens equivalent, f/2.0 aperture for shallow cinematic depth. Color graded like a film. Could win a cinematography award.",
-    "",
-
-    `Avoid: ${SHARED_AVOID}Direct eye contact (forbidden), bright flat lighting, generic stock look, exaggerated emotion, plastic skin, AI artifacts, oversaturated cartoonish colors, sterile corporate aesthetic, subject on the LEFT side (must be RIGHT), maroon/burgundy/pink instead of vivid red, and — most importantly — the subject NOT wearing a vivid red garment (the red clothing is mandatory; a fully neutral/monochrome outfit is unacceptable).`,
-  ];
-
-  const text = lines.filter((l) => l !== "").join("\n");
-  return gender === "man" ? toMasculine(text) : text;
-}
-
-/**
- * Devuelve las 3 variaciones del prompt para que el usuario tenga opciones.
+ * Devuelve las 2 variaciones del prompt para que el usuario tenga opciones.
  * El orden es deliberado:
  *   1. Editorial (corporate-safe) — para piezas formales
  *   2. Contextual (literal al topic) — cuando el topic es interesante visualmente
- *   3. Cinemática (mood-driven) — para piezas con peso emocional
  *
  * Cada variación respeta las 5 reglas inmutables de marca HSBC pero varía
- * dramáticamente el estilo, mood y composición.
+ * el estilo, mood y composición. Ambas usan SIEMPRE una mujer como sujeto
+ * (requisito de HSBC para estas piezas).
  */
 export interface PromptVariation {
-  id: "editorial" | "contextual" | "cinematic";
+  id: "editorial" | "contextual";
   name: string;
   description: string;
   prompt: string;
 }
 
 export function buildImagePromptVariations(brief: DraftBrief): PromptVariation[] {
-  // Alternamos el género entre variaciones para que las 3 imágenes no sean
-  // siempre mujeres: editorial → mujer, contextual → hombre, cinemática →
-  // mujer. Así cada generación trae una mezcla.
+  // Ambas variaciones usan una mujer como sujeto (sin alternar género).
   return [
     {
       id: "editorial",
@@ -432,13 +356,7 @@ export function buildImagePromptVariations(brief: DraftBrief): PromptVariation[]
       name: "Contextual / Real",
       description:
         "Documentary, literal al topic. La persona vive el momento real del notification.",
-      prompt: buildContextualPrompt(brief, "man"),
-    },
-    {
-      id: "cinematic",
-      name: "Cinemática",
-      description: "Mood dramático, film still aesthetic. Peso emocional, narrativo.",
-      prompt: buildCinematicPrompt(brief, "woman"),
+      prompt: buildContextualPrompt(brief, "woman"),
     },
   ];
 }

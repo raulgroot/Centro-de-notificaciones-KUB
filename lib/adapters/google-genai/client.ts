@@ -26,7 +26,7 @@ export interface GeneratedImage {
   model: string;
   /** Prompt resumido para alt text. */
   altSummary: string;
-  /** Id de la variación de prompt que la produjo (editorial/contextual/cinematic). */
+  /** Id de la variación de prompt que la produjo (editorial/contextual). */
   variationId?: string;
   /** Nombre human-readable de la variación. */
   variationName?: string;

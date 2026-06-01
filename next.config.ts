@@ -4,6 +4,13 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   // Required for the Docker `runner` stage in our Dockerfile.
   output: "standalone",
+  // Fija la raíz del proyecto. Sin esto, Turbopack la infiere por lockfiles y
+  // (con un package-lock.json colgado en ~) la apunta a la carpeta de usuario,
+  // lo que hace que cargue el `.env.local` equivocado y falten vars como
+  // ANTHROPIC_API_KEY en runtime. Anclarla aquí es local al repo y reversible.
+  turbopack: {
+    root: __dirname,
+  },
   // Puppeteer + @sparticuz/chromium ship as commonjs and pull in a native
   // binary at runtime; they cannot be bundled by Turbopack/Webpack. Mark them
   // as external so Vercel's nodejs runtime resolves them from node_modules at
