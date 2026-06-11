@@ -21,6 +21,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
+  extractBriefFromFileAction,
   generateCopyAction,
   generateImageVariationsAction,
   improveTopicAction,
@@ -47,6 +48,7 @@ import {
 import {
   ArrowLeft,
   ArrowRight,
+  FileUp,
   ImageIcon,
   Loader2,
   Pencil,
@@ -62,6 +64,13 @@ import {
  * ~4MB after base64, which jsonb in Supabase tolerates without complaints. */
 const MAX_HERO_UPLOAD_BYTES = 3 * 1024 * 1024;
 const ALLOWED_HERO_MIME = ["image/png", "image/jpeg", "image/webp"] as const;
+
+/** Límite y tipos para el archivo de contexto del brief (extracción con IA).
+ * Espejo de EXTRACT_ALLOWED_MIME/MAX_EXTRACT_FILE_BYTES en lib/ai/extract-brief
+ * — duplicado a propósito: importar esa lib aquí metería el SDK de IA al
+ * bundle del cliente. El server action re-valida de todos modos. */
+const MAX_EXTRACT_BYTES = 8 * 1024 * 1024;
+const EXTRACT_ACCEPT = ".pdf,.png,.jpg,.jpeg,.webp,.gif,.txt,.md,.csv";
 
 /** Products that have an official HSBC card icon under /public/cards/. */
 const PRODUCTS = [
@@ -171,9 +180,18 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
     search?: boolean;
     upload?: boolean;
     improveTopic?: boolean;
+    extract?: boolean;
     download?: "image" | "presentation";
   }>({});
   const uploadInputRef = useRef<HTMLInputElement>(null);
+  const extractInputRef = useRef<HTMLInputElement>(null);
+  // Resultado de la última extracción de archivo, para mostrar "qué sacó"
+  // (nombre, resumen del doc y qué chips se llenaron) debajo del dropzone.
+  const [lastExtract, setLastExtract] = useState<{
+    filename: string;
+    summary: string;
+    filledTags: string[];
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [imageQuery, setImageQuery] = useState<string>("");
   const [imageResults, setImageResults] = useState<FreepikImage[]>([]);
@@ -371,6 +389,57 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
       setBusy((b) => ({ ...b, upload: false }));
       // Reset the input so the same file can be re-selected after removing it.
       if (uploadInputRef.current) uploadInputRef.current.value = "";
+    }
+  }
+
+  /**
+   * Extrae el brief desde un archivo (foto, PDF o texto). Manda el archivo
+   * al server action, y mergea el resultado SOBRE lo que el usuario ya
+   * escribió: el topic extraído se agrega (no pisa) y los keyInfoTags solo
+   * llenan campos vacíos — lo tecleado por el usuario siempre gana.
+   */
+  async function onExtractBriefFile(file: File) {
+    if (file.size > MAX_EXTRACT_BYTES) {
+      const mb = (file.size / (1024 * 1024)).toFixed(1);
+      setError(`El archivo pesa ${mb} MB. El máximo es 8 MB.`);
+      return;
+    }
+    setBusy((b) => ({ ...b, extract: true }));
+    setError(null);
+    setLastExtract(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await extractBriefFromFileAction(fd);
+      // Merge fuera del updater (los updaters deben ser puros). stateRef
+      // siempre trae el brief más reciente — mismo truco que el auto-save.
+      const b = stateRef.current.brief;
+      const currentTopic = (b.topic ?? "").trim();
+      const topic = currentTopic ? `${currentTopic}\n\n${res.topic}` : res.topic;
+      const tags: DraftKeyInfo = { ...b.keyInfoTags };
+      const filledTags: string[] = [];
+      const fillable = [
+        ["cardEnding", "terminación"],
+        ["amount", "monto"],
+        ["deadline", "fecha límite"],
+        ["dateRange", "rango de fechas"],
+        ["promoUrl", "URL/código"],
+      ] as const;
+      for (const [key, label] of fillable) {
+        if (res.keyInfoTags[key] && !tags[key]) {
+          // TS no une bien el assignment indexado sobre union de keys;
+          // el par key/valor siempre coincide porque vienen del mismo key.
+          Object.assign(tags, { [key]: res.keyInfoTags[key] });
+          filledTags.push(label);
+        }
+      }
+      setBrief({ ...b, topic, keyInfoTags: tags });
+      setLastExtract({ filename: file.name, summary: res.docSummary, filledTags });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No pude extraer información del archivo.");
+    } finally {
+      setBusy((b) => ({ ...b, extract: false }));
+      if (extractInputRef.current) extractInputRef.current.value = "";
     }
   }
 
@@ -600,6 +669,74 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                     <p className="mt-1 text-[10px] text-neutral-400">
                       La IA solo aclara tu redacción. No inventa datos que no hayas escrito.
                     </p>
+
+                    {/* Extracción desde archivo: si la solicitud llegó como
+                        screenshot, PDF o texto, se sube aquí y Claude llena
+                        el contexto (y los chips de datos duros) por ti. */}
+                    <div
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        const f = e.dataTransfer.files?.[0];
+                        if (f && !busy.extract) void onExtractBriefFile(f);
+                      }}
+                      className="mt-4 rounded-lg border border-dashed border-neutral-300 bg-neutral-50/60 p-3.5"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-neutral-700">
+                            ¿Te llegó la solicitud en un archivo?
+                          </p>
+                          <p className="mt-0.5 text-[11px] text-neutral-500">
+                            Sube o arrastra una foto, PDF o texto y la IA extrae la información por
+                            ti. No inventa datos: solo usa lo que viene en el archivo.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => extractInputRef.current?.click()}
+                          disabled={busy.extract}
+                          className="text-brand-700 hover:bg-brand-50 border-brand-200 inline-flex shrink-0 items-center gap-1.5 rounded-md border bg-white px-3 py-2 text-[11px] font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {busy.extract ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <FileUp className="h-3.5 w-3.5" />
+                          )}
+                          {busy.extract ? "Extrayendo…" : "Subir archivo"}
+                        </button>
+                        <input
+                          ref={extractInputRef}
+                          type="file"
+                          accept={EXTRACT_ACCEPT}
+                          className="hidden"
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) void onExtractBriefFile(f);
+                          }}
+                        />
+                      </div>
+                      {lastExtract && (
+                        <div className="mt-2.5 rounded-md border border-emerald-200 bg-emerald-50/70 px-3 py-2">
+                          <p className="text-[11px] font-medium text-emerald-800">
+                            ✓ Extraído de “{lastExtract.filename}”
+                          </p>
+                          <p className="mt-0.5 text-[11px] text-emerald-700">
+                            {lastExtract.summary}
+                            {lastExtract.filledTags.length > 0 && (
+                              <>
+                                {" "}
+                                · Datos pre-llenados: {lastExtract.filledTags.join(", ")} (los ves
+                                en el paso de información clave).
+                              </>
+                            )}
+                          </p>
+                          <p className="mt-0.5 text-[10px] text-emerald-600">
+                            Revisa el texto de arriba — tú tienes la última palabra.
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </WizardStep>
                 )}
 

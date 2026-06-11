@@ -28,6 +28,13 @@ import {
   type GeneratedImage,
 } from "@/lib/adapters/google-genai/client";
 import { buildImagePromptVariations } from "@/lib/notifications/image-prompt";
+import {
+  extractBriefFromFile,
+  inferMediaType,
+  EXTRACT_ALLOWED_MIME,
+  MAX_EXTRACT_FILE_BYTES,
+  type ExtractedBrief,
+} from "@/lib/ai/extract-brief";
 import { createDraft, deleteDraft, updateDraft } from "@/lib/adapters/supabase/notification-drafts";
 import { renderEmailHtml } from "@/lib/notifications/template";
 import type { DraftBrief, DraftCopy, DraftHeroImage } from "@/lib/db/schema";
@@ -144,6 +151,31 @@ export async function generateImageVariationsAction(args: {
       prompt: v.prompt,
     })),
   });
+}
+
+/**
+ * Extrae el brief desde un archivo subido (imagen, PDF o texto). El wizard
+ * manda un FormData con `file`; validamos tipo y tamaño aquí (borde) antes
+ * de pasar los bytes a la lib de IA. Devuelve topic redactado + keyInfoTags
+ * pre-llenados que el cliente mergea sobre el brief actual.
+ */
+export async function extractBriefFromFileAction(formData: FormData): Promise<ExtractedBrief> {
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    throw new Error("No llegó ningún archivo.");
+  }
+  if (file.size > MAX_EXTRACT_FILE_BYTES) {
+    const mb = (file.size / (1024 * 1024)).toFixed(1);
+    throw new Error(`El archivo pesa ${mb} MB. El máximo es 8 MB.`);
+  }
+  const mediaType = inferMediaType(file.name, file.type);
+  if (!(EXTRACT_ALLOWED_MIME as readonly string[]).includes(mediaType)) {
+    throw new Error(
+      "Formato no soportado. Acepto imágenes (PNG/JPG/WebP/GIF), PDF o texto (.txt/.md/.csv).",
+    );
+  }
+  const data = new Uint8Array(await file.arrayBuffer());
+  return extractBriefFromFile({ data, mediaType, filename: file.name });
 }
 
 /** Delete a draft and bounce back to the list. */
