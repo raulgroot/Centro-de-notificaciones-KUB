@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { bannerBlockHtml, bannerHasContent } from "./banner";
+import { bannerBlockHtml, bannerHasContent, effectiveBanners } from "./banner";
 import { renderEmailHtml } from "./template";
 import type { DraftBanner } from "@/lib/db/schema";
 
@@ -142,6 +142,25 @@ describe("bannerBlockHtml", () => {
     expect(html).toContain("Presiona Activar");
   });
 
+  it("notice: banda gris con acento rojo superior", () => {
+    const html = bannerBlockHtml({
+      style: "notice",
+      title: "Aviso importante",
+      subtitle: "Cambia el número de atención.",
+    });
+    expect(html).toContain("Aviso importante");
+    expect(html).toContain("border-top:3px solid #DB0011");
+  });
+
+  it("contact: encabezado default y líneas centradas", () => {
+    const html = bannerBlockHtml({
+      style: "contact",
+      items: ["Llámanos al 55 5721 3390", "Lun a Vie 9:00-18:00"],
+    });
+    expect(html).toContain("¿Necesitas ayuda?");
+    expect(html).toContain("55 5721 3390");
+  });
+
   it("todos los estilos usan la tipografía Univers del template", () => {
     const banners: DraftBanner[] = [
       { style: "promo", title: "x" },
@@ -151,10 +170,37 @@ describe("bannerBlockHtml", () => {
       { style: "image", title: "x" },
       { style: "coupon", stat: "x" },
       { style: "steps", items: ["x"] },
+      { style: "notice", title: "x" },
+      { style: "contact", items: ["x"] },
     ];
     for (const b of banners) {
       expect(bannerBlockHtml(b)).toContain("Univers Next");
     }
+  });
+});
+
+describe("effectiveBanners", () => {
+  it("prefiere la lista `banners` sobre el legacy `banner`", () => {
+    const list = effectiveBanners({
+      banner: { style: "promo", title: "viejo" },
+      banners: [{ style: "deadline", title: "nuevo" }],
+    });
+    expect(list).toHaveLength(1);
+    expect(list[0]?.title).toBe("nuevo");
+  });
+
+  it("cae al legacy `banner` si la lista no existe", () => {
+    const list = effectiveBanners({ banner: { style: "promo", title: "único" } });
+    expect(list).toHaveLength(1);
+    expect(list[0]?.title).toBe("único");
+  });
+
+  it("filtra banners sin contenido", () => {
+    const list = effectiveBanners({
+      banners: [{ style: "promo" }, { style: "stat", stat: "9.65%" }],
+    });
+    expect(list).toHaveLength(1);
+    expect(list[0]?.style).toBe("stat");
   });
 });
 
@@ -184,5 +230,25 @@ describe("renderEmailHtml con banner", () => {
       heroImage: null,
     });
     expect(html).toContain("31 de julio de 2026");
+  });
+
+  it("renderea VARIOS banners en el orden de la lista", () => {
+    const html = renderEmailHtml({
+      copy: {
+        body: "Cuerpo.",
+        banners: [
+          { style: "promo", title: "Primero el bono" },
+          { style: "steps", items: ["Luego los pasos"] },
+          { style: "contact", items: ["Y al final el contacto"] },
+        ],
+      },
+      heroImage: null,
+    });
+    const a = html.indexOf("Primero el bono");
+    const b = html.indexOf("Luego los pasos");
+    const c = html.indexOf("Y al final el contacto");
+    expect(a).toBeGreaterThan(-1);
+    expect(a).toBeLessThan(b);
+    expect(b).toBeLessThan(c);
   });
 });

@@ -23,6 +23,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   extractBriefFromFileAction,
   generateCopyAction,
+  generateImagesAction,
   generateImageVariationsAction,
   improveTopicAction,
   refineFieldAction,
@@ -30,6 +31,7 @@ import {
   searchImagesAction,
   searchUnsplashAction,
   suggestBannerAction,
+  suggestSmartBannerAction,
 } from "../actions";
 import type { NotificationDraft } from "@/lib/adapters/supabase/notification-drafts";
 import type {
@@ -58,11 +60,16 @@ import {
 import {
   ArrowLeft,
   ArrowRight,
+  Check,
+  ChevronDown,
+  ChevronUp,
   FileUp,
   ImageIcon,
   Loader2,
   Pencil,
+  Plus,
   Presentation,
+  Search,
   ShieldCheck,
   Sparkles,
   Upload,
@@ -182,7 +189,13 @@ function isBriefComplete(b: DraftBrief): boolean {
 
 export function DraftEditor({ draft }: { draft: NotificationDraft }) {
   const [brief, setBrief] = useState<DraftBrief>(draft.brief);
-  const [copy, setCopy] = useState<DraftCopy>(draft.copy);
+  // Normaliza el legacy `banner` (único) a la lista `banners` al cargar,
+  // para que el editor solo piense en listas.
+  const [copy, setCopy] = useState<DraftCopy>(() => {
+    const c = draft.copy;
+    if (c.banner && !c.banners?.length) return { ...c, banners: [c.banner], banner: null };
+    return c;
+  });
   const [heroImage, setHeroImage] = useState<DraftHeroImage | null>(draft.heroImage);
   const [busy, setBusy] = useState<{
     generate?: boolean;
@@ -203,6 +216,13 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
     summary: string;
     filledTags: string[];
   } | null>(null);
+  // Propuesta automática de banner (post-generación): la IA elige estilo y
+  // contenido; el usuario la acepta (se agrega a la lista) o la descarta.
+  const [bannerProposal, setBannerProposal] = useState<{
+    banner: DraftBanner;
+    reason: string;
+  } | null>(null);
+  const [proposalLoading, setProposalLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [imageQuery, setImageQuery] = useState<string>("");
   const [imageResults, setImageResults] = useState<FreepikImage[]>([]);
@@ -287,10 +307,22 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
     setError(null);
     try {
       const generated = await generateCopyAction(brief);
-      setCopy(generated);
+      // `generated` trae solo los campos de texto — conservamos los banners
+      // que el usuario ya haya armado.
+      setCopy((c) => ({ ...generated, banners: c.banners ?? null }));
       // Once Claude succeeds, fold the brief out of the way so copy + preview
       // get the full screen. User can still click "Editar brief" to re-open.
       setBriefOpen(false);
+      // Sugerencia automática de banner (no bloquea la generación): la IA
+      // elige el estilo coherente con el brief y el usuario acepta/descarta.
+      // Solo proponemos cuando la pieza aún no tiene banners.
+      if (!(stateRef.current.copy.banners ?? []).length) {
+        setProposalLoading(true);
+        suggestSmartBannerAction(brief)
+          .then((s) => setBannerProposal(s))
+          .catch(() => setBannerProposal(null))
+          .finally(() => setProposalLoading(false));
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Falló la generación de copy.");
     } finally {
@@ -460,20 +492,64 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
    * campo por campo. Si la IA falla, dejamos el banner vacío con el estilo
    * elegido para que el usuario lo llene a mano.
    */
-  async function onPickBannerStyle(style: DraftBannerStyle) {
+  /** Agrega un banner nuevo del estilo elegido (la IA llena el texto). */
+  async function onAddBannerStyle(style: DraftBannerStyle) {
     setBusy((b) => ({ ...b, banner: true }));
     setError(null);
-    // La IA solo redacta texto — la imagen elegida (estilo "image") se
-    // conserva al cambiar de estilo o re-sugerir.
-    const prev = stateRef.current.copy.banner;
+    try {
+      const suggested = await suggestBannerAction({ brief: stateRef.current.brief, style });
+      appendBanner(suggested);
+    } catch {
+      appendBanner({ style });
+    } finally {
+      setBusy((b) => ({ ...b, banner: false }));
+    }
+  }
+
+  function appendBanner(banner: DraftBanner) {
+    const c = stateRef.current.copy;
+    setCopy({ ...c, banners: [...(c.banners ?? []), banner] });
+  }
+
+  function changeBannerAt(idx: number, banner: DraftBanner) {
+    const c = stateRef.current.copy;
+    const next = [...(c.banners ?? [])];
+    next[idx] = banner;
+    setCopy({ ...c, banners: next });
+  }
+
+  function removeBannerAt(idx: number) {
+    const c = stateRef.current.copy;
+    setCopy({ ...c, banners: (c.banners ?? []).filter((_, i) => i !== idx) });
+  }
+
+  /** Mueve el banner una posición (dir -1 = arriba, +1 = abajo). */
+  function moveBannerAt(idx: number, dir: -1 | 1) {
+    const c = stateRef.current.copy;
+    const list = [...(c.banners ?? [])];
+    const j = idx + dir;
+    if (j < 0 || j >= list.length) return;
+    const [item] = list.splice(idx, 1);
+    list.splice(j, 0, item!);
+    setCopy({ ...c, banners: list });
+  }
+
+  /**
+   * Re-llena con IA el texto de un banner existente (mismo estilo o estilo
+   * nuevo). La imagen elegida se conserva — la IA solo redacta texto.
+   */
+  async function onResuggestBannerAt(idx: number, style: DraftBannerStyle) {
+    setBusy((b) => ({ ...b, banner: true }));
+    setError(null);
+    const prev = (stateRef.current.copy.banners ?? [])[idx];
     const keepImage = prev?.imageUrl
       ? { imageUrl: prev.imageUrl, ...(prev.imageAlt && { imageAlt: prev.imageAlt }) }
       : {};
     try {
       const suggested = await suggestBannerAction({ brief: stateRef.current.brief, style });
-      setCopy({ ...stateRef.current.copy, banner: { ...suggested, ...keepImage } });
+      changeBannerAt(idx, { ...suggested, ...keepImage });
     } catch {
-      setCopy({ ...stateRef.current.copy, banner: { style, ...keepImage } });
+      changeBannerAt(idx, { style, ...keepImage });
     } finally {
       setBusy((b) => ({ ...b, banner: false }));
     }
@@ -1205,14 +1281,24 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                   />
                 </div>
 
-                {/* Banner opcional: bloque visual HSBC entre cuerpo y CTA. */}
-                <BannerSection
-                  banner={copy.banner ?? null}
+                {/* Banners opcionales: bloques visuales HSBC entre cuerpo y CTA. */}
+                <BannersSection
+                  banners={copy.banners ?? []}
+                  proposal={bannerProposal}
+                  proposalLoading={proposalLoading}
                   suggesting={Boolean(busy.banner)}
                   heroImageUrl={heroImage?.url ?? null}
-                  onPickStyle={onPickBannerStyle}
-                  onChange={(banner) => setCopy({ ...copy, banner })}
-                  onRemove={() => setCopy({ ...copy, banner: null })}
+                  brief={brief}
+                  onAddStyle={onAddBannerStyle}
+                  onChangeAt={changeBannerAt}
+                  onRemoveAt={removeBannerAt}
+                  onMoveAt={moveBannerAt}
+                  onResuggestAt={onResuggestBannerAt}
+                  onAcceptProposal={() => {
+                    if (bannerProposal) appendBanner(bannerProposal.banner);
+                    setBannerProposal(null);
+                  }}
+                  onDismissProposal={() => setBannerProposal(null)}
                 />
 
                 {/* Image picker */}
@@ -1530,6 +1616,8 @@ const BANNER_STYLES: Array<{ id: DraftBannerStyle; label: string; help: string }
   { id: "image", label: "Imagen + texto", help: "Foto a la izquierda, mensaje a la derecha." },
   { id: "coupon", label: "Código promo", help: "Cupón punteado con el código en grande." },
   { id: "steps", label: "Pasos numerados", help: "Instrucciones 1-2-3 con círculos rojos." },
+  { id: "notice", label: "Aviso", help: "Banda sobria para avisos o disclaimers." },
+  { id: "contact", label: "Ayuda / contacto", help: "Teléfono, horario o canal de soporte." },
 ];
 
 /** Placeholder de imagen para la miniatura del estilo "image" (SVG inline). */
@@ -1578,6 +1666,16 @@ const BANNER_SAMPLES: Record<DraftBannerStyle, DraftBanner> = {
     title: "Actívala en 3 pasos",
     items: ["Descarga la app HSBC México", "Entra a Tarjetas", "Presiona Activar"],
   },
+  notice: {
+    style: "notice",
+    title: "Aviso importante",
+    subtitle: "A partir del 1 de agosto cambia el número de atención telefónica.",
+  },
+  contact: {
+    style: "contact",
+    title: "¿Necesitas ayuda?",
+    items: ["Llámanos al 55 5721 3390", "Lunes a viernes · 9:00 a 18:00 h"],
+  },
 };
 
 /** Miniatura fiel de un estilo: render real escalado (no editable). */
@@ -1595,33 +1693,453 @@ function BannerThumb({ style }: { style: DraftBannerStyle }) {
 }
 
 /**
- * Sección "Banner" de la columna de copy. Sin banner: 4 botones de estilo
- * (elegir uno dispara la sugerencia con IA). Con banner: campos editables
- * según el estilo + cambiar estilo + quitar. El preview de la derecha se
- * re-renderea en vivo con cada cambio (mismo flujo que el resto del copy).
+ * Sección "Banners" de la columna de copy. Maneja una LISTA de banners:
+ * agregar (galería de estilos con miniaturas reales), editar campos por
+ * estilo, reordenar (↑↓), re-sugerir con IA y quitar. Arriba muestra la
+ * propuesta automática post-generación (aceptar/descartar). El preview de
+ * la derecha se re-renderea en vivo con cada cambio.
  */
-function BannerSection({
-  banner,
+function BannersSection({
+  banners,
+  proposal,
+  proposalLoading,
   suggesting,
   heroImageUrl,
-  onPickStyle,
-  onChange,
-  onRemove,
+  brief,
+  onAddStyle,
+  onChangeAt,
+  onRemoveAt,
+  onMoveAt,
+  onResuggestAt,
+  onAcceptProposal,
+  onDismissProposal,
 }: {
-  banner: DraftBanner | null;
+  banners: DraftBanner[];
+  proposal: { banner: DraftBanner; reason: string } | null;
+  proposalLoading: boolean;
   suggesting: boolean;
   /** URL del hero ya elegido (para reusarlo en el estilo "image"). */
   heroImageUrl: string | null;
-  onPickStyle: (style: DraftBannerStyle) => void;
+  brief: DraftBrief;
+  onAddStyle: (style: DraftBannerStyle) => void;
+  onChangeAt: (idx: number, banner: DraftBanner) => void;
+  onRemoveAt: (idx: number) => void;
+  onMoveAt: (idx: number, dir: -1 | 1) => void;
+  onResuggestAt: (idx: number, style: DraftBannerStyle) => void;
+  onAcceptProposal: () => void;
+  onDismissProposal: () => void;
+}) {
+  // Galería de estilos: siempre visible si no hay banners; con banners se
+  // abre bajo demanda con "Agregar banner".
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const showGallery = galleryOpen || banners.length === 0;
+
+  function pickStyle(style: DraftBannerStyle) {
+    setGalleryOpen(false);
+    onAddStyle(style);
+  }
+
+  return (
+    <div className="mt-8 rounded-lg border border-neutral-200 bg-neutral-50/60 p-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+          <Presentation className="h-3.5 w-3.5" />
+          Banners (opcional)
+        </div>
+        {banners.length > 0 && !galleryOpen && (
+          <button
+            type="button"
+            onClick={() => setGalleryOpen(true)}
+            className="text-brand-700 border-brand-200 hover:bg-brand-50 inline-flex items-center gap-1 rounded-md border bg-white px-2.5 py-1.5 text-[11px] font-medium transition"
+          >
+            <Plus className="h-3 w-3" />
+            Agregar banner
+          </button>
+        )}
+      </div>
+
+      {/* Propuesta automática de la IA (post-generación) */}
+      {proposalLoading && (
+        <div className="mt-3 flex items-center gap-2 rounded-md border border-neutral-200 bg-white px-3 py-2.5 text-xs text-neutral-500">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          La IA está analizando tu brief para proponerte un banner…
+        </div>
+      )}
+      {proposal && (
+        <div className="border-brand-200 bg-brand-50/40 mt-3 rounded-md border p-3">
+          <div className="text-brand-700 flex items-center gap-1.5 text-[11px] font-semibold tracking-wider uppercase">
+            <Sparkles className="h-3 w-3" />
+            Sugerencia de la IA
+          </div>
+          <p className="mt-1 text-xs text-neutral-600">{proposal.reason}</p>
+          <BannerPreview banner={proposal.banner} />
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onAcceptProposal}
+              className="bg-brand-600 hover:bg-brand-700 inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[11px] font-semibold text-white transition"
+            >
+              <Check className="h-3 w-3" />
+              Agregar a la pieza
+            </button>
+            <button
+              type="button"
+              onClick={onDismissProposal}
+              className="inline-flex items-center gap-1 rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-[11px] font-medium text-neutral-600 transition hover:bg-neutral-50"
+            >
+              <X className="h-3 w-3" />
+              Descartar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Lista de banners existentes */}
+      {banners.length > 0 && (
+        <div className="mt-3 space-y-3">
+          {banners.map((b, idx) => (
+            <BannerEditor
+              key={idx}
+              index={idx}
+              total={banners.length}
+              banner={b}
+              suggesting={suggesting}
+              heroImageUrl={heroImageUrl}
+              brief={brief}
+              onChange={(nb) => onChangeAt(idx, nb)}
+              onRemove={() => onRemoveAt(idx)}
+              onMove={(dir) => onMoveAt(idx, dir)}
+              onResuggest={(style) => onResuggestAt(idx, style)}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Galería de estilos (miniaturas = render real con contenido de ejemplo) */}
+      {showGallery && (
+        <>
+          <p className="mt-2 text-xs text-neutral-500">
+            {banners.length === 0
+              ? "Un bloque visual con estilo HSBC entre el cuerpo y el botón. Las miniaturas son una vista previa real de cada estilo; al elegir uno, la IA lo llena desde tu brief."
+              : "Elige el estilo del nuevo banner — se agrega al final (puedes reordenar con las flechas)."}
+          </p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {BANNER_STYLES.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                disabled={suggesting}
+                onClick={() => pickStyle(s.id)}
+                className="hover:border-brand-400 rounded-md border border-neutral-200 bg-white p-2 text-left transition disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <BannerThumb style={s.id} />
+                <div className="mt-1.5 flex items-center gap-1.5 px-1 text-xs font-semibold text-neutral-800">
+                  {suggesting ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                  {s.label}
+                </div>
+                <div className="mt-0.5 px-1 pb-0.5 text-[11px] text-neutral-500">{s.help}</div>
+              </button>
+            ))}
+          </div>
+          {galleryOpen && banners.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setGalleryOpen(false)}
+              className="mt-2 text-[11px] font-medium text-neutral-500 transition hover:text-neutral-700"
+            >
+              Cancelar
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Vista previa en vivo de UN banner (render real escalado, no editable). */
+function BannerPreview({ banner }: { banner: DraftBanner }) {
+  const html = bannerBlockHtml(banner);
+  if (!html) return null;
+  return (
+    <div className="pointer-events-none mt-2 max-h-[120px] overflow-hidden rounded border border-neutral-200 bg-white">
+      <div
+        style={{ transform: "scale(0.55)", transformOrigin: "top left", width: "182%" }}
+        // HTML generado por nuestro propio renderer (contenido escapado).
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
+    </div>
+  );
+}
+
+/** Card editable de UN banner de la lista: campos por estilo + controles. */
+function BannerEditor({
+  index,
+  total,
+  banner,
+  suggesting,
+  heroImageUrl,
+  brief,
+  onChange,
+  onRemove,
+  onMove,
+  onResuggest,
+}: {
+  index: number;
+  total: number;
+  banner: DraftBanner;
+  suggesting: boolean;
+  heroImageUrl: string | null;
+  brief: DraftBrief;
   onChange: (banner: DraftBanner) => void;
   onRemove: () => void;
+  onMove: (dir: -1 | 1) => void;
+  onResuggest: (style: DraftBannerStyle) => void;
 }) {
-  const set = (patch: Partial<DraftBanner>) => banner && onChange({ ...banner, ...patch });
-  const imgInputRef = useRef<HTMLInputElement>(null);
-  const [imgError, setImgError] = useState<string | null>(null);
+  const set = (patch: Partial<DraftBanner>) => onChange({ ...banner, ...patch });
+  const styleInfo = BANNER_STYLES.find((s) => s.id === banner.style);
 
-  /** Sube una imagen local para el banner (mismas reglas que el hero). */
-  function onUploadBannerImage(file: File) {
+  return (
+    <div className="rounded-md border border-neutral-200 bg-white p-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-[11px] font-semibold tracking-wider text-neutral-600 uppercase">
+          Banner {index + 1} · {styleInfo?.label ?? banner.style}
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => onMove(-1)}
+            disabled={index === 0}
+            title="Subir"
+            className="rounded p-1 text-neutral-400 transition hover:text-neutral-700 disabled:opacity-30"
+          >
+            <ChevronUp className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => onMove(1)}
+            disabled={index === total - 1}
+            title="Bajar"
+            className="rounded p-1 text-neutral-400 transition hover:text-neutral-700 disabled:opacity-30"
+          >
+            <ChevronDown className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            disabled={suggesting}
+            onClick={() => onResuggest(banner.style)}
+            title="La IA vuelve a redactar el texto desde el brief"
+            className="text-brand-700 rounded p-1 transition hover:text-red-700 disabled:opacity-30"
+          >
+            {suggesting ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Sparkles className="h-3.5 w-3.5" />
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={onRemove}
+            title="Quitar banner"
+            className="rounded p-1 text-neutral-400 transition hover:text-red-600"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-2.5 space-y-3">
+        {banner.style === "promo" && (
+          <>
+            <BannerInput
+              label="Etiqueta (arriba)"
+              value={banner.eyebrow ?? ""}
+              placeholder="BONO DE BIENVENIDA"
+              onChange={(v) => set({ eyebrow: v })}
+            />
+            <BannerInput
+              label="Texto principal"
+              value={banner.title ?? ""}
+              placeholder="10,000 puntos HSBC"
+              onChange={(v) => set({ title: v })}
+            />
+            <BannerInput
+              label="Texto secundario (condición)"
+              value={banner.subtitle ?? ""}
+              placeholder="Al activar tu tarjeta antes del 31 de julio"
+              onChange={(v) => set({ subtitle: v })}
+            />
+          </>
+        )}
+        {banner.style === "deadline" && (
+          <>
+            <BannerInput
+              label="Frase previa"
+              value={banner.eyebrow ?? ""}
+              placeholder="Tienes hasta el"
+              onChange={(v) => set({ eyebrow: v })}
+            />
+            <BannerInput
+              label="Fecha / plazo"
+              value={banner.title ?? ""}
+              placeholder="31 de julio de 2026"
+              onChange={(v) => set({ title: v })}
+            />
+          </>
+        )}
+        {banner.style === "stat" && (
+          <>
+            <BannerInput
+              label="Número / dato grande"
+              value={banner.stat ?? ""}
+              placeholder="9.65%"
+              onChange={(v) => set({ stat: v })}
+            />
+            <BannerInput
+              label="Qué es ese dato"
+              value={banner.title ?? ""}
+              placeholder="Tasa inicial desde"
+              onChange={(v) => set({ title: v })}
+            />
+            <BannerInput
+              label="Texto secundario (condición)"
+              value={banner.subtitle ?? ""}
+              placeholder="Con aforo hasta el 70%"
+              onChange={(v) => set({ subtitle: v })}
+            />
+          </>
+        )}
+        {banner.style === "benefits" && (
+          <>
+            <BannerInput
+              label="Encabezado"
+              value={banner.title ?? ""}
+              placeholder="Tu tarjeta incluye"
+              onChange={(v) => set({ title: v })}
+            />
+            <BannerTextarea
+              label="Beneficios (uno por línea)"
+              value={(banner.items ?? []).join("\n")}
+              placeholder={"Sin anualidad el primer año\n2x puntos en restaurantes"}
+              onChange={(v) => set({ items: v.split("\n") })}
+            />
+          </>
+        )}
+        {banner.style === "coupon" && (
+          <>
+            <BannerInput
+              label="Instrucción (arriba)"
+              value={banner.eyebrow ?? ""}
+              placeholder="Usa el código"
+              onChange={(v) => set({ eyebrow: v })}
+            />
+            <BannerInput
+              label="Código"
+              value={banner.stat ?? ""}
+              placeholder="PROMO2026"
+              onChange={(v) => set({ stat: v })}
+            />
+            <BannerInput
+              label="Vigencia / condición"
+              value={banner.subtitle ?? ""}
+              placeholder="Vigente hasta el 31 de julio de 2026"
+              onChange={(v) => set({ subtitle: v })}
+            />
+          </>
+        )}
+        {banner.style === "steps" && (
+          <>
+            <BannerInput
+              label="Encabezado"
+              value={banner.title ?? ""}
+              placeholder="Actívala en 3 pasos"
+              onChange={(v) => set({ title: v })}
+            />
+            <BannerTextarea
+              label="Pasos (uno por línea, en orden)"
+              value={(banner.items ?? []).join("\n")}
+              placeholder={"Descarga la app HSBC México\nEntra a Tarjetas\nPresiona Activar"}
+              onChange={(v) => set({ items: v.split("\n") })}
+            />
+          </>
+        )}
+        {banner.style === "notice" && (
+          <>
+            <BannerInput
+              label="Aviso (negritas)"
+              value={banner.title ?? ""}
+              placeholder="Aviso importante"
+              onChange={(v) => set({ title: v })}
+            />
+            <BannerTextarea
+              label="Detalle"
+              value={banner.subtitle ?? ""}
+              placeholder="A partir del 1 de agosto cambia el número de atención telefónica."
+              onChange={(v) => set({ subtitle: v })}
+            />
+          </>
+        )}
+        {banner.style === "contact" && (
+          <>
+            <BannerInput
+              label="Encabezado"
+              value={banner.title ?? ""}
+              placeholder="¿Necesitas ayuda?"
+              onChange={(v) => set({ title: v })}
+            />
+            <BannerTextarea
+              label="Líneas de contacto (una por línea)"
+              value={(banner.items ?? []).join("\n")}
+              placeholder={"Llámanos al 55 5721 3390\nLunes a viernes · 9:00 a 18:00 h"}
+              onChange={(v) => set({ items: v.split("\n") })}
+            />
+          </>
+        )}
+        {banner.style === "image" && (
+          <>
+            <BannerInput
+              label="Texto principal"
+              value={banner.title ?? ""}
+              placeholder="Disfruta tus beneficios"
+              onChange={(v) => set({ title: v })}
+            />
+            <BannerInput
+              label="Texto secundario"
+              value={banner.subtitle ?? ""}
+              placeholder="Tu tarjeta llega con todo listo para estrenarse."
+              onChange={(v) => set({ subtitle: v })}
+            />
+            <BannerImageTools banner={banner} heroImageUrl={heroImageUrl} brief={brief} set={set} />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Herramientas de imagen del estilo "image": subir archivo, generar con IA
+ * (Nano Banana, SOLO la primera variación de prompt — editorial), buscar en
+ * Unsplash, reusar el hero o quitar.
+ */
+function BannerImageTools({
+  banner,
+  heroImageUrl,
+  brief,
+  set,
+}: {
+  banner: DraftBanner;
+  heroImageUrl: string | null;
+  brief: DraftBrief;
+  set: (patch: Partial<DraftBanner>) => void;
+}) {
+  const imgInputRef = useRef<HTMLInputElement>(null);
+  const [busyImg, setBusyImg] = useState<"gen" | "search" | null>(null);
+  const [imgError, setImgError] = useState<string | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<UnsplashImage[]>([]);
+
+  function onUpload(file: File) {
     setImgError(null);
     if (!ALLOWED_HERO_MIME.includes(file.type as (typeof ALLOWED_HERO_MIME)[number])) {
       setImgError("Solo PNG, JPG o WebP.");
@@ -1638,282 +2156,176 @@ function BannerSection({
     reader.readAsDataURL(file);
   }
 
+  async function onGenerateAI() {
+    setBusyImg("gen");
+    setImgError(null);
+    try {
+      // SOLO la primera variación (editorial): decisión de producto — una
+      // imagen, un look consistente, sin gastar 2 generaciones.
+      const prompt = buildImagePromptVariations(brief)[0]!.prompt;
+      const imgs = await generateImagesAction({ prompt, count: 1 });
+      if (!imgs.length || !imgs[0]) throw new Error("Gemini no devolvió imagen. Intenta de nuevo.");
+      set({ imageUrl: imgs[0].url, imageAlt: "Imagen generada con IA" });
+    } catch (e) {
+      setImgError(e instanceof Error ? e.message : "Falló la generación de imagen.");
+    } finally {
+      setBusyImg(null);
+    }
+  }
+
+  async function onSearch() {
+    const q = query.trim();
+    if (!q) return;
+    setBusyImg("search");
+    setImgError(null);
+    try {
+      const r = await searchUnsplashAction(q);
+      setResults(r.slice(0, 6));
+      if (r.length === 0) setImgError("Sin resultados — intenta otra búsqueda.");
+    } catch {
+      setImgError("Unsplash no respondió. Intenta de nuevo o usa otra fuente.");
+    } finally {
+      setBusyImg(null);
+    }
+  }
+
   return (
-    <div className="mt-8 rounded-lg border border-neutral-200 bg-neutral-50/60 p-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
-          <Presentation className="h-3.5 w-3.5" />
-          Banner (opcional)
-        </div>
-        {banner && (
+    <div>
+      <label className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+        Imagen
+      </label>
+      <div className="mt-1.5 flex flex-wrap items-center gap-2">
+        {banner.imageUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={banner.imageUrl}
+            alt={banner.imageAlt ?? ""}
+            className="h-14 w-20 rounded border border-neutral-200 object-cover"
+          />
+        )}
+        <button
+          type="button"
+          onClick={onGenerateAI}
+          disabled={busyImg !== null}
+          className="text-brand-700 border-brand-200 hover:bg-brand-50 inline-flex items-center gap-1.5 rounded-md border bg-white px-2.5 py-1.5 text-[11px] font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
+          title="Genera una imagen con Nano Banana usando el prompt editorial del brief"
+        >
+          {busyImg === "gen" ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <Wand2 className="h-3 w-3" />
+          )}
+          {busyImg === "gen" ? "Generando…" : "Generar con IA"}
+        </button>
+        <button
+          type="button"
+          onClick={() => setSearchOpen((v) => !v)}
+          disabled={busyImg !== null}
+          className="inline-flex items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-[11px] font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:opacity-50"
+        >
+          <Search className="h-3 w-3" />
+          Unsplash
+        </button>
+        <button
+          type="button"
+          onClick={() => imgInputRef.current?.click()}
+          disabled={busyImg !== null}
+          className="inline-flex items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-[11px] font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:opacity-50"
+        >
+          <Upload className="h-3 w-3" />
+          Subir
+        </button>
+        {heroImageUrl && (
           <button
             type="button"
-            onClick={onRemove}
+            onClick={() => set({ imageUrl: heroImageUrl, imageAlt: "Imagen del hero" })}
+            className="inline-flex items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-[11px] font-medium text-neutral-700 transition hover:bg-neutral-50"
+          >
+            <ImageIcon className="h-3 w-3" />
+            Usar hero
+          </button>
+        )}
+        {banner.imageUrl && (
+          <button
+            type="button"
+            onClick={() => set({ imageUrl: undefined, imageAlt: undefined })}
             className="inline-flex items-center gap-1 text-[11px] font-medium text-neutral-500 transition hover:text-red-600"
           >
             <X className="h-3 w-3" />
-            Quitar
+            Quitar imagen
           </button>
         )}
+        <input
+          ref={imgInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) onUpload(f);
+            e.target.value = "";
+          }}
+        />
       </div>
 
-      {!banner && (
-        <>
-          <p className="mt-2 text-xs text-neutral-500">
-            Un bloque visual con estilo HSBC entre el cuerpo y el botón — para que el dato clave no
-            se pierda en el texto. Las miniaturas son una vista previa real de cada estilo (con
-            contenido de ejemplo); al elegir uno, la IA lo llena desde tu brief y lo puedes editar o
-            quitar.
-          </p>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            {BANNER_STYLES.map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                disabled={suggesting}
-                onClick={() => onPickStyle(s.id)}
-                className="hover:border-brand-400 rounded-md border border-neutral-200 bg-white p-2 text-left transition disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <BannerThumb style={s.id} />
-                <div className="mt-1.5 flex items-center gap-1.5 px-1 text-xs font-semibold text-neutral-800">
-                  {suggesting ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-                  {s.label}
-                </div>
-                <div className="mt-0.5 px-1 pb-0.5 text-[11px] text-neutral-500">{s.help}</div>
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-
-      {banner && (
-        <div className="mt-3 space-y-3">
-          {/* Selector de estilo (cambiar re-sugiere con IA) */}
-          <div className="flex flex-wrap gap-1.5">
-            {BANNER_STYLES.map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                disabled={suggesting}
-                onClick={() => s.id !== banner.style && onPickStyle(s.id)}
-                className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition disabled:cursor-not-allowed disabled:opacity-60 ${
-                  banner.style === s.id
-                    ? "border-brand-600 bg-brand-600 text-white"
-                    : "border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300"
-                }`}
-              >
-                {s.label}
-              </button>
-            ))}
+      {/* Mini buscador de Unsplash */}
+      {searchOpen && (
+        <div className="mt-2 rounded-md border border-neutral-200 bg-neutral-50 p-2">
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void onSearch();
+                }
+              }}
+              placeholder="Buscar foto (ej. mujer tarjeta crédito)"
+              className="focus:border-brand-600 h-8 flex-1 rounded-md border border-neutral-200 bg-white px-2 text-xs focus:outline-none"
+            />
             <button
               type="button"
-              disabled={suggesting}
-              onClick={() => onPickStyle(banner.style)}
-              className="text-brand-700 border-brand-200 hover:bg-brand-50 inline-flex items-center gap-1 rounded-full border bg-white px-2.5 py-1 text-[11px] font-medium transition disabled:cursor-not-allowed disabled:opacity-60"
-              title="La IA vuelve a sugerir el contenido desde el brief"
+              onClick={() => void onSearch()}
+              disabled={busyImg !== null || !query.trim()}
+              className="bg-brand-600 hover:bg-brand-700 inline-flex h-8 items-center gap-1 rounded-md px-2.5 text-[11px] font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {suggesting ? (
+              {busyImg === "search" ? (
                 <Loader2 className="h-3 w-3 animate-spin" />
               ) : (
-                <Sparkles className="h-3 w-3" />
+                <Search className="h-3 w-3" />
               )}
-              Re-sugerir
+              Buscar
             </button>
           </div>
-
-          {/* Campos según estilo (grupos explícitos, sin condicionales cruzados) */}
-          {banner.style === "promo" && (
-            <>
-              <BannerInput
-                label="Etiqueta (arriba)"
-                value={banner.eyebrow ?? ""}
-                placeholder="BONO DE BIENVENIDA"
-                onChange={(v) => set({ eyebrow: v })}
-              />
-              <BannerInput
-                label="Texto principal"
-                value={banner.title ?? ""}
-                placeholder="10,000 puntos HSBC"
-                onChange={(v) => set({ title: v })}
-              />
-              <BannerInput
-                label="Texto secundario (condición)"
-                value={banner.subtitle ?? ""}
-                placeholder="Al activar tu tarjeta antes del 31 de julio"
-                onChange={(v) => set({ subtitle: v })}
-              />
-            </>
-          )}
-          {banner.style === "deadline" && (
-            <>
-              <BannerInput
-                label="Frase previa"
-                value={banner.eyebrow ?? ""}
-                placeholder="Tienes hasta el"
-                onChange={(v) => set({ eyebrow: v })}
-              />
-              <BannerInput
-                label="Fecha / plazo"
-                value={banner.title ?? ""}
-                placeholder="31 de julio de 2026"
-                onChange={(v) => set({ title: v })}
-              />
-            </>
-          )}
-          {banner.style === "stat" && (
-            <>
-              <BannerInput
-                label="Número / dato grande"
-                value={banner.stat ?? ""}
-                placeholder="9.65%"
-                onChange={(v) => set({ stat: v })}
-              />
-              <BannerInput
-                label="Qué es ese dato"
-                value={banner.title ?? ""}
-                placeholder="Tasa inicial desde"
-                onChange={(v) => set({ title: v })}
-              />
-              <BannerInput
-                label="Texto secundario (condición)"
-                value={banner.subtitle ?? ""}
-                placeholder="Con aforo hasta el 70%"
-                onChange={(v) => set({ subtitle: v })}
-              />
-            </>
-          )}
-          {banner.style === "benefits" && (
-            <>
-              <BannerInput
-                label="Encabezado"
-                value={banner.title ?? ""}
-                placeholder="Tu tarjeta incluye"
-                onChange={(v) => set({ title: v })}
-              />
-              <BannerTextarea
-                label="Beneficios (uno por línea)"
-                value={(banner.items ?? []).join("\n")}
-                placeholder={"Sin anualidad el primer año\n2x puntos en restaurantes"}
-                onChange={(v) => set({ items: v.split("\n") })}
-              />
-            </>
-          )}
-          {banner.style === "coupon" && (
-            <>
-              <BannerInput
-                label="Instrucción (arriba)"
-                value={banner.eyebrow ?? ""}
-                placeholder="Usa el código"
-                onChange={(v) => set({ eyebrow: v })}
-              />
-              <BannerInput
-                label="Código"
-                value={banner.stat ?? ""}
-                placeholder="PROMO2026"
-                onChange={(v) => set({ stat: v })}
-              />
-              <BannerInput
-                label="Vigencia / condición"
-                value={banner.subtitle ?? ""}
-                placeholder="Vigente hasta el 31 de julio de 2026"
-                onChange={(v) => set({ subtitle: v })}
-              />
-            </>
-          )}
-          {banner.style === "steps" && (
-            <>
-              <BannerInput
-                label="Encabezado"
-                value={banner.title ?? ""}
-                placeholder="Actívala en 3 pasos"
-                onChange={(v) => set({ title: v })}
-              />
-              <BannerTextarea
-                label="Pasos (uno por línea, en orden)"
-                value={(banner.items ?? []).join("\n")}
-                placeholder={"Descarga la app HSBC México\nEntra a Tarjetas\nPresiona Activar"}
-                onChange={(v) => set({ items: v.split("\n") })}
-              />
-            </>
-          )}
-          {banner.style === "image" && (
-            <>
-              <BannerInput
-                label="Texto principal"
-                value={banner.title ?? ""}
-                placeholder="Disfruta tus beneficios"
-                onChange={(v) => set({ title: v })}
-              />
-              <BannerInput
-                label="Texto secundario"
-                value={banner.subtitle ?? ""}
-                placeholder="Tu tarjeta llega con todo listo para estrenarse."
-                onChange={(v) => set({ subtitle: v })}
-              />
-              {/* Imagen del banner: subir, reusar el hero o pegar URL. */}
-              <div>
-                <label className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
-                  Imagen
-                </label>
-                <div className="mt-1.5 flex items-center gap-2">
-                  {banner.imageUrl && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={banner.imageUrl}
-                      alt={banner.imageAlt ?? ""}
-                      className="h-14 w-20 rounded border border-neutral-200 object-cover"
-                    />
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => imgInputRef.current?.click()}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-[11px] font-medium text-neutral-700 transition hover:bg-neutral-50"
-                  >
-                    <Upload className="h-3 w-3" />
-                    Subir
-                  </button>
-                  {heroImageUrl && (
-                    <button
-                      type="button"
-                      onClick={() => set({ imageUrl: heroImageUrl, imageAlt: "Imagen del hero" })}
-                      className="inline-flex items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-[11px] font-medium text-neutral-700 transition hover:bg-neutral-50"
-                    >
-                      <ImageIcon className="h-3 w-3" />
-                      Usar imagen del hero
-                    </button>
-                  )}
-                  {banner.imageUrl && (
-                    <button
-                      type="button"
-                      onClick={() => set({ imageUrl: undefined, imageAlt: undefined })}
-                      className="inline-flex items-center gap-1 text-[11px] font-medium text-neutral-500 transition hover:text-red-600"
-                    >
-                      <X className="h-3 w-3" />
-                      Quitar imagen
-                    </button>
-                  )}
-                  <input
-                    ref={imgInputRef}
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp"
-                    className="hidden"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) onUploadBannerImage(f);
-                      e.target.value = "";
-                    }}
-                  />
-                </div>
-                {imgError && <p className="mt-1 text-[11px] text-red-600">{imgError}</p>}
-                <p className="mt-1 text-[10px] text-neutral-400">
-                  PNG/JPG/WebP hasta 3 MB. También puedes generar una con Nano Banana en la sección
-                  de imagen y luego presionar “Usar imagen del hero”.
-                </p>
-              </div>
-            </>
+          {results.length > 0 && (
+            <div className="mt-2 grid grid-cols-3 gap-1.5">
+              {results.map((r) => (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => {
+                    set({ imageUrl: r.url, imageAlt: r.alt });
+                    setSearchOpen(false);
+                  }}
+                  className="hover:ring-brand-500 overflow-hidden rounded border border-neutral-200 transition hover:ring-2"
+                  title={r.alt}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={r.thumbUrl} alt={r.alt} className="h-16 w-full object-cover" />
+                </button>
+              ))}
+            </div>
           )}
         </div>
       )}
+
+      {imgError && <p className="mt-1 text-[11px] text-red-600">{imgError}</p>}
+      <p className="mt-1 text-[10px] text-neutral-400">
+        Generar usa Nano Banana con el prompt editorial (reglas de marca HSBC). También puedes
+        buscar en Unsplash, subir PNG/JPG/WebP (≤3 MB) o reusar la imagen del hero.
+      </p>
     </div>
   );
 }

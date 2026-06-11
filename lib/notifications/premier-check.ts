@@ -86,18 +86,17 @@ export const SMS_MAX_LENGTH = 160;
 /** Campos de la copy que contienen texto plano de cara al cliente. */
 const TEXT_FIELDS = ["subject", "preheader", "headline", "body", "cta_label", "sms"] as const;
 
-/** Texto plano del banner (todos sus campos visibles concatenados). */
-function bannerText(banner: DraftCopy["banner"]): string {
-  if (!banner) return "";
+/** Texto plano de UN banner (todos sus campos visibles concatenados). */
+function bannerText(banner: NonNullable<DraftCopy["banner"]>): string {
   return [banner.eyebrow, banner.title, banner.subtitle, banner.stat, ...(banner.items ?? [])]
     .filter((s): s is string => Boolean(s?.trim()))
     .join("\n");
 }
 
 /**
- * Todos los textos de cara al cliente, etiquetados por campo. El banner
- * entra como un campo más: sus textos también deben pasar las reglas de
- * vocabulario World Elite.
+ * Todos los textos de cara al cliente, etiquetados por campo. Los banners
+ * (lista nueva o legacy único) entran como un campo más: sus textos también
+ * deben pasar las reglas de vocabulario World Elite.
  */
 function clientFacingTexts(copy: DraftCopy): Array<{ field: CopyFieldName; value: string }> {
   const out: Array<{ field: CopyFieldName; value: string }> = [];
@@ -105,7 +104,8 @@ function clientFacingTexts(copy: DraftCopy): Array<{ field: CopyFieldName; value
     const value = copy[f];
     if (value) out.push({ field: f, value });
   }
-  const b = bannerText(copy.banner);
+  const bannerList = copy.banners?.length ? copy.banners : copy.banner ? [copy.banner] : [];
+  const b = bannerList.map(bannerText).filter(Boolean).join("\n");
   if (b) out.push({ field: "banner", value: b });
   return out;
 }

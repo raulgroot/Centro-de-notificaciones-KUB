@@ -17,7 +17,7 @@
  * Función pura: DraftBanner adentro, string de HTML afuera. Sin IO.
  */
 
-import type { DraftBanner } from "@/lib/db/schema";
+import type { DraftBanner, DraftCopy } from "@/lib/db/schema";
 
 const HSBC_RED = "#DB0011";
 const FONT = "'Univers Next',Arial,sans-serif";
@@ -61,9 +61,22 @@ export function bannerHasContent(banner: DraftBanner | null | undefined): banner
       return Boolean(banner.stat?.trim());
     case "steps":
       return Boolean(banner.items?.some((i) => i.trim()));
+    case "notice":
+      return Boolean(banner.title?.trim() || banner.subtitle?.trim());
+    case "contact":
+      return Boolean(banner.items?.some((i) => i.trim()));
     default:
       return false;
   }
+}
+
+/**
+ * Lista efectiva de banners de una copy: prefiere `banners` (nuevo) y cae
+ * al legacy `banner` único si la lista no existe. Filtra los vacíos.
+ */
+export function effectiveBanners(copy: Pick<DraftCopy, "banner" | "banners">): DraftBanner[] {
+  const list = copy.banners?.length ? copy.banners : copy.banner ? [copy.banner] : [];
+  return list.filter((b) => bannerHasContent(b));
 }
 
 function promoHtml(b: DraftBanner): string {
@@ -188,6 +201,40 @@ ${rows}
 </table>`;
 }
 
+function noticeHtml(b: DraftBanner): string {
+  const title = b.title?.trim()
+    ? `<p style="margin:0;font-family:${FONT};font-size:14px;font-weight:700;color:#1A1A1A;">${escapeHtml(b.title)}</p>`
+    : "";
+  const subtitle = b.subtitle?.trim()
+    ? `<p style="margin:${title ? "4px" : "0"} 0 0 0;font-family:${FONT};font-size:13px;line-height:1.5;color:#5F5E5A;">${escapeHtml(b.subtitle)}</p>`
+    : "";
+  return `${TABLE_OPEN}
+<tr>
+<td style="background:#F5F5F5;border-top:3px solid ${HSBC_RED};padding:14px 20px;">
+${title}${subtitle}
+</td>
+</tr>
+</table>`;
+}
+
+function contactHtml(b: DraftBanner): string {
+  const title = b.title?.trim() || "¿Necesitas ayuda?";
+  const rows = (b.items ?? [])
+    .map((i) => i.trim())
+    .filter(Boolean)
+    .map(
+      (item) =>
+        `<p style="margin:0 0 4px 0;font-family:${FONT};font-size:13px;line-height:1.5;color:#333333;">${escapeHtml(item)}</p>`,
+    )
+    .join("\n");
+  return `${TABLE_OPEN}
+<tr><td align="center" style="background:#FFFFFF;border:1px solid #E8E8E8;border-radius:6px;padding:18px 24px;text-align:center;">
+<p style="margin:0 0 8px 0;font-family:${FONT};font-size:15px;font-weight:700;color:${HSBC_RED};">${escapeHtml(title)}</p>
+${rows}
+</td></tr>
+</table>`;
+}
+
 /** HTML del banner según su estilo. Devuelve "" si no hay contenido. */
 export function bannerBlockHtml(banner: DraftBanner | null | undefined): string {
   if (!bannerHasContent(banner)) return "";
@@ -206,5 +253,9 @@ export function bannerBlockHtml(banner: DraftBanner | null | undefined): string 
       return couponHtml(banner);
     case "steps":
       return stepsHtml(banner);
+    case "notice":
+      return noticeHtml(banner);
+    case "contact":
+      return contactHtml(banner);
   }
 }

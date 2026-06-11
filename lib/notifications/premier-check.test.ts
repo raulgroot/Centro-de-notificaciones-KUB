@@ -120,6 +120,20 @@ describe("runPreflight — palabras vetadas (Premier)", () => {
     const r = runPreflight({ copy, isPremier: true });
     expect(r.findings.some((f) => f.rule === "forbidden-word")).toBe(false);
   });
+
+  it("revisa TODOS los banners de la lista (no solo el primero)", () => {
+    const copy: DraftCopy = {
+      subject: "Tu tarjeta está lista",
+      banners: [
+        { style: "promo", title: "10,000 puntos" },
+        { style: "notice", title: "Solo para la élite" },
+      ],
+    };
+    const r = runPreflight({ copy, isPremier: true });
+    const f = r.findings.find((x) => x.rule === "forbidden-word");
+    expect(f).toBeDefined();
+    expect(f?.field).toBe("banner");
+  });
 });
 
 describe("runPreflight — vocabulario recomendado", () => {

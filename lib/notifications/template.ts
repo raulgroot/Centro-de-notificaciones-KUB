@@ -38,7 +38,7 @@ import { load, type CheerioAPI } from "cheerio";
 import type { DraftCopy, DraftHeroImage } from "@/lib/db/schema";
 import { HSBC_BASE_HTML } from "./templates/hsbc-base";
 import { HSBC_LOGO_DATA_URL } from "./hsbc-logo";
-import { bannerBlockHtml } from "./banner";
+import { bannerBlockHtml, effectiveBanners } from "./banner";
 
 /** Products that should keep the HSBC+VIVA top header art. */
 const VIVA_PRODUCTS = new Set(["viva", "vivaplus", "hsbc viva", "hsbc viva plus"]);
@@ -304,11 +304,15 @@ export function renderEmailHtml(args: {
     bodyTarget.html(greeting + bodyBlock);
   }
 
-  // 3b. Banner opcional: se inserta justo después del bloque del cuerpo
-  //     (antes del CTA). Render delegado a lib/notifications/banner.ts.
-  const bannerHtml = bannerBlockHtml(copy.banner);
-  if (bannerHtml && bodyTarget.length > 0) {
-    bodyTarget.after(`<div style="margin-top:24px;">${bannerHtml}</div>`);
+  // 3b. Banners opcionales (0..n): se insertan justo después del bloque del
+  //     cuerpo (antes del CTA), en el orden de la lista. Render delegado a
+  //     lib/notifications/banner.ts; soporta el legacy `banner` único.
+  const bannersHtml = effectiveBanners(copy)
+    .map((b) => bannerBlockHtml(b))
+    .filter(Boolean)
+    .join("\n");
+  if (bannersHtml && bodyTarget.length > 0) {
+    bodyTarget.after(`<div style="margin-top:24px;">${bannersHtml}</div>`);
   }
 
   // 4. CTA label

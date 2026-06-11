@@ -385,7 +385,28 @@ const BANNER_STYLE_HINT: Record<DraftBannerStyle, string> = {
     "Estilo COUPON (código de promoción enmarcado). Llena: eyebrow (instrucción corta, ej. 'Usa el código'), stat (EL CÓDIGO tal cual viene en el brief, ej. 'PROMO2026' — si el brief NO trae código, déjalo en null), subtitle (condición o vigencia en una frase). Deja title e items en null.",
   steps:
     "Estilo STEPS (pasos numerados). Llena: title (encabezado corto, ej. 'Actívala en 3 pasos'), items (2 a 4 pasos en orden, cada uno una instrucción corta empezando con verbo, máx 10 palabras). Deja eyebrow, subtitle y stat en null.",
+  notice:
+    "Estilo NOTICE (aviso sobrio, banda gris con acento rojo). Llena: title (el aviso en una frase corta y directa), subtitle (el detalle o qué hacer al respecto, 1-2 frases). Deja eyebrow, stat e items en null.",
+  contact:
+    "Estilo CONTACT (bloque de ayuda/soporte centrado). Llena: title (encabezado, ej. '¿Necesitas ayuda?'), items (1 a 3 líneas de contacto que VENGAN en el brief: teléfono, horario, canal — si el brief no trae datos de contacto, usa líneas genéricas como 'Llámanos al número en el reverso de tu tarjeta'). Deja eyebrow, subtitle y stat en null.",
 };
+
+/**
+ * Guía para que el modelo ELIJA el estilo más coherente con el brief
+ * (sugerencia automática). El orden importa: señales específicas primero.
+ */
+const BANNER_STYLE_CHOICE_GUIDE = [
+  "Cómo elegir el estilo según las señales del brief:",
+  "- Si describe INSTRUCCIONES o una secuencia (descarga, entra, presiona / 'pasos') → steps.",
+  "- Si trae un CÓDIGO de promoción → coupon.",
+  "- Si lo más importante es una FECHA LÍMITE → deadline.",
+  "- Si enumera VARIOS beneficios o características → benefits.",
+  "- Si el dato estrella es UN número (tasa, monto, puntos) → stat.",
+  "- Si es un beneficio/promo único y emocional → promo.",
+  "- Si es una advertencia, cambio de condiciones o disclaimer → notice.",
+  "- Si el brief gira en torno a soporte/contacto → contact.",
+  "- NO elijas image (la foto la pone el usuario).",
+].join("\n");
 
 const BannerContentSchema = z.object({
   eyebrow: z.string().max(60).nullable(),
@@ -394,6 +415,66 @@ const BannerContentSchema = z.object({
   stat: z.string().max(40).nullable(),
   items: z.array(z.string().max(80)).max(4).nullable(),
 });
+
+const SuggestedBannerSchema = BannerContentSchema.extend({
+  style: z
+    .enum(["promo", "deadline", "benefits", "stat", "coupon", "steps", "notice", "contact"])
+    .describe("El estilo más coherente con el brief, según la guía."),
+  reason: z
+    .string()
+    .max(160)
+    .describe("Por qué este estilo le queda a la pieza, en una frase corta para el usuario."),
+});
+
+/** Sugerencia automática: la IA elige el estilo Y llena el contenido. */
+export interface SmartBannerSuggestion {
+  banner: DraftBanner;
+  reason: string;
+}
+
+/**
+ * Analiza el brief, ELIGE el estilo de banner más coherente y llena su
+ * contenido. El usuario decide si lo acepta — esto es una propuesta.
+ */
+export async function suggestSmartBanner(brief: DraftBrief): Promise<SmartBannerSuggestion> {
+  const sys = [
+    "Eres un copywriter senior de HSBC México. Vas a PROPONER un banner visual para complementar una notificación de email.",
+    "Primero elige el ESTILO más coherente con el brief; luego llena su contenido.",
+    "",
+    BANNER_STYLE_CHOICE_GUIDE,
+    "",
+    "Reglas duras:",
+    "- NO inventes datos: montos, fechas, códigos, teléfonos. Solo usa lo que viene en el brief.",
+    "- Español mexicano. Sin emojis. Textos cortos: es un banner, no un párrafo.",
+    "- NO uses markdown (nada de **).",
+    "- En `reason` explica en UNA frase, dirigida al usuario, por qué propones ese estilo.",
+    "",
+    "Instrucciones de contenido por estilo:",
+    ...Object.values(BANNER_STYLE_HINT),
+    "",
+    "Output: SIEMPRE el objeto JSON del schema. Campos que el estilo no usa: null.",
+  ].join("\n");
+
+  const { object } = await generateObject({
+    model: model(),
+    schema: SuggestedBannerSchema,
+    system: sys,
+    prompt: briefToUserPrompt(brief),
+    temperature: 0.4,
+  });
+
+  return {
+    banner: {
+      style: object.style,
+      ...(object.eyebrow?.trim() && { eyebrow: object.eyebrow.trim() }),
+      ...(object.title?.trim() && { title: object.title.trim() }),
+      ...(object.subtitle?.trim() && { subtitle: object.subtitle.trim() }),
+      ...(object.stat?.trim() && { stat: object.stat.trim() }),
+      ...(object.items?.length && { items: object.items.map((i) => i.trim()).filter(Boolean) }),
+    },
+    reason: object.reason.trim(),
+  };
+}
 
 /**
  * Sugiere el contenido de un banner a partir del brief. Mismo principio que

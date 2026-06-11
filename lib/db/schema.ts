@@ -372,7 +372,9 @@ export type DraftBannerStyle =
   | "stat"
   | "image"
   | "coupon"
-  | "steps";
+  | "steps"
+  | "notice"
+  | "contact";
 
 /**
  * Banner visual opcional que complementa el cuerpo del email (se inserta
@@ -384,6 +386,8 @@ export type DraftBannerStyle =
  *   - image:    imageUrl/imageAlt (foto izquierda) + title + subtitle (texto derecha)
  *   - coupon:   eyebrow ("Usa el código") + stat (EL CÓDIGO) + subtitle (condición)
  *   - steps:    title (encabezado) + items (pasos numerados 1-2-3)
+ *   - notice:   title (aviso en negritas) + subtitle (detalle) — banda sobria gris
+ *   - contact:  title ("¿Necesitas ayuda?") + items (líneas: teléfono, horario, canal)
  */
 export interface DraftBanner {
   style: DraftBannerStyle;
@@ -405,12 +409,17 @@ export interface DraftCopy {
   body?: string; // 1-2 paragraphs
   cta_label?: string;
   sms?: string;
-  /** Banner visual opcional. Viaja dentro del jsonb `copy` para no migrar. */
+  /**
+   * @deprecated Usa `banners` (lista). Se conserva para drafts creados
+   * cuando solo se permitía un banner; el render lo trata como [banner].
+   */
   banner?: DraftBanner | null;
+  /** Banners visuales opcionales, en el orden en que aparecen en el email. */
+  banners?: DraftBanner[] | null;
 }
 
-/** Campos de texto plano de la copy (excluye el banner, que es objeto). */
-export type DraftCopyTextField = Exclude<keyof DraftCopy, "banner">;
+/** Campos de texto plano de la copy (excluye banner/banners, que son objetos). */
+export type DraftCopyTextField = Exclude<keyof DraftCopy, "banner" | "banners">;
 
 export interface DraftHeroImage {
   url: string;

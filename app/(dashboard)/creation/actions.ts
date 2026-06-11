@@ -16,7 +16,9 @@ import {
   improveTopic,
   refineField,
   suggestBanner,
+  suggestSmartBanner,
   type NotificationCopy,
+  type SmartBannerSuggestion,
 } from "@/lib/ai/notification-copy";
 import { searchHeroImages, type FreepikImage } from "@/lib/adapters/freepik/client";
 import {
@@ -195,6 +197,14 @@ export async function suggestBannerAction(args: {
   style: DraftBannerStyle;
 }): Promise<DraftBanner> {
   return suggestBanner(args);
+}
+
+/**
+ * Sugerencia automática: la IA analiza el brief, elige el estilo de banner
+ * más coherente y llena el contenido. El usuario acepta o descarta.
+ */
+export async function suggestSmartBannerAction(brief: DraftBrief): Promise<SmartBannerSuggestion> {
+  return suggestSmartBanner(brief);
 }
 
 /** Delete a draft and bounce back to the list. */
