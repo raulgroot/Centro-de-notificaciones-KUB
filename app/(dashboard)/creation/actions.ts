@@ -15,6 +15,7 @@ import {
   generateNotificationCopy,
   improveTopic,
   refineField,
+  suggestBanner,
   type NotificationCopy,
 } from "@/lib/ai/notification-copy";
 import { searchHeroImages, type FreepikImage } from "@/lib/adapters/freepik/client";
@@ -37,7 +38,14 @@ import {
 } from "@/lib/ai/extract-brief";
 import { createDraft, deleteDraft, updateDraft } from "@/lib/adapters/supabase/notification-drafts";
 import { renderEmailHtml } from "@/lib/notifications/template";
-import type { DraftBrief, DraftCopy, DraftHeroImage } from "@/lib/db/schema";
+import type {
+  DraftBanner,
+  DraftBannerStyle,
+  DraftBrief,
+  DraftCopy,
+  DraftCopyTextField,
+  DraftHeroImage,
+} from "@/lib/db/schema";
 
 /** Create a new empty draft and jump straight into the editor. */
 export async function createDraftAndOpenAction(formData: FormData): Promise<void> {
@@ -92,7 +100,7 @@ export async function improveTopicAction(args: {
 
 /** Refine one field with a natural-language instruction. */
 export async function refineFieldAction(args: {
-  field: keyof DraftCopy;
+  field: DraftCopyTextField;
   current: string;
   instruction: string;
   brief: DraftBrief;
@@ -176,6 +184,17 @@ export async function extractBriefFromFileAction(formData: FormData): Promise<Ex
   }
   const data = new Uint8Array(await file.arrayBuffer());
   return extractBriefFromFile({ data, mediaType, filename: file.name });
+}
+
+/**
+ * Sugiere el contenido de un banner desde el brief (estilo elegido por el
+ * usuario). El cliente lo mergea en `copy.banner` y el preview re-renderea.
+ */
+export async function suggestBannerAction(args: {
+  brief: DraftBrief;
+  style: DraftBannerStyle;
+}): Promise<DraftBanner> {
+  return suggestBanner(args);
 }
 
 /** Delete a draft and bounce back to the list. */

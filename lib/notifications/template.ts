@@ -38,6 +38,7 @@ import { load, type CheerioAPI } from "cheerio";
 import type { DraftCopy, DraftHeroImage } from "@/lib/db/schema";
 import { HSBC_BASE_HTML } from "./templates/hsbc-base";
 import { HSBC_LOGO_DATA_URL } from "./hsbc-logo";
+import { bannerBlockHtml } from "./banner";
 
 /** Products that should keep the HSBC+VIVA top header art. */
 const VIVA_PRODUCTS = new Set(["viva", "vivaplus", "hsbc viva", "hsbc viva plus"]);
@@ -280,27 +281,34 @@ export function renderEmailHtml(args: {
   //    Prependemos un saludo en rojo HSBC + negritas. Usamos un placeholder
   //    `[Nombre]` que MKT/CRM puede reemplazar con la variable real del MTA
   //    (ej. `{{first_name}}` en Postmark / `%%FNAME%%` en Salesforce).
-  if (copy.body) {
-    // OJO: NO anclar a `strong:contains("Tarjeta de Crédito")`. Desde que el
-    // AI mete el producto en negritas, el HEADLINE (en el hero block, arriba)
-    // también tiene ese <strong>, y el selector terminaba reemplazando el
-    // HERO en lugar del cuerpo (borrando la imagen, dejando texto de Puebla).
-    // Anclamos al texto ÚNICO del bloque de cuerpo original ("ha sido
-    // generada" + "rastreo"), que nunca aparece en un headline ni en un body
-    // generado. `.last()` toma el div más interno.
-    const bodyTarget = $("div")
-      .filter((_i, el) => {
-        const t = $(el).text();
-        return t.includes("ha sido generada") && t.includes("rastreo");
-      })
-      .last();
-    if (bodyTarget.length > 0) {
-      const greeting = `<p style="margin:0 0 16px 0;font-family:'Univers Next',Arial,sans-serif;font-size:18px;line-height:1.3;font-weight:700;color:${HSBC_RED};">¡Hola, [Nombre]!</p>`;
-      // El div destino hereda font-size:1rem (chico). Forzamos 16px explícito
-      // para que el cuerpo matchee el tamaño del resto del email.
-      const bodyBlock = `<div style="font-family:'Univers Next',Arial,sans-serif;font-size:16px;line-height:1.5;color:#333333;">${bodyToInlineHtml($, copy.body)}</div>`;
-      bodyTarget.html(greeting + bodyBlock);
-    }
+  // OJO: NO anclar a `strong:contains("Tarjeta de Crédito")`. Desde que el
+  // AI mete el producto en negritas, el HEADLINE (en el hero block, arriba)
+  // también tiene ese <strong>, y el selector terminaba reemplazando el
+  // HERO en lugar del cuerpo (borrando la imagen, dejando texto de Puebla).
+  // Anclamos al texto ÚNICO del bloque de cuerpo original ("ha sido
+  // generada" + "rastreo"), que nunca aparece en un headline ni en un body
+  // generado. `.last()` toma el div más interno.
+  // Lo localizamos ANTES de reemplazar el contenido porque el banner (3b)
+  // también se ancla aquí y el texto original desaparece tras el replace.
+  const bodyTarget = $("div")
+    .filter((_i, el) => {
+      const t = $(el).text();
+      return t.includes("ha sido generada") && t.includes("rastreo");
+    })
+    .last();
+  if (copy.body && bodyTarget.length > 0) {
+    const greeting = `<p style="margin:0 0 16px 0;font-family:'Univers Next',Arial,sans-serif;font-size:18px;line-height:1.3;font-weight:700;color:${HSBC_RED};">¡Hola, [Nombre]!</p>`;
+    // El div destino hereda font-size:1rem (chico). Forzamos 16px explícito
+    // para que el cuerpo matchee el tamaño del resto del email.
+    const bodyBlock = `<div style="font-family:'Univers Next',Arial,sans-serif;font-size:16px;line-height:1.5;color:#333333;">${bodyToInlineHtml($, copy.body)}</div>`;
+    bodyTarget.html(greeting + bodyBlock);
+  }
+
+  // 3b. Banner opcional: se inserta justo después del bloque del cuerpo
+  //     (antes del CTA). Render delegado a lib/notifications/banner.ts.
+  const bannerHtml = bannerBlockHtml(copy.banner);
+  if (bannerHtml && bodyTarget.length > 0) {
+    bodyTarget.after(`<div style="margin-top:24px;">${bannerHtml}</div>`);
   }
 
   // 4. CTA label

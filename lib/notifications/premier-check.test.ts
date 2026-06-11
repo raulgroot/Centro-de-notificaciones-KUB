@@ -99,6 +99,27 @@ describe("runPreflight — palabras vetadas (Premier)", () => {
     const r = runPreflight({ copy, isPremier: true });
     expect(r.findings.some((f) => f.rule === "forbidden-word")).toBe(false);
   });
+
+  it("también revisa el texto del banner (es texto de cara al cliente)", () => {
+    const copy: DraftCopy = {
+      subject: "Tu tarjeta está lista",
+      banner: { style: "promo", eyebrow: "SOLO PARA LA ÉLITE", title: "10,000 puntos" },
+    };
+    const r = runPreflight({ copy, isPremier: true });
+    const f = r.findings.find((x) => x.rule === "forbidden-word");
+    expect(f).toBeDefined();
+    expect(f?.field).toBe("banner");
+    expect(f?.severity).toBe("blocking");
+  });
+
+  it("banner limpio no genera findings de vocabulario", () => {
+    const copy: DraftCopy = {
+      subject: "Tu tarjeta está lista",
+      banner: { style: "benefits", title: "Tu tarjeta incluye", items: ["Cobertura de viaje"] },
+    };
+    const r = runPreflight({ copy, isPremier: true });
+    expect(r.findings.some((f) => f.rule === "forbidden-word")).toBe(false);
+  });
 });
 
 describe("runPreflight — vocabulario recomendado", () => {

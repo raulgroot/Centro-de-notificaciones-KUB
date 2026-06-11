@@ -363,6 +363,27 @@ export interface DraftKeyInfo {
   promoUrl?: string;
 }
 
+/** Estilos de banner disponibles dentro del email. Catálogo cerrado para
+ * que el render sea email-safe (tablas + estilos inline) y siempre on-brand. */
+export type DraftBannerStyle = "promo" | "deadline" | "benefits" | "stat";
+
+/**
+ * Banner visual opcional que complementa el cuerpo del email (se inserta
+ * entre el cuerpo y el CTA). Campos por estilo:
+ *   - promo:    eyebrow (etiqueta arriba) + title (beneficio) + subtitle (condición)
+ *   - deadline: eyebrow ("Tienes hasta el") + title (fecha legible)
+ *   - benefits: title (encabezado) + items (bullets con palomita roja)
+ *   - stat:     stat (número grande) + title (qué es) + subtitle (condición)
+ */
+export interface DraftBanner {
+  style: DraftBannerStyle;
+  eyebrow?: string;
+  title?: string;
+  subtitle?: string;
+  stat?: string;
+  items?: string[];
+}
+
 export interface DraftCopy {
   subject?: string;
   preheader?: string;
@@ -370,7 +391,12 @@ export interface DraftCopy {
   body?: string; // 1-2 paragraphs
   cta_label?: string;
   sms?: string;
+  /** Banner visual opcional. Viaja dentro del jsonb `copy` para no migrar. */
+  banner?: DraftBanner | null;
 }
+
+/** Campos de texto plano de la copy (excluye el banner, que es objeto). */
+export type DraftCopyTextField = Exclude<keyof DraftCopy, "banner">;
 
 export interface DraftHeroImage {
   url: string;

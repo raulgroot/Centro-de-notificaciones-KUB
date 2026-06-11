@@ -29,9 +29,18 @@ import {
   saveDraftAction,
   searchImagesAction,
   searchUnsplashAction,
+  suggestBannerAction,
 } from "../actions";
 import type { NotificationDraft } from "@/lib/adapters/supabase/notification-drafts";
-import type { DraftBrief, DraftCopy, DraftHeroImage, DraftKeyInfo } from "@/lib/db/schema";
+import type {
+  DraftBanner,
+  DraftBannerStyle,
+  DraftBrief,
+  DraftCopy,
+  DraftCopyTextField,
+  DraftHeroImage,
+  DraftKeyInfo,
+} from "@/lib/db/schema";
 import { renderEmailHtml } from "@/lib/notifications/template";
 import type { FreepikImage } from "@/lib/adapters/freepik/client";
 import type { UnsplashImage } from "@/lib/adapters/unsplash/client";
@@ -117,7 +126,7 @@ const URGENCIES = [
 // fricción. Si en algún momento queremos reintroducirlo, agrégalo de vuelta
 // como un step opcional y un campo en DraftBrief.
 
-type CopyField = keyof DraftCopy;
+type CopyField = DraftCopyTextField;
 
 /**
  * The wizard's ordered list of steps. `required` controls whether the user
@@ -181,6 +190,7 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
     upload?: boolean;
     improveTopic?: boolean;
     extract?: boolean;
+    banner?: boolean;
     download?: "image" | "presentation";
   }>({});
   const uploadInputRef = useRef<HTMLInputElement>(null);
@@ -440,6 +450,25 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
     } finally {
       setBusy((b) => ({ ...b, extract: false }));
       if (extractInputRef.current) extractInputRef.current.value = "";
+    }
+  }
+
+  /**
+   * Elige un estilo de banner y pide a la IA el primer borrador del
+   * contenido (desde el brief, sin inventar). El usuario lo edita después
+   * campo por campo. Si la IA falla, dejamos el banner vacío con el estilo
+   * elegido para que el usuario lo llene a mano.
+   */
+  async function onPickBannerStyle(style: DraftBannerStyle) {
+    setBusy((b) => ({ ...b, banner: true }));
+    setError(null);
+    try {
+      const suggested = await suggestBannerAction({ brief: stateRef.current.brief, style });
+      setCopy({ ...stateRef.current.copy, banner: suggested });
+    } catch {
+      setCopy({ ...stateRef.current.copy, banner: { style } });
+    } finally {
+      setBusy((b) => ({ ...b, banner: false }));
     }
   }
 
@@ -1169,6 +1198,15 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                   />
                 </div>
 
+                {/* Banner opcional: bloque visual HSBC entre cuerpo y CTA. */}
+                <BannerSection
+                  banner={copy.banner ?? null}
+                  suggesting={Boolean(busy.banner)}
+                  onPickStyle={onPickBannerStyle}
+                  onChange={(banner) => setCopy({ ...copy, banner })}
+                  onRemove={() => setCopy({ ...copy, banner: null })}
+                />
+
                 {/* Image picker */}
                 <div className="mt-8 rounded-lg border border-neutral-200 bg-neutral-50/60 p-4">
                   <div className="flex items-center gap-2 text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
@@ -1471,6 +1509,213 @@ function CopyField({
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Catálogo de estilos de banner: id + nombre + para qué sirve. */
+const BANNER_STYLES: Array<{ id: DraftBannerStyle; label: string; help: string }> = [
+  { id: "promo", label: "Promo destacado", help: "Banda roja con el beneficio principal." },
+  { id: "deadline", label: "Fecha límite", help: "La fecha en grande con acento rojo." },
+  { id: "benefits", label: "Beneficios", help: "Lista con palomitas rojas." },
+  { id: "stat", label: "Dato grande", help: "Un número que se quede grabado." },
+];
+
+/**
+ * Sección "Banner" de la columna de copy. Sin banner: 4 botones de estilo
+ * (elegir uno dispara la sugerencia con IA). Con banner: campos editables
+ * según el estilo + cambiar estilo + quitar. El preview de la derecha se
+ * re-renderea en vivo con cada cambio (mismo flujo que el resto del copy).
+ */
+function BannerSection({
+  banner,
+  suggesting,
+  onPickStyle,
+  onChange,
+  onRemove,
+}: {
+  banner: DraftBanner | null;
+  suggesting: boolean;
+  onPickStyle: (style: DraftBannerStyle) => void;
+  onChange: (banner: DraftBanner) => void;
+  onRemove: () => void;
+}) {
+  const set = (patch: Partial<DraftBanner>) => banner && onChange({ ...banner, ...patch });
+
+  return (
+    <div className="mt-8 rounded-lg border border-neutral-200 bg-neutral-50/60 p-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+          <Presentation className="h-3.5 w-3.5" />
+          Banner (opcional)
+        </div>
+        {banner && (
+          <button
+            type="button"
+            onClick={onRemove}
+            className="inline-flex items-center gap-1 text-[11px] font-medium text-neutral-500 transition hover:text-red-600"
+          >
+            <X className="h-3 w-3" />
+            Quitar
+          </button>
+        )}
+      </div>
+
+      {!banner && (
+        <>
+          <p className="mt-2 text-xs text-neutral-500">
+            Un bloque visual con estilo HSBC entre el cuerpo y el botón — para que el dato clave no
+            se pierda en el texto. Elige un estilo y la IA lo llena desde tu brief.
+          </p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {BANNER_STYLES.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                disabled={suggesting}
+                onClick={() => onPickStyle(s.id)}
+                className="hover:border-brand-400 rounded-md border border-neutral-200 bg-white p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-neutral-800">
+                  {suggesting ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                  {s.label}
+                </div>
+                <div className="mt-0.5 text-[11px] text-neutral-500">{s.help}</div>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      {banner && (
+        <div className="mt-3 space-y-3">
+          {/* Selector de estilo (cambiar re-sugiere con IA) */}
+          <div className="flex flex-wrap gap-1.5">
+            {BANNER_STYLES.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                disabled={suggesting}
+                onClick={() => s.id !== banner.style && onPickStyle(s.id)}
+                className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                  banner.style === s.id
+                    ? "border-brand-600 bg-brand-600 text-white"
+                    : "border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300"
+                }`}
+              >
+                {s.label}
+              </button>
+            ))}
+            <button
+              type="button"
+              disabled={suggesting}
+              onClick={() => onPickStyle(banner.style)}
+              className="text-brand-700 border-brand-200 hover:bg-brand-50 inline-flex items-center gap-1 rounded-full border bg-white px-2.5 py-1 text-[11px] font-medium transition disabled:cursor-not-allowed disabled:opacity-60"
+              title="La IA vuelve a sugerir el contenido desde el brief"
+            >
+              {suggesting ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Sparkles className="h-3 w-3" />
+              )}
+              Re-sugerir
+            </button>
+          </div>
+
+          {/* Campos según estilo */}
+          {(banner.style === "promo" || banner.style === "deadline") && (
+            <BannerInput
+              label={banner.style === "promo" ? "Etiqueta (arriba)" : "Frase previa"}
+              value={banner.eyebrow ?? ""}
+              placeholder={banner.style === "promo" ? "BONO DE BIENVENIDA" : "Tienes hasta el"}
+              onChange={(v) => set({ eyebrow: v })}
+            />
+          )}
+          {banner.style !== "benefits" && banner.style !== "stat" && (
+            <BannerInput
+              label={banner.style === "deadline" ? "Fecha / plazo" : "Texto principal"}
+              value={banner.title ?? ""}
+              placeholder={
+                banner.style === "deadline" ? "31 de julio de 2026" : "10,000 puntos HSBC"
+              }
+              onChange={(v) => set({ title: v })}
+            />
+          )}
+          {banner.style === "stat" && (
+            <>
+              <BannerInput
+                label="Número / dato grande"
+                value={banner.stat ?? ""}
+                placeholder="9.65%"
+                onChange={(v) => set({ stat: v })}
+              />
+              <BannerInput
+                label="Qué es ese dato"
+                value={banner.title ?? ""}
+                placeholder="Tasa inicial desde"
+                onChange={(v) => set({ title: v })}
+              />
+            </>
+          )}
+          {(banner.style === "promo" || banner.style === "stat") && (
+            <BannerInput
+              label="Texto secundario (condición)"
+              value={banner.subtitle ?? ""}
+              placeholder="Al activar tu tarjeta antes del 31 de julio"
+              onChange={(v) => set({ subtitle: v })}
+            />
+          )}
+          {banner.style === "benefits" && (
+            <>
+              <BannerInput
+                label="Encabezado"
+                value={banner.title ?? ""}
+                placeholder="Tu tarjeta incluye"
+                onChange={(v) => set({ title: v })}
+              />
+              <div>
+                <label className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+                  Beneficios (uno por línea)
+                </label>
+                <textarea
+                  value={(banner.items ?? []).join("\n")}
+                  onChange={(e) => set({ items: e.target.value.split("\n") })}
+                  rows={4}
+                  placeholder={"Sin anualidad el primer año\n2x puntos en restaurantes"}
+                  className="focus:border-brand-600 mt-1.5 w-full rounded-md border border-neutral-200 bg-white px-2.5 py-2 text-sm text-neutral-900 focus:outline-none"
+                />
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BannerInput({
+  label,
+  value,
+  placeholder,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  placeholder: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div>
+      <label className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+        {label}
+      </label>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="focus:border-brand-600 mt-1.5 h-9 w-full rounded-md border border-neutral-200 bg-white px-2.5 text-sm text-neutral-900 focus:outline-none"
+      />
     </div>
   );
 }

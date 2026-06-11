@@ -83,15 +83,32 @@ export interface PreflightResult {
 /** Límite duro de SMS (regla universal HSBC). */
 export const SMS_MAX_LENGTH = 160;
 
-/** Campos de la copy que contienen texto de cara al cliente. */
-const TEXT_FIELDS: CopyFieldName[] = [
-  "subject",
-  "preheader",
-  "headline",
-  "body",
-  "cta_label",
-  "sms",
-];
+/** Campos de la copy que contienen texto plano de cara al cliente. */
+const TEXT_FIELDS = ["subject", "preheader", "headline", "body", "cta_label", "sms"] as const;
+
+/** Texto plano del banner (todos sus campos visibles concatenados). */
+function bannerText(banner: DraftCopy["banner"]): string {
+  if (!banner) return "";
+  return [banner.eyebrow, banner.title, banner.subtitle, banner.stat, ...(banner.items ?? [])]
+    .filter((s): s is string => Boolean(s?.trim()))
+    .join("\n");
+}
+
+/**
+ * Todos los textos de cara al cliente, etiquetados por campo. El banner
+ * entra como un campo más: sus textos también deben pasar las reglas de
+ * vocabulario World Elite.
+ */
+function clientFacingTexts(copy: DraftCopy): Array<{ field: CopyFieldName; value: string }> {
+  const out: Array<{ field: CopyFieldName; value: string }> = [];
+  for (const f of TEXT_FIELDS) {
+    const value = copy[f];
+    if (value) out.push({ field: f, value });
+  }
+  const b = bannerText(copy.banner);
+  if (b) out.push({ field: "banner", value: b });
+  return out;
+}
 
 /** Normaliza: minúsculas + sin diacríticos (para comparación robusta). */
 export function normalize(s: string): string {
@@ -129,8 +146,8 @@ function indexOfWord(haystack: string, term: string): number {
 
 /** Concatena los campos de texto de cara al cliente en un solo string. */
 function joinedText(copy: DraftCopy): string {
-  return TEXT_FIELDS.map((f) => copy[f] ?? "")
-    .filter(Boolean)
+  return clientFacingTexts(copy)
+    .map((t) => t.value)
     .join("\n");
 }
 
@@ -170,9 +187,7 @@ function checkForbiddenWords(copy: DraftCopy): Finding[] {
   const findings: Finding[] = [];
   const forbidden = buildForbiddenIndex();
 
-  for (const field of TEXT_FIELDS) {
-    const value = copy[field];
-    if (!value) continue;
+  for (const { field, value } of clientFacingTexts(copy)) {
     for (const [key, meta] of forbidden) {
       if (containsWord(value, meta.display)) {
         findings.push({
@@ -234,9 +249,7 @@ function checkPillarOrder(copy: DraftCopy): Finding[] {
 
 function checkConceptViolations(copy: DraftCopy): Finding[] {
   const findings: Finding[] = [];
-  for (const field of TEXT_FIELDS) {
-    const value = copy[field];
-    if (!value) continue;
+  for (const { field, value } of clientFacingTexts(copy)) {
     const n = normalize(value);
     for (const bad of PREMIER_CONCEPT_VIOLATIONS) {
       if (n.includes(normalize(bad))) {

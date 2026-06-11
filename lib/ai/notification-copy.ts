@@ -17,7 +17,13 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { generateObject, generateText } from "ai";
 import { z } from "zod";
 import { anthropicEnv } from "@/lib/env";
-import type { DraftBrief, DraftCopy } from "@/lib/db/schema";
+import type {
+  DraftBanner,
+  DraftBannerStyle,
+  DraftBrief,
+  DraftCopy,
+  DraftCopyTextField,
+} from "@/lib/db/schema";
 import { serializeKeyInfoTags, productDisplayName } from "@/lib/notifications/key-info";
 import { buildPremierPromptBlock, type PillarId } from "@/lib/notifications/premier-rules";
 
@@ -277,14 +283,14 @@ export async function generateNotificationCopy(brief: DraftBrief): Promise<Notif
  * untouched on the client (we don't re-write the whole bundle).
  */
 export async function refineField(args: {
-  field: keyof DraftCopy;
+  field: DraftCopyTextField;
   current: string;
   instruction: string; // "hazlo mas corto", "mas formal", "otra opcion"
   brief: DraftBrief; // context so the refinement stays on-brand
 }): Promise<string> {
   const { field, current, instruction, brief } = args;
 
-  const constraints: Record<keyof DraftCopy, string> = {
+  const constraints: Record<DraftCopyTextField, string> = {
     subject: "5-12 palabras. Descriptivo. Sin emojis. Sin punto final.",
     preheader: "Maximo 120 caracteres. Complementa al subject, no lo repita.",
     headline: "Una frase clara. Sin punto final.",
@@ -362,6 +368,69 @@ export async function improveTopic(args: { topic: string; brief: DraftBrief }): 
     .trim()
     .replace(/^["“]|["”]$/g, "")
     .trim();
+}
+
+/** Qué campos usa cada estilo de banner y cómo debe redactarlos el modelo. */
+const BANNER_STYLE_HINT: Record<DraftBannerStyle, string> = {
+  promo:
+    "Estilo PROMO (banda roja con el beneficio principal). Llena: eyebrow (etiqueta corta en mayúsculas tipo 'BONO DE BIENVENIDA', máx 4 palabras), title (el beneficio en sí, corto y contundente, ej. '10,000 puntos HSBC'), subtitle (la condición en una frase, ej. 'Al activar tu tarjeta antes del 31 de julio'). Deja stat e items en null.",
+  deadline:
+    "Estilo DEADLINE (fecha límite destacada). Llena: eyebrow (frase previa corta, ej. 'Tienes hasta el'), title (la fecha en formato legible, ej. '31 de julio de 2026'). Si el brief no trae fecha límite, usa la acción + plazo que sí venga. Deja subtitle, stat e items en null.",
+  benefits:
+    "Estilo BENEFITS (lista con palomitas). Llena: title (encabezado corto, ej. 'Tu tarjeta incluye'), items (2 a 4 beneficios, cada uno máx 8 palabras, sin punto final). Deja eyebrow, subtitle y stat en null.",
+  stat: "Estilo STAT (número grande destacado). Llena: stat (el número/dato con su unidad, ej. '9.65%' o '$1,000,000'), title (qué es ese dato, máx 5 palabras, ej. 'Tasa inicial desde'), subtitle (la condición o contexto en una frase corta). Deja eyebrow e items en null.",
+};
+
+const BannerContentSchema = z.object({
+  eyebrow: z.string().max(60).nullable(),
+  title: z.string().max(120).nullable(),
+  subtitle: z.string().max(160).nullable(),
+  stat: z.string().max(40).nullable(),
+  items: z.array(z.string().max(80)).max(4).nullable(),
+});
+
+/**
+ * Sugiere el contenido de un banner a partir del brief. Mismo principio que
+ * el resto del wizard: extraer/destilar del brief, NUNCA inventar datos.
+ * El usuario edita el resultado en el editor — esto es el primer borrador.
+ */
+export async function suggestBanner(args: {
+  brief: DraftBrief;
+  style: DraftBannerStyle;
+}): Promise<DraftBanner> {
+  const { brief, style } = args;
+
+  const sys = [
+    "Eres un copywriter senior de HSBC México. Vas a llenar el contenido de un BANNER visual que complementa el cuerpo de una notificación de email.",
+    "El banner destaca UN dato/beneficio clave del brief — no repite el cuerpo completo.",
+    "",
+    "Reglas duras:",
+    "- NO inventes datos: montos, fechas, porcentajes, condiciones. Solo usa lo que viene en el brief.",
+    "- Español mexicano. Sin emojis. Sin signos de exclamación dobles.",
+    "- Textos CORTOS: esto es un banner, no un párrafo.",
+    "- NO uses markdown (nada de **): el banner ya tiene su propio formato visual.",
+    "",
+    BANNER_STYLE_HINT[style],
+    "",
+    "Output: SIEMPRE el objeto JSON del schema. Campos que el estilo no usa: null.",
+  ].join("\n");
+
+  const { object } = await generateObject({
+    model: model(),
+    schema: BannerContentSchema,
+    system: sys,
+    prompt: briefToUserPrompt(brief),
+    temperature: 0.4,
+  });
+
+  return {
+    style,
+    ...(object.eyebrow?.trim() && { eyebrow: object.eyebrow.trim() }),
+    ...(object.title?.trim() && { title: object.title.trim() }),
+    ...(object.subtitle?.trim() && { subtitle: object.subtitle.trim() }),
+    ...(object.stat?.trim() && { stat: object.stat.trim() }),
+    ...(object.items?.length && { items: object.items.map((i) => i.trim()).filter(Boolean) }),
+  };
 }
 
 /**
