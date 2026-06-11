@@ -87,12 +87,70 @@ describe("bannerBlockHtml", () => {
     expect(html).toContain("&amp;");
   });
 
+  it("image: foto + texto, con alt y radio en la imagen", () => {
+    const html = bannerBlockHtml({
+      style: "image",
+      title: "Disfruta tus beneficios",
+      subtitle: "Todo listo para estrenarse.",
+      imageUrl: "https://example.com/foto.jpg",
+      imageAlt: "Persona feliz",
+    });
+    expect(html).toContain('src="https://example.com/foto.jpg"');
+    expect(html).toContain('alt="Persona feliz"');
+    expect(html).toContain("Disfruta tus beneficios");
+  });
+
+  it("image: rechaza URLs que no sean http(s)/data:image (sin celda de imagen)", () => {
+    const html = bannerBlockHtml({
+      style: "image",
+      title: "Texto visible",
+
+      imageUrl: "javascript:alert(1)",
+    });
+    expect(html).not.toContain("javascript:");
+    expect(html).not.toContain("<img");
+    expect(html).toContain("Texto visible");
+  });
+
+  it("image: solo URL sin texto también renderiza", () => {
+    const html = bannerBlockHtml({ style: "image", imageUrl: "https://example.com/f.png" });
+    expect(html).toContain("<img");
+  });
+
+  it("coupon: código en grande con borde punteado; sin código no renderiza", () => {
+    const html = bannerBlockHtml({
+      style: "coupon",
+      stat: "PROMO2026",
+      subtitle: "Vigente hasta el 31 de julio",
+    });
+    expect(html).toContain("PROMO2026");
+    expect(html).toContain("dashed");
+    expect(html).toContain("Usa el código"); // default eyebrow
+    expect(bannerBlockHtml({ style: "coupon", subtitle: "sin código" })).toBe("");
+  });
+
+  it("steps: numera los pasos 1..n e ignora líneas vacías", () => {
+    const html = bannerBlockHtml({
+      style: "steps",
+      title: "Actívala en 3 pasos",
+      items: ["Descarga la app", "", "Entra a Tarjetas", "Presiona Activar"],
+    });
+    expect(html).toContain(">1<");
+    expect(html).toContain(">2<");
+    expect(html).toContain(">3<");
+    expect(html).not.toContain(">4<");
+    expect(html).toContain("Presiona Activar");
+  });
+
   it("todos los estilos usan la tipografía Univers del template", () => {
     const banners: DraftBanner[] = [
       { style: "promo", title: "x" },
       { style: "deadline", title: "x" },
       { style: "benefits", items: ["x"] },
       { style: "stat", stat: "x" },
+      { style: "image", title: "x" },
+      { style: "coupon", stat: "x" },
+      { style: "steps", items: ["x"] },
     ];
     for (const b of banners) {
       expect(bannerBlockHtml(b)).toContain("Univers Next");

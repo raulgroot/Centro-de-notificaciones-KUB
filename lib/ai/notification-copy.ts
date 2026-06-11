@@ -379,6 +379,12 @@ const BANNER_STYLE_HINT: Record<DraftBannerStyle, string> = {
   benefits:
     "Estilo BENEFITS (lista con palomitas). Llena: title (encabezado corto, ej. 'Tu tarjeta incluye'), items (2 a 4 beneficios, cada uno máx 8 palabras, sin punto final). Deja eyebrow, subtitle y stat en null.",
   stat: "Estilo STAT (número grande destacado). Llena: stat (el número/dato con su unidad, ej. '9.65%' o '$1,000,000'), title (qué es ese dato, máx 5 palabras, ej. 'Tasa inicial desde'), subtitle (la condición o contexto en una frase corta). Deja eyebrow e items en null.",
+  image:
+    "Estilo IMAGE (foto a la izquierda + texto a la derecha; la imagen la elige el usuario después, tú solo redactas). Llena: title (idea principal, corto y concreto, máx 8 palabras), subtitle (1-2 frases de apoyo). Deja eyebrow, stat e items en null.",
+  coupon:
+    "Estilo COUPON (código de promoción enmarcado). Llena: eyebrow (instrucción corta, ej. 'Usa el código'), stat (EL CÓDIGO tal cual viene en el brief, ej. 'PROMO2026' — si el brief NO trae código, déjalo en null), subtitle (condición o vigencia en una frase). Deja title e items en null.",
+  steps:
+    "Estilo STEPS (pasos numerados). Llena: title (encabezado corto, ej. 'Actívala en 3 pasos'), items (2 a 4 pasos en orden, cada uno una instrucción corta empezando con verbo, máx 10 palabras). Deja eyebrow, subtitle y stat en null.",
 };
 
 const BannerContentSchema = z.object({

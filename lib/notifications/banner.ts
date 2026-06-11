@@ -32,6 +32,18 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
+function escapeAttr(s: string): string {
+  return escapeHtml(s).replace(/'/g, "&#39;");
+}
+
+/** Solo URLs http(s) o data:image — igual que el hero. Evita javascript: y
+ * cualquier otro esquema raro dentro del src del banner. */
+function safeImageUrl(url: string | undefined): string {
+  const u = (url ?? "").trim();
+  if (/^https?:\/\//i.test(u) || /^data:image\//i.test(u)) return escapeAttr(u);
+  return "";
+}
+
 /** ¿El banner tiene suficiente contenido como para renderearse? */
 export function bannerHasContent(banner: DraftBanner | null | undefined): banner is DraftBanner {
   if (!banner) return false;
@@ -43,6 +55,12 @@ export function bannerHasContent(banner: DraftBanner | null | undefined): banner
       return Boolean(banner.items?.some((i) => i.trim()));
     case "stat":
       return Boolean(banner.stat?.trim() || banner.title?.trim());
+    case "image":
+      return Boolean(safeImageUrl(banner.imageUrl) || banner.title?.trim());
+    case "coupon":
+      return Boolean(banner.stat?.trim());
+    case "steps":
+      return Boolean(banner.items?.some((i) => i.trim()));
     default:
       return false;
   }
@@ -114,6 +132,62 @@ function statHtml(b: DraftBanner): string {
 </table>`;
 }
 
+function imageHtml(b: DraftBanner): string {
+  const url = safeImageUrl(b.imageUrl);
+  const alt = escapeAttr(b.imageAlt ?? b.title ?? "Imagen");
+  const subtitle = b.subtitle?.trim()
+    ? `<p style="margin:4px 0 0 0;font-family:${FONT};font-size:13px;line-height:1.45;color:#5F5E5A;">${escapeHtml(b.subtitle)}</p>`
+    : "";
+  const imgCell = url
+    ? `<td valign="top" width="180" style="padding:0 16px 0 0;"><img src="${url}" alt="${alt}" width="164" style="display:block;width:164px;max-width:100%;height:auto;border-radius:6px;" /></td>`
+    : "";
+  return `${TABLE_OPEN}
+<tr><td style="background:#FAFAFA;border:1px solid #E8E8E8;border-radius:6px;padding:16px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;width:100%;">
+<tr>
+${imgCell}<td valign="middle">
+<p style="margin:0;font-family:${FONT};font-size:16px;line-height:1.3;font-weight:700;color:${HSBC_RED};">${escapeHtml(b.title ?? "")}</p>${subtitle}
+</td>
+</tr>
+</table>
+</td></tr>
+</table>`;
+}
+
+function couponHtml(b: DraftBanner): string {
+  const eyebrow = b.eyebrow?.trim() || "Usa el código";
+  const subtitle = b.subtitle?.trim()
+    ? `<p style="margin:6px 0 0 0;font-family:${FONT};font-size:12px;line-height:1.4;color:#5F5E5A;">${escapeHtml(b.subtitle)}</p>`
+    : "";
+  return `${TABLE_OPEN}
+<tr><td align="center" style="background:#FFFFFF;border:2px dashed ${HSBC_RED};border-radius:6px;padding:18px 24px;text-align:center;">
+<p style="margin:0;font-family:${FONT};font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#5F5E5A;">${escapeHtml(eyebrow)}</p>
+<p style="margin:4px 0 0 0;font-family:${FONT};font-size:28px;letter-spacing:3px;font-weight:700;color:${HSBC_RED};">${escapeHtml(b.stat ?? "")}</p>${subtitle}
+</td></tr>
+</table>`;
+}
+
+function stepsHtml(b: DraftBanner): string {
+  const title = b.title?.trim()
+    ? `<p style="margin:0 0 14px 0;font-family:${FONT};font-size:15px;font-weight:700;color:${HSBC_RED};">${escapeHtml(b.title)}</p>`
+    : "";
+  const rows = (b.items ?? [])
+    .map((i) => i.trim())
+    .filter(Boolean)
+    .map(
+      (item, idx) =>
+        `<tr><td valign="top" width="32" style="padding:0 0 12px 0;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" width="22" height="22" bgcolor="${HSBC_RED}" style="background:${HSBC_RED};border-radius:50%;font-family:${FONT};font-size:12px;font-weight:700;color:#FFFFFF;line-height:22px;">${idx + 1}</td></tr></table></td><td valign="top" style="font-family:${FONT};font-size:14px;line-height:1.5;color:#333333;padding:1px 0 12px 0;">${escapeHtml(item)}</td></tr>`,
+    )
+    .join("\n");
+  return `${TABLE_OPEN}
+<tr><td style="background:#FFFFFF;border:1px solid #E8E8E8;border-radius:6px;padding:18px 20px;">
+${title}<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;width:100%;">
+${rows}
+</table>
+</td></tr>
+</table>`;
+}
+
 /** HTML del banner según su estilo. Devuelve "" si no hay contenido. */
 export function bannerBlockHtml(banner: DraftBanner | null | undefined): string {
   if (!bannerHasContent(banner)) return "";
@@ -126,5 +200,11 @@ export function bannerBlockHtml(banner: DraftBanner | null | undefined): string 
       return benefitsHtml(banner);
     case "stat":
       return statHtml(banner);
+    case "image":
+      return imageHtml(banner);
+    case "coupon":
+      return couponHtml(banner);
+    case "steps":
+      return stepsHtml(banner);
   }
 }

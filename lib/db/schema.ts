@@ -365,7 +365,14 @@ export interface DraftKeyInfo {
 
 /** Estilos de banner disponibles dentro del email. Catálogo cerrado para
  * que el render sea email-safe (tablas + estilos inline) y siempre on-brand. */
-export type DraftBannerStyle = "promo" | "deadline" | "benefits" | "stat";
+export type DraftBannerStyle =
+  | "promo"
+  | "deadline"
+  | "benefits"
+  | "stat"
+  | "image"
+  | "coupon"
+  | "steps";
 
 /**
  * Banner visual opcional que complementa el cuerpo del email (se inserta
@@ -374,14 +381,21 @@ export type DraftBannerStyle = "promo" | "deadline" | "benefits" | "stat";
  *   - deadline: eyebrow ("Tienes hasta el") + title (fecha legible)
  *   - benefits: title (encabezado) + items (bullets con palomita roja)
  *   - stat:     stat (número grande) + title (qué es) + subtitle (condición)
+ *   - image:    imageUrl/imageAlt (foto izquierda) + title + subtitle (texto derecha)
+ *   - coupon:   eyebrow ("Usa el código") + stat (EL CÓDIGO) + subtitle (condición)
+ *   - steps:    title (encabezado) + items (pasos numerados 1-2-3)
  */
 export interface DraftBanner {
   style: DraftBannerStyle;
   eyebrow?: string;
   title?: string;
   subtitle?: string;
+  /** Número grande (stat) o código de promoción (coupon). */
   stat?: string;
   items?: string[];
+  /** Imagen del estilo `image`: URL http(s) o data:image. */
+  imageUrl?: string;
+  imageAlt?: string;
 }
 
 export interface DraftCopy {

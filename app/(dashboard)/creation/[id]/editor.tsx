@@ -42,6 +42,7 @@ import type {
   DraftKeyInfo,
 } from "@/lib/db/schema";
 import { renderEmailHtml } from "@/lib/notifications/template";
+import { bannerBlockHtml } from "@/lib/notifications/banner";
 import type { FreepikImage } from "@/lib/adapters/freepik/client";
 import type { UnsplashImage } from "@/lib/adapters/unsplash/client";
 import type { GeneratedImage } from "@/lib/adapters/google-genai/client";
@@ -462,11 +463,17 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
   async function onPickBannerStyle(style: DraftBannerStyle) {
     setBusy((b) => ({ ...b, banner: true }));
     setError(null);
+    // La IA solo redacta texto — la imagen elegida (estilo "image") se
+    // conserva al cambiar de estilo o re-sugerir.
+    const prev = stateRef.current.copy.banner;
+    const keepImage = prev?.imageUrl
+      ? { imageUrl: prev.imageUrl, ...(prev.imageAlt && { imageAlt: prev.imageAlt }) }
+      : {};
     try {
       const suggested = await suggestBannerAction({ brief: stateRef.current.brief, style });
-      setCopy({ ...stateRef.current.copy, banner: suggested });
+      setCopy({ ...stateRef.current.copy, banner: { ...suggested, ...keepImage } });
     } catch {
-      setCopy({ ...stateRef.current.copy, banner: { style } });
+      setCopy({ ...stateRef.current.copy, banner: { style, ...keepImage } });
     } finally {
       setBusy((b) => ({ ...b, banner: false }));
     }
@@ -1202,6 +1209,7 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                 <BannerSection
                   banner={copy.banner ?? null}
                   suggesting={Boolean(busy.banner)}
+                  heroImageUrl={heroImage?.url ?? null}
                   onPickStyle={onPickBannerStyle}
                   onChange={(banner) => setCopy({ ...copy, banner })}
                   onRemove={() => setCopy({ ...copy, banner: null })}
@@ -1519,7 +1527,72 @@ const BANNER_STYLES: Array<{ id: DraftBannerStyle; label: string; help: string }
   { id: "deadline", label: "Fecha límite", help: "La fecha en grande con acento rojo." },
   { id: "benefits", label: "Beneficios", help: "Lista con palomitas rojas." },
   { id: "stat", label: "Dato grande", help: "Un número que se quede grabado." },
+  { id: "image", label: "Imagen + texto", help: "Foto a la izquierda, mensaje a la derecha." },
+  { id: "coupon", label: "Código promo", help: "Cupón punteado con el código en grande." },
+  { id: "steps", label: "Pasos numerados", help: "Instrucciones 1-2-3 con círculos rojos." },
 ];
+
+/** Placeholder de imagen para la miniatura del estilo "image" (SVG inline). */
+const BANNER_SAMPLE_IMG = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="164" height="110"><rect width="164" height="110" rx="6" fill="#E8E8E8"/><circle cx="58" cy="44" r="14" fill="#C9C9C9"/><path d="M24 92 L66 56 L96 80 L120 62 L148 92 Z" fill="#C9C9C9"/></svg>`,
+)}`;
+
+/**
+ * Contenido de muestra por estilo — alimenta las miniaturas del picker.
+ * Se renderiza con `bannerBlockHtml` (el MISMO motor del email), así la
+ * vista previa es fiel a lo que saldrá en la pieza.
+ */
+const BANNER_SAMPLES: Record<DraftBannerStyle, DraftBanner> = {
+  promo: {
+    style: "promo",
+    eyebrow: "BONO DE BIENVENIDA",
+    title: "10,000 puntos HSBC",
+    subtitle: "Al activar tu tarjeta antes del 31 de julio",
+  },
+  deadline: { style: "deadline", eyebrow: "Tienes hasta el", title: "31 de julio de 2026" },
+  benefits: {
+    style: "benefits",
+    title: "Tu tarjeta incluye",
+    items: ["Sin anualidad el primer año", "2x puntos en restaurantes"],
+  },
+  stat: {
+    style: "stat",
+    stat: "9.65%",
+    title: "Tasa inicial desde",
+    subtitle: "Con aforo hasta el 70%",
+  },
+  image: {
+    style: "image",
+    title: "Disfruta tus beneficios",
+    subtitle: "Tu tarjeta llega con todo listo para estrenarse.",
+    imageUrl: BANNER_SAMPLE_IMG,
+  },
+  coupon: {
+    style: "coupon",
+    eyebrow: "Usa el código",
+    stat: "PROMO2026",
+    subtitle: "Vigente hasta el 31 de julio de 2026",
+  },
+  steps: {
+    style: "steps",
+    title: "Actívala en 3 pasos",
+    items: ["Descarga la app HSBC México", "Entra a Tarjetas", "Presiona Activar"],
+  },
+};
+
+/** Miniatura fiel de un estilo: render real escalado (no editable). */
+function BannerThumb({ style }: { style: DraftBannerStyle }) {
+  return (
+    <div className="pointer-events-none h-[84px] overflow-hidden rounded bg-white">
+      <div
+        style={{ transform: "scale(0.42)", transformOrigin: "top left", width: "238%" }}
+        // HTML generado por nuestro propio renderer con contenido fijo de
+        // muestra (escapado adentro) — no hay input del usuario aquí.
+        dangerouslySetInnerHTML={{ __html: bannerBlockHtml(BANNER_SAMPLES[style]) }}
+      />
+    </div>
+  );
+}
 
 /**
  * Sección "Banner" de la columna de copy. Sin banner: 4 botones de estilo
@@ -1530,17 +1603,40 @@ const BANNER_STYLES: Array<{ id: DraftBannerStyle; label: string; help: string }
 function BannerSection({
   banner,
   suggesting,
+  heroImageUrl,
   onPickStyle,
   onChange,
   onRemove,
 }: {
   banner: DraftBanner | null;
   suggesting: boolean;
+  /** URL del hero ya elegido (para reusarlo en el estilo "image"). */
+  heroImageUrl: string | null;
   onPickStyle: (style: DraftBannerStyle) => void;
   onChange: (banner: DraftBanner) => void;
   onRemove: () => void;
 }) {
   const set = (patch: Partial<DraftBanner>) => banner && onChange({ ...banner, ...patch });
+  const imgInputRef = useRef<HTMLInputElement>(null);
+  const [imgError, setImgError] = useState<string | null>(null);
+
+  /** Sube una imagen local para el banner (mismas reglas que el hero). */
+  function onUploadBannerImage(file: File) {
+    setImgError(null);
+    if (!ALLOWED_HERO_MIME.includes(file.type as (typeof ALLOWED_HERO_MIME)[number])) {
+      setImgError("Solo PNG, JPG o WebP.");
+      return;
+    }
+    if (file.size > MAX_HERO_UPLOAD_BYTES) {
+      setImgError(`Pesa ${(file.size / (1024 * 1024)).toFixed(1)} MB; el máximo es 3 MB.`);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () =>
+      set({ imageUrl: String(reader.result), imageAlt: file.name.replace(/\.[^.]+$/, "") });
+    reader.onerror = () => setImgError("No pude leer el archivo.");
+    reader.readAsDataURL(file);
+  }
 
   return (
     <div className="mt-8 rounded-lg border border-neutral-200 bg-neutral-50/60 p-4">
@@ -1565,7 +1661,9 @@ function BannerSection({
         <>
           <p className="mt-2 text-xs text-neutral-500">
             Un bloque visual con estilo HSBC entre el cuerpo y el botón — para que el dato clave no
-            se pierda en el texto. Elige un estilo y la IA lo llena desde tu brief.
+            se pierda en el texto. Las miniaturas son una vista previa real de cada estilo (con
+            contenido de ejemplo); al elegir uno, la IA lo llena desde tu brief y lo puedes editar o
+            quitar.
           </p>
           <div className="mt-3 grid grid-cols-2 gap-2">
             {BANNER_STYLES.map((s) => (
@@ -1574,13 +1672,14 @@ function BannerSection({
                 type="button"
                 disabled={suggesting}
                 onClick={() => onPickStyle(s.id)}
-                className="hover:border-brand-400 rounded-md border border-neutral-200 bg-white p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-60"
+                className="hover:border-brand-400 rounded-md border border-neutral-200 bg-white p-2 text-left transition disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-neutral-800">
+                <BannerThumb style={s.id} />
+                <div className="mt-1.5 flex items-center gap-1.5 px-1 text-xs font-semibold text-neutral-800">
                   {suggesting ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
                   {s.label}
                 </div>
-                <div className="mt-0.5 text-[11px] text-neutral-500">{s.help}</div>
+                <div className="mt-0.5 px-1 pb-0.5 text-[11px] text-neutral-500">{s.help}</div>
               </button>
             ))}
           </div>
@@ -1622,24 +1721,44 @@ function BannerSection({
             </button>
           </div>
 
-          {/* Campos según estilo */}
-          {(banner.style === "promo" || banner.style === "deadline") && (
-            <BannerInput
-              label={banner.style === "promo" ? "Etiqueta (arriba)" : "Frase previa"}
-              value={banner.eyebrow ?? ""}
-              placeholder={banner.style === "promo" ? "BONO DE BIENVENIDA" : "Tienes hasta el"}
-              onChange={(v) => set({ eyebrow: v })}
-            />
+          {/* Campos según estilo (grupos explícitos, sin condicionales cruzados) */}
+          {banner.style === "promo" && (
+            <>
+              <BannerInput
+                label="Etiqueta (arriba)"
+                value={banner.eyebrow ?? ""}
+                placeholder="BONO DE BIENVENIDA"
+                onChange={(v) => set({ eyebrow: v })}
+              />
+              <BannerInput
+                label="Texto principal"
+                value={banner.title ?? ""}
+                placeholder="10,000 puntos HSBC"
+                onChange={(v) => set({ title: v })}
+              />
+              <BannerInput
+                label="Texto secundario (condición)"
+                value={banner.subtitle ?? ""}
+                placeholder="Al activar tu tarjeta antes del 31 de julio"
+                onChange={(v) => set({ subtitle: v })}
+              />
+            </>
           )}
-          {banner.style !== "benefits" && banner.style !== "stat" && (
-            <BannerInput
-              label={banner.style === "deadline" ? "Fecha / plazo" : "Texto principal"}
-              value={banner.title ?? ""}
-              placeholder={
-                banner.style === "deadline" ? "31 de julio de 2026" : "10,000 puntos HSBC"
-              }
-              onChange={(v) => set({ title: v })}
-            />
+          {banner.style === "deadline" && (
+            <>
+              <BannerInput
+                label="Frase previa"
+                value={banner.eyebrow ?? ""}
+                placeholder="Tienes hasta el"
+                onChange={(v) => set({ eyebrow: v })}
+              />
+              <BannerInput
+                label="Fecha / plazo"
+                value={banner.title ?? ""}
+                placeholder="31 de julio de 2026"
+                onChange={(v) => set({ title: v })}
+              />
+            </>
           )}
           {banner.style === "stat" && (
             <>
@@ -1655,15 +1774,13 @@ function BannerSection({
                 placeholder="Tasa inicial desde"
                 onChange={(v) => set({ title: v })}
               />
+              <BannerInput
+                label="Texto secundario (condición)"
+                value={banner.subtitle ?? ""}
+                placeholder="Con aforo hasta el 70%"
+                onChange={(v) => set({ subtitle: v })}
+              />
             </>
-          )}
-          {(banner.style === "promo" || banner.style === "stat") && (
-            <BannerInput
-              label="Texto secundario (condición)"
-              value={banner.subtitle ?? ""}
-              placeholder="Al activar tu tarjeta antes del 31 de julio"
-              onChange={(v) => set({ subtitle: v })}
-            />
           )}
           {banner.style === "benefits" && (
             <>
@@ -1673,22 +1790,157 @@ function BannerSection({
                 placeholder="Tu tarjeta incluye"
                 onChange={(v) => set({ title: v })}
               />
+              <BannerTextarea
+                label="Beneficios (uno por línea)"
+                value={(banner.items ?? []).join("\n")}
+                placeholder={"Sin anualidad el primer año\n2x puntos en restaurantes"}
+                onChange={(v) => set({ items: v.split("\n") })}
+              />
+            </>
+          )}
+          {banner.style === "coupon" && (
+            <>
+              <BannerInput
+                label="Instrucción (arriba)"
+                value={banner.eyebrow ?? ""}
+                placeholder="Usa el código"
+                onChange={(v) => set({ eyebrow: v })}
+              />
+              <BannerInput
+                label="Código"
+                value={banner.stat ?? ""}
+                placeholder="PROMO2026"
+                onChange={(v) => set({ stat: v })}
+              />
+              <BannerInput
+                label="Vigencia / condición"
+                value={banner.subtitle ?? ""}
+                placeholder="Vigente hasta el 31 de julio de 2026"
+                onChange={(v) => set({ subtitle: v })}
+              />
+            </>
+          )}
+          {banner.style === "steps" && (
+            <>
+              <BannerInput
+                label="Encabezado"
+                value={banner.title ?? ""}
+                placeholder="Actívala en 3 pasos"
+                onChange={(v) => set({ title: v })}
+              />
+              <BannerTextarea
+                label="Pasos (uno por línea, en orden)"
+                value={(banner.items ?? []).join("\n")}
+                placeholder={"Descarga la app HSBC México\nEntra a Tarjetas\nPresiona Activar"}
+                onChange={(v) => set({ items: v.split("\n") })}
+              />
+            </>
+          )}
+          {banner.style === "image" && (
+            <>
+              <BannerInput
+                label="Texto principal"
+                value={banner.title ?? ""}
+                placeholder="Disfruta tus beneficios"
+                onChange={(v) => set({ title: v })}
+              />
+              <BannerInput
+                label="Texto secundario"
+                value={banner.subtitle ?? ""}
+                placeholder="Tu tarjeta llega con todo listo para estrenarse."
+                onChange={(v) => set({ subtitle: v })}
+              />
+              {/* Imagen del banner: subir, reusar el hero o pegar URL. */}
               <div>
                 <label className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
-                  Beneficios (uno por línea)
+                  Imagen
                 </label>
-                <textarea
-                  value={(banner.items ?? []).join("\n")}
-                  onChange={(e) => set({ items: e.target.value.split("\n") })}
-                  rows={4}
-                  placeholder={"Sin anualidad el primer año\n2x puntos en restaurantes"}
-                  className="focus:border-brand-600 mt-1.5 w-full rounded-md border border-neutral-200 bg-white px-2.5 py-2 text-sm text-neutral-900 focus:outline-none"
-                />
+                <div className="mt-1.5 flex items-center gap-2">
+                  {banner.imageUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={banner.imageUrl}
+                      alt={banner.imageAlt ?? ""}
+                      className="h-14 w-20 rounded border border-neutral-200 object-cover"
+                    />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => imgInputRef.current?.click()}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-[11px] font-medium text-neutral-700 transition hover:bg-neutral-50"
+                  >
+                    <Upload className="h-3 w-3" />
+                    Subir
+                  </button>
+                  {heroImageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => set({ imageUrl: heroImageUrl, imageAlt: "Imagen del hero" })}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-[11px] font-medium text-neutral-700 transition hover:bg-neutral-50"
+                    >
+                      <ImageIcon className="h-3 w-3" />
+                      Usar imagen del hero
+                    </button>
+                  )}
+                  {banner.imageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => set({ imageUrl: undefined, imageAlt: undefined })}
+                      className="inline-flex items-center gap-1 text-[11px] font-medium text-neutral-500 transition hover:text-red-600"
+                    >
+                      <X className="h-3 w-3" />
+                      Quitar imagen
+                    </button>
+                  )}
+                  <input
+                    ref={imgInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) onUploadBannerImage(f);
+                      e.target.value = "";
+                    }}
+                  />
+                </div>
+                {imgError && <p className="mt-1 text-[11px] text-red-600">{imgError}</p>}
+                <p className="mt-1 text-[10px] text-neutral-400">
+                  PNG/JPG/WebP hasta 3 MB. También puedes generar una con Nano Banana en la sección
+                  de imagen y luego presionar “Usar imagen del hero”.
+                </p>
               </div>
             </>
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function BannerTextarea({
+  label,
+  value,
+  placeholder,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  placeholder: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div>
+      <label className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+        {label}
+      </label>
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        rows={4}
+        placeholder={placeholder}
+        className="focus:border-brand-600 mt-1.5 w-full rounded-md border border-neutral-200 bg-white px-2.5 py-2 text-sm text-neutral-900 focus:outline-none"
+      />
     </div>
   );
 }
