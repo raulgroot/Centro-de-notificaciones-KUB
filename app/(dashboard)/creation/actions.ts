@@ -171,7 +171,7 @@ export async function extractBriefFromFileAction(formData: FormData): Promise<Ex
   const mediaType = inferMediaType(file.name, file.type);
   if (!(EXTRACT_ALLOWED_MIME as readonly string[]).includes(mediaType)) {
     throw new Error(
-      "Formato no soportado. Acepto imágenes (PNG/JPG/WebP/GIF), PDF o texto (.txt/.md/.csv).",
+      "Formato no soportado. Acepto imágenes (PNG/JPG/WebP/GIF), PDF, PowerPoint (.pptx) o texto (.txt/.md/.csv).",
     );
   }
   const data = new Uint8Array(await file.arrayBuffer());

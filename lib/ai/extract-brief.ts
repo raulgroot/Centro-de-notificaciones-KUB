@@ -20,10 +20,12 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { generateObject, type UserContent } from "ai";
 import { z } from "zod";
 import { anthropicEnv } from "@/lib/env";
+import { extractPptxText, PPTX_MIME } from "@/lib/core/files/pptx-text";
 import type { DraftKeyInfo } from "@/lib/db/schema";
 
 /** Tipos aceptados. Claude soporta PDFs e imágenes nativamente; el texto
- * plano lo inyectamos como bloque de texto. */
+ * plano lo inyectamos como bloque de texto, y los .pptx se convierten a
+ * texto server-side (ver lib/core/files/pptx-text). */
 export const EXTRACT_ALLOWED_MIME = [
   "application/pdf",
   "image/png",
@@ -33,6 +35,7 @@ export const EXTRACT_ALLOWED_MIME = [
   "text/plain",
   "text/markdown",
   "text/csv",
+  PPTX_MIME,
 ] as const;
 
 /** 8 MB: debajo del bodySizeLimit de 10mb de los server actions, y más que
@@ -59,6 +62,7 @@ export function inferMediaType(filename: string, given: string): string {
     txt: "text/plain",
     md: "text/markdown",
     csv: "text/csv",
+    pptx: PPTX_MIME,
   };
   return byExt[ext] ?? given;
 }
@@ -175,6 +179,16 @@ export async function extractBriefFromFile(args: {
   if (mediaType.startsWith("text/")) {
     const text = new TextDecoder("utf-8").decode(data).slice(0, MAX_TEXT_CHARS);
     content = [{ type: "text", text: `${intro}\n\n--- CONTENIDO DEL ARCHIVO ---\n${text}` }];
+  } else if (mediaType === PPTX_MIME) {
+    // PowerPoint: la API no acepta .pptx directo — extraemos el texto de
+    // las diapositivas (+ notas) y lo mandamos como bloque de texto.
+    const text = extractPptxText(data).slice(0, MAX_TEXT_CHARS);
+    content = [
+      {
+        type: "text",
+        text: `${intro}\n\n--- TEXTO EXTRAÍDO DEL POWERPOINT (por diapositiva) ---\n${text}`,
+      },
+    ];
   } else if (mediaType === "application/pdf") {
     content = [
       { type: "text", text: intro },

@@ -70,7 +70,7 @@ const ALLOWED_HERO_MIME = ["image/png", "image/jpeg", "image/webp"] as const;
  * — duplicado a propósito: importar esa lib aquí metería el SDK de IA al
  * bundle del cliente. El server action re-valida de todos modos. */
 const MAX_EXTRACT_BYTES = 8 * 1024 * 1024;
-const EXTRACT_ACCEPT = ".pdf,.png,.jpg,.jpeg,.webp,.gif,.txt,.md,.csv";
+const EXTRACT_ACCEPT = ".pdf,.pptx,.png,.jpg,.jpeg,.webp,.gif,.txt,.md,.csv";
 
 /** Products that have an official HSBC card icon under /public/cards/. */
 const PRODUCTS = [
@@ -688,8 +688,9 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                             ¿Te llegó la solicitud en un archivo?
                           </p>
                           <p className="mt-0.5 text-[11px] text-neutral-500">
-                            Sube o arrastra una foto, PDF o texto y la IA extrae la información por
-                            ti. No inventa datos: solo usa lo que viene en el archivo.
+                            Sube o arrastra una foto, PDF, PowerPoint o texto y la IA extrae la
+                            información por ti. No inventa datos: solo usa lo que viene en el
+                            archivo.
                           </p>
                         </div>
                         <button
