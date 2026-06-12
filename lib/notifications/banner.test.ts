@@ -117,6 +117,32 @@ describe("bannerBlockHtml", () => {
     expect(html).toContain("<img");
   });
 
+  it("image con imageFull: foto full-bleed (sin padding, alto completo, radio izquierdo)", () => {
+    const html = bannerBlockHtml({
+      style: "image",
+      title: "Conoce todas las promociones",
+      imageUrl: "https://example.com/f.png",
+      imageFull: true,
+    });
+    expect(html).toContain("object-fit:cover");
+    expect(html).toContain("height:100%");
+    expect(html).toContain("border-radius:12px 0 0 12px");
+    // El título full-bleed va en gris oscuro (como el ejemplo), no en rojo.
+    expect(html).toContain("color:#1A1A1A");
+    // El contenedor no lleva padding (la imagen pega al borde).
+    expect(html).toMatch(/<td style="padding:0;background:#FFFFFF/);
+  });
+
+  it("image sin imageFull conserva el look tarjeta (margen + fondo gris)", () => {
+    const html = bannerBlockHtml({
+      style: "image",
+      title: "x",
+      imageUrl: "https://example.com/f.png",
+    });
+    expect(html).toContain("#FAFAFA");
+    expect(html).not.toContain("object-fit:cover");
+  });
+
   it("coupon: código en grande con borde punteado; sin código no renderiza", () => {
     const html = bannerBlockHtml({
       style: "coupon",

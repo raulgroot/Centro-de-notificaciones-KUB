@@ -400,6 +400,12 @@ export interface DraftBanner {
   /** Imagen del estilo `image`: URL http(s) o data:image. */
   imageUrl?: string;
   imageAlt?: string;
+  /**
+   * Solo estilo `image`: la foto toma TODO el alto del banner, pegada al
+   * borde izquierdo (full-bleed), texto centrado a la derecha sobre blanco.
+   * false/undefined = look tarjeta con margen.
+   */
+  imageFull?: boolean;
 }
 
 export interface DraftCopy {

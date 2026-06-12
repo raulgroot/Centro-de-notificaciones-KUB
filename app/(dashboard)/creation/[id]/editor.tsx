@@ -2322,7 +2322,21 @@ function BannerImageTools({
       )}
 
       {imgError && <p className="mt-1 text-[11px] text-red-600">{imgError}</p>}
-      <p className="mt-1 text-[10px] text-neutral-400">
+
+      {/* Layout: tarjeta con margen vs imagen a todo el alto (full-bleed). */}
+      <label className="mt-2.5 flex cursor-pointer items-center gap-2">
+        <input
+          type="checkbox"
+          checked={Boolean(banner.imageFull)}
+          onChange={(e) => set({ imageFull: e.target.checked })}
+          className="accent-brand-600 h-3.5 w-3.5"
+        />
+        <span className="text-xs text-neutral-700">
+          La imagen toma todo el alto del banner (pegada al borde, sin margen)
+        </span>
+      </label>
+
+      <p className="mt-1.5 text-[10px] text-neutral-400">
         Generar usa Nano Banana con el prompt editorial (reglas de marca HSBC). También puedes
         buscar en Unsplash, subir PNG/JPG/WebP (≤3 MB) o reusar la imagen del hero.
       </p>

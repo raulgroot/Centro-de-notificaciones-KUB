@@ -148,6 +148,7 @@ function statHtml(b: DraftBanner): string {
 function imageHtml(b: DraftBanner): string {
   const url = safeImageUrl(b.imageUrl);
   const alt = escapeAttr(b.imageAlt ?? b.title ?? "Imagen");
+  if (b.imageFull) return imageFullHtml(b, url, alt);
   const subtitle = b.subtitle?.trim()
     ? `<p style="margin:4px 0 0 0;font-family:${FONT};font-size:13px;line-height:1.45;color:#5F5E5A;">${escapeHtml(b.subtitle)}</p>`
     : "";
@@ -160,6 +161,36 @@ function imageHtml(b: DraftBanner): string {
 <tr>
 ${imgCell}<td valign="middle">
 <p style="margin:0;font-family:${FONT};font-size:16px;line-height:1.3;font-weight:700;color:${HSBC_RED};">${escapeHtml(b.title ?? "")}</p>${subtitle}
+</td>
+</tr>
+</table>
+</td></tr>
+</table>`;
+}
+
+/**
+ * Variante full-bleed del banner de imagen: la foto pegada al borde
+ * izquierdo ocupando TODO el alto, texto centrado a la derecha sobre
+ * blanco, esquinas redondeadas grandes (estilo card de promociones).
+ *
+ * Nota email-safe: `height:100%` + `object-fit:cover` cubren el alto en
+ * clientes modernos (Gmail, Apple Mail). En clientes viejos (Outlook
+ * desktop) la imagen degrada a su proporción natural a 220px de ancho —
+ * legible, solo sin el efecto full-bleed.
+ */
+function imageFullHtml(b: DraftBanner, url: string, alt: string): string {
+  const subtitle = b.subtitle?.trim()
+    ? `<p style="margin:6px 0 0 0;font-family:${FONT};font-size:14px;line-height:1.45;color:#5F5E5A;">${escapeHtml(b.subtitle)}</p>`
+    : "";
+  const imgCell = url
+    ? `<td valign="middle" width="220" style="padding:0;font-size:0;line-height:0;"><img src="${url}" alt="${alt}" width="220" style="display:block;width:220px;height:100%;min-height:150px;object-fit:cover;border-radius:12px 0 0 12px;" /></td>`
+    : "";
+  return `${TABLE_OPEN}
+<tr><td style="padding:0;background:#FFFFFF;border:1px solid #E8E8E8;border-radius:12px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;width:100%;">
+<tr>
+${imgCell}<td valign="middle" style="padding:24px 28px;">
+<p style="margin:0;font-family:${FONT};font-size:19px;line-height:1.3;font-weight:700;color:#1A1A1A;">${escapeHtml(b.title ?? "")}</p>${subtitle}
 </td>
 </tr>
 </table>
