@@ -223,6 +223,10 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
     reason: string;
   } | null>(null);
   const [proposalLoading, setProposalLoading] = useState(false);
+  // Acordeón de banners: índice del banner expandido (null = todos
+  // colapsados). Solo uno abierto a la vez para que la lista no se vuelva
+  // una pared de inputs.
+  const [openBannerIdx, setOpenBannerIdx] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [imageQuery, setImageQuery] = useState<string>("");
   const [imageResults, setImageResults] = useState<FreepikImage[]>([]);
@@ -508,7 +512,10 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
 
   function appendBanner(banner: DraftBanner) {
     const c = stateRef.current.copy;
-    setCopy({ ...c, banners: [...(c.banners ?? []), banner] });
+    const list = c.banners ?? [];
+    setCopy({ ...c, banners: [...list, banner] });
+    // El banner recién agregado se abre solo para editarlo de inmediato.
+    setOpenBannerIdx(list.length);
   }
 
   function changeBannerAt(idx: number, banner: DraftBanner) {
@@ -521,6 +528,7 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
   function removeBannerAt(idx: number) {
     const c = stateRef.current.copy;
     setCopy({ ...c, banners: (c.banners ?? []).filter((_, i) => i !== idx) });
+    setOpenBannerIdx(null);
   }
 
   /** Mueve el banner una posición (dir -1 = arriba, +1 = abajo). */
@@ -532,6 +540,8 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
     const [item] = list.splice(idx, 1);
     list.splice(j, 0, item!);
     setCopy({ ...c, banners: list });
+    // El acordeón sigue al banner que se movió (o al desplazado).
+    setOpenBannerIdx((cur) => (cur === idx ? j : cur === j ? idx : cur));
   }
 
   /**
@@ -1289,6 +1299,8 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                   suggesting={Boolean(busy.banner)}
                   heroImageUrl={heroImage?.url ?? null}
                   brief={brief}
+                  openIdx={openBannerIdx}
+                  onToggleIdx={(i) => setOpenBannerIdx((cur) => (cur === i ? null : i))}
                   onAddStyle={onAddBannerStyle}
                   onChangeAt={changeBannerAt}
                   onRemoveAt={removeBannerAt}
@@ -1706,6 +1718,8 @@ function BannersSection({
   suggesting,
   heroImageUrl,
   brief,
+  openIdx,
+  onToggleIdx,
   onAddStyle,
   onChangeAt,
   onRemoveAt,
@@ -1721,6 +1735,9 @@ function BannersSection({
   /** URL del hero ya elegido (para reusarlo en el estilo "image"). */
   heroImageUrl: string | null;
   brief: DraftBrief;
+  /** Índice del banner expandido en el acordeón (null = todos cerrados). */
+  openIdx: number | null;
+  onToggleIdx: (idx: number) => void;
   onAddStyle: (style: DraftBannerStyle) => void;
   onChangeAt: (idx: number, banner: DraftBanner) => void;
   onRemoveAt: (idx: number) => void;
@@ -1740,128 +1757,164 @@ function BannersSection({
   }
 
   return (
-    <div className="mt-8 rounded-lg border border-neutral-200 bg-neutral-50/60 p-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
-          <Presentation className="h-3.5 w-3.5" />
-          Banners (opcional)
+    <div className="mt-8 overflow-hidden rounded-lg border border-neutral-300 bg-white shadow-sm">
+      {/* Encabezado distintivo de la sección */}
+      <div className="flex items-center justify-between gap-3 border-b border-neutral-200 bg-neutral-50 px-4 py-3">
+        <div className="flex items-center gap-2.5">
+          <div className="bg-brand-600 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-white">
+            <Presentation className="h-4 w-4" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-neutral-900">Banners del email</span>
+              {banners.length > 0 && (
+                <span className="bg-brand-50 text-brand-700 border-brand-200 rounded-full border px-2 py-0.5 text-[10px] font-semibold">
+                  {banners.length}
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-neutral-500">
+              Bloques visuales entre el cuerpo y el botón. Opcional.
+            </p>
+          </div>
         </div>
         {banners.length > 0 && !galleryOpen && (
           <button
             type="button"
             onClick={() => setGalleryOpen(true)}
-            className="text-brand-700 border-brand-200 hover:bg-brand-50 inline-flex items-center gap-1 rounded-md border bg-white px-2.5 py-1.5 text-[11px] font-medium transition"
+            className="bg-brand-600 hover:bg-brand-700 inline-flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-[11px] font-semibold text-white transition"
           >
             <Plus className="h-3 w-3" />
-            Agregar banner
+            Agregar
           </button>
         )}
       </div>
 
-      {/* Propuesta automática de la IA (post-generación) */}
-      {proposalLoading && (
-        <div className="mt-3 flex items-center gap-2 rounded-md border border-neutral-200 bg-white px-3 py-2.5 text-xs text-neutral-500">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          La IA está analizando tu brief para proponerte un banner…
-        </div>
-      )}
-      {proposal && (
-        <div className="border-brand-200 bg-brand-50/40 mt-3 rounded-md border p-3">
-          <div className="text-brand-700 flex items-center gap-1.5 text-[11px] font-semibold tracking-wider uppercase">
-            <Sparkles className="h-3 w-3" />
-            Sugerencia de la IA
+      <div className="space-y-3 px-4 py-3.5">
+        {/* Propuesta automática de la IA (post-generación) */}
+        {proposalLoading && (
+          <div className="flex items-center gap-2 rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2.5 text-xs text-neutral-500">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            La IA está analizando tu brief para proponerte un banner…
           </div>
-          <p className="mt-1 text-xs text-neutral-600">{proposal.reason}</p>
-          <BannerPreview banner={proposal.banner} />
-          <div className="mt-2 flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onAcceptProposal}
-              className="bg-brand-600 hover:bg-brand-700 inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[11px] font-semibold text-white transition"
-            >
-              <Check className="h-3 w-3" />
-              Agregar a la pieza
-            </button>
-            <button
-              type="button"
-              onClick={onDismissProposal}
-              className="inline-flex items-center gap-1 rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-[11px] font-medium text-neutral-600 transition hover:bg-neutral-50"
-            >
-              <X className="h-3 w-3" />
-              Descartar
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Lista de banners existentes */}
-      {banners.length > 0 && (
-        <div className="mt-3 space-y-3">
-          {banners.map((b, idx) => (
-            <BannerEditor
-              key={idx}
-              index={idx}
-              total={banners.length}
-              banner={b}
-              suggesting={suggesting}
-              heroImageUrl={heroImageUrl}
-              brief={brief}
-              onChange={(nb) => onChangeAt(idx, nb)}
-              onRemove={() => onRemoveAt(idx)}
-              onMove={(dir) => onMoveAt(idx, dir)}
-              onResuggest={(style) => onResuggestAt(idx, style)}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* Galería de estilos (miniaturas = render real con contenido de ejemplo) */}
-      {showGallery && (
-        <>
-          <p className="mt-2 text-xs text-neutral-500">
-            {banners.length === 0
-              ? "Un bloque visual con estilo HSBC entre el cuerpo y el botón. Las miniaturas son una vista previa real de cada estilo; al elegir uno, la IA lo llena desde tu brief."
-              : "Elige el estilo del nuevo banner — se agrega al final (puedes reordenar con las flechas)."}
-          </p>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            {BANNER_STYLES.map((s) => (
+        )}
+        {proposal && (
+          <div className="border-brand-200 bg-brand-50/40 rounded-md border p-3">
+            <div className="text-brand-700 flex items-center gap-1.5 text-[11px] font-semibold tracking-wider uppercase">
+              <Sparkles className="h-3 w-3" />
+              Sugerencia de la IA
+            </div>
+            <p className="mt-1 text-xs text-neutral-600">{proposal.reason}</p>
+            <BannerPreview banner={proposal.banner} />
+            <div className="mt-2 flex items-center gap-2">
               <button
-                key={s.id}
                 type="button"
-                disabled={suggesting}
-                onClick={() => pickStyle(s.id)}
-                className="hover:border-brand-400 rounded-md border border-neutral-200 bg-white p-2 text-left transition disabled:cursor-not-allowed disabled:opacity-60"
+                onClick={onAcceptProposal}
+                className="bg-brand-600 hover:bg-brand-700 inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[11px] font-semibold text-white transition"
               >
-                <BannerThumb style={s.id} />
-                <div className="mt-1.5 flex items-center gap-1.5 px-1 text-xs font-semibold text-neutral-800">
-                  {suggesting ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-                  {s.label}
-                </div>
-                <div className="mt-0.5 px-1 pb-0.5 text-[11px] text-neutral-500">{s.help}</div>
+                <Check className="h-3 w-3" />
+                Agregar a la pieza
               </button>
+              <button
+                type="button"
+                onClick={onDismissProposal}
+                className="inline-flex items-center gap-1 rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-[11px] font-medium text-neutral-600 transition hover:bg-neutral-50"
+              >
+                <X className="h-3 w-3" />
+                Descartar
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Lista de banners (acordeón: clic en la cabecera para editar) */}
+        {banners.length > 0 && (
+          <div className="space-y-2">
+            {banners.map((b, idx) => (
+              <BannerEditor
+                key={idx}
+                index={idx}
+                total={banners.length}
+                banner={b}
+                open={openIdx === idx}
+                onToggle={() => onToggleIdx(idx)}
+                suggesting={suggesting}
+                heroImageUrl={heroImageUrl}
+                brief={brief}
+                onChange={(nb) => onChangeAt(idx, nb)}
+                onRemove={() => onRemoveAt(idx)}
+                onMove={(dir) => onMoveAt(idx, dir)}
+                onResuggest={(style) => onResuggestAt(idx, style)}
+              />
             ))}
           </div>
-          {galleryOpen && banners.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setGalleryOpen(false)}
-              className="mt-2 text-[11px] font-medium text-neutral-500 transition hover:text-neutral-700"
-            >
-              Cancelar
-            </button>
-          )}
-        </>
-      )}
+        )}
+
+        {/* Galería de estilos (miniaturas = render real con contenido de ejemplo) */}
+        {showGallery && (
+          <div
+            className={
+              banners.length > 0
+                ? "border-brand-200 bg-brand-50/30 rounded-md border-2 border-dashed p-3"
+                : ""
+            }
+          >
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-medium text-neutral-700">
+                {banners.length === 0
+                  ? "Elige un estilo para tu primer banner — las miniaturas son una vista previa real; la IA lo llena desde tu brief."
+                  : "Elige el estilo del nuevo banner (se agrega al final; reordena con las flechas)."}
+              </p>
+              {galleryOpen && banners.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setGalleryOpen(false)}
+                  className="inline-flex shrink-0 items-center gap-1 rounded-md border border-neutral-300 bg-white px-2.5 py-1 text-[11px] font-medium text-neutral-600 transition hover:bg-neutral-50"
+                >
+                  <X className="h-3 w-3" />
+                  Cancelar
+                </button>
+              )}
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {BANNER_STYLES.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  disabled={suggesting}
+                  onClick={() => pickStyle(s.id)}
+                  className="hover:border-brand-400 rounded-md border border-neutral-200 bg-white p-2 text-left transition disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <BannerThumb style={s.id} />
+                  <div className="mt-1.5 flex items-center gap-1.5 px-1 text-xs font-semibold text-neutral-800">
+                    {suggesting ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                    {s.label}
+                  </div>
+                  <div className="mt-0.5 px-1 pb-0.5 text-[11px] text-neutral-500">{s.help}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
 /** Vista previa en vivo de UN banner (render real escalado, no editable). */
-function BannerPreview({ banner }: { banner: DraftBanner }) {
+function BannerPreview({
+  banner,
+  className = "mt-2 max-h-[120px]",
+}: {
+  banner: DraftBanner;
+  className?: string;
+}) {
   const html = bannerBlockHtml(banner);
   if (!html) return null;
   return (
-    <div className="pointer-events-none mt-2 max-h-[120px] overflow-hidden rounded border border-neutral-200 bg-white">
+    <div
+      className={`pointer-events-none overflow-hidden rounded border border-neutral-200 bg-white ${className}`}
+    >
       <div
         style={{ transform: "scale(0.55)", transformOrigin: "top left", width: "182%" }}
         // HTML generado por nuestro propio renderer (contenido escapado).
@@ -1876,6 +1929,8 @@ function BannerEditor({
   index,
   total,
   banner,
+  open,
+  onToggle,
   suggesting,
   heroImageUrl,
   brief,
@@ -1887,6 +1942,8 @@ function BannerEditor({
   index: number;
   total: number;
   banner: DraftBanner;
+  open: boolean;
+  onToggle: () => void;
   suggesting: boolean;
   heroImageUrl: string | null;
   brief: DraftBrief;
@@ -1897,221 +1954,281 @@ function BannerEditor({
 }) {
   const set = (patch: Partial<DraftBanner>) => onChange({ ...banner, ...patch });
   const styleInfo = BANNER_STYLES.find((s) => s.id === banner.style);
+  // Resumen de una línea para la cabecera colapsada.
+  const summary =
+    banner.title?.trim() || banner.stat?.trim() || banner.items?.find((i) => i.trim()) || "";
 
   return (
-    <div className="rounded-md border border-neutral-200 bg-white p-3">
-      <div className="flex items-center justify-between gap-2">
-        <div className="text-[11px] font-semibold tracking-wider text-neutral-600 uppercase">
-          Banner {index + 1} · {styleInfo?.label ?? banner.style}
+    <div
+      className={`overflow-hidden rounded-md border bg-white transition ${
+        open ? "border-brand-300 ring-brand-100 ring-2" : "border-neutral-200"
+      }`}
+    >
+      {/* Cabecera clickeable: expande/colapsa para editar. */}
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onToggle}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onToggle();
+          }
+        }}
+        title={open ? "Cerrar edición" : "Editar este banner"}
+        className="flex w-full cursor-pointer items-center justify-between gap-2 px-3 py-2.5 transition hover:bg-neutral-50"
+      >
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="bg-brand-600 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white">
+            {index + 1}
+          </span>
+          <span className="shrink-0 text-xs font-semibold text-neutral-800">
+            {styleInfo?.label ?? banner.style}
+          </span>
+          {!open && summary && (
+            <span className="truncate text-[11px] text-neutral-400">— {summary}</span>
+          )}
         </div>
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => onMove(-1)}
-            disabled={index === 0}
-            title="Subir"
-            className="rounded p-1 text-neutral-400 transition hover:text-neutral-700 disabled:opacity-30"
-          >
-            <ChevronUp className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => onMove(1)}
-            disabled={index === total - 1}
-            title="Bajar"
-            className="rounded p-1 text-neutral-400 transition hover:text-neutral-700 disabled:opacity-30"
-          >
-            <ChevronDown className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            disabled={suggesting}
-            onClick={() => onResuggest(banner.style)}
-            title="La IA vuelve a redactar el texto desde el brief"
-            className="text-brand-700 rounded p-1 transition hover:text-red-700 disabled:opacity-30"
-          >
-            {suggesting ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Sparkles className="h-3.5 w-3.5" />
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={onRemove}
-            title="Quitar banner"
-            className="rounded p-1 text-neutral-400 transition hover:text-red-600"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
+        <div className="flex shrink-0 items-center gap-0.5">
+          {total > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onMove(-1);
+                }}
+                disabled={index === 0}
+                title="Subir"
+                className="rounded p-1 text-neutral-400 transition hover:text-neutral-700 disabled:opacity-30"
+              >
+                <ChevronUp className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onMove(1);
+                }}
+                disabled={index === total - 1}
+                title="Bajar"
+                className="rounded p-1 text-neutral-400 transition hover:text-neutral-700 disabled:opacity-30"
+              >
+                <ChevronDown className="h-3.5 w-3.5" />
+              </button>
+            </>
+          )}
+          <ChevronDown
+            className={`ml-1 h-4 w-4 text-neutral-400 transition-transform ${open ? "rotate-180" : ""}`}
+          />
         </div>
       </div>
 
-      <div className="mt-2.5 space-y-3">
-        {banner.style === "promo" && (
-          <>
-            <BannerInput
-              label="Etiqueta (arriba)"
-              value={banner.eyebrow ?? ""}
-              placeholder="BONO DE BIENVENIDA"
-              onChange={(v) => set({ eyebrow: v })}
-            />
-            <BannerInput
-              label="Texto principal"
-              value={banner.title ?? ""}
-              placeholder="10,000 puntos HSBC"
-              onChange={(v) => set({ title: v })}
-            />
-            <BannerInput
-              label="Texto secundario (condición)"
-              value={banner.subtitle ?? ""}
-              placeholder="Al activar tu tarjeta antes del 31 de julio"
-              onChange={(v) => set({ subtitle: v })}
-            />
-          </>
-        )}
-        {banner.style === "deadline" && (
-          <>
-            <BannerInput
-              label="Frase previa"
-              value={banner.eyebrow ?? ""}
-              placeholder="Tienes hasta el"
-              onChange={(v) => set({ eyebrow: v })}
-            />
-            <BannerInput
-              label="Fecha / plazo"
-              value={banner.title ?? ""}
-              placeholder="31 de julio de 2026"
-              onChange={(v) => set({ title: v })}
-            />
-          </>
-        )}
-        {banner.style === "stat" && (
-          <>
-            <BannerInput
-              label="Número / dato grande"
-              value={banner.stat ?? ""}
-              placeholder="9.65%"
-              onChange={(v) => set({ stat: v })}
-            />
-            <BannerInput
-              label="Qué es ese dato"
-              value={banner.title ?? ""}
-              placeholder="Tasa inicial desde"
-              onChange={(v) => set({ title: v })}
-            />
-            <BannerInput
-              label="Texto secundario (condición)"
-              value={banner.subtitle ?? ""}
-              placeholder="Con aforo hasta el 70%"
-              onChange={(v) => set({ subtitle: v })}
-            />
-          </>
-        )}
-        {banner.style === "benefits" && (
-          <>
-            <BannerInput
-              label="Encabezado"
-              value={banner.title ?? ""}
-              placeholder="Tu tarjeta incluye"
-              onChange={(v) => set({ title: v })}
-            />
-            <BannerTextarea
-              label="Beneficios (uno por línea)"
-              value={(banner.items ?? []).join("\n")}
-              placeholder={"Sin anualidad el primer año\n2x puntos en restaurantes"}
-              onChange={(v) => set({ items: v.split("\n") })}
-            />
-          </>
-        )}
-        {banner.style === "coupon" && (
-          <>
-            <BannerInput
-              label="Instrucción (arriba)"
-              value={banner.eyebrow ?? ""}
-              placeholder="Usa el código"
-              onChange={(v) => set({ eyebrow: v })}
-            />
-            <BannerInput
-              label="Código"
-              value={banner.stat ?? ""}
-              placeholder="PROMO2026"
-              onChange={(v) => set({ stat: v })}
-            />
-            <BannerInput
-              label="Vigencia / condición"
-              value={banner.subtitle ?? ""}
-              placeholder="Vigente hasta el 31 de julio de 2026"
-              onChange={(v) => set({ subtitle: v })}
-            />
-          </>
-        )}
-        {banner.style === "steps" && (
-          <>
-            <BannerInput
-              label="Encabezado"
-              value={banner.title ?? ""}
-              placeholder="Actívala en 3 pasos"
-              onChange={(v) => set({ title: v })}
-            />
-            <BannerTextarea
-              label="Pasos (uno por línea, en orden)"
-              value={(banner.items ?? []).join("\n")}
-              placeholder={"Descarga la app HSBC México\nEntra a Tarjetas\nPresiona Activar"}
-              onChange={(v) => set({ items: v.split("\n") })}
-            />
-          </>
-        )}
-        {banner.style === "notice" && (
-          <>
-            <BannerInput
-              label="Aviso (negritas)"
-              value={banner.title ?? ""}
-              placeholder="Aviso importante"
-              onChange={(v) => set({ title: v })}
-            />
-            <BannerTextarea
-              label="Detalle"
-              value={banner.subtitle ?? ""}
-              placeholder="A partir del 1 de agosto cambia el número de atención telefónica."
-              onChange={(v) => set({ subtitle: v })}
-            />
-          </>
-        )}
-        {banner.style === "contact" && (
-          <>
-            <BannerInput
-              label="Encabezado"
-              value={banner.title ?? ""}
-              placeholder="¿Necesitas ayuda?"
-              onChange={(v) => set({ title: v })}
-            />
-            <BannerTextarea
-              label="Líneas de contacto (una por línea)"
-              value={(banner.items ?? []).join("\n")}
-              placeholder={"Llámanos al 55 5721 3390\nLunes a viernes · 9:00 a 18:00 h"}
-              onChange={(v) => set({ items: v.split("\n") })}
-            />
-          </>
-        )}
-        {banner.style === "image" && (
-          <>
-            <BannerInput
-              label="Texto principal"
-              value={banner.title ?? ""}
-              placeholder="Disfruta tus beneficios"
-              onChange={(v) => set({ title: v })}
-            />
-            <BannerInput
-              label="Texto secundario"
-              value={banner.subtitle ?? ""}
-              placeholder="Tu tarjeta llega con todo listo para estrenarse."
-              onChange={(v) => set({ subtitle: v })}
-            />
-            <BannerImageTools banner={banner} heroImageUrl={heroImageUrl} brief={brief} set={set} />
-          </>
-        )}
-      </div>
+      {/* Colapsado: miniatura real para reconocerlo de un vistazo. */}
+      {!open && (
+        <div className="px-3 pb-2.5">
+          <BannerPreview banner={banner} className="max-h-[72px]" />
+        </div>
+      )}
+
+      {open && (
+        <div className="space-y-3 border-t border-neutral-100 px-3 pt-3 pb-3">
+          {banner.style === "promo" && (
+            <>
+              <BannerInput
+                label="Etiqueta (arriba)"
+                value={banner.eyebrow ?? ""}
+                placeholder="BONO DE BIENVENIDA"
+                onChange={(v) => set({ eyebrow: v })}
+              />
+              <BannerInput
+                label="Texto principal"
+                value={banner.title ?? ""}
+                placeholder="10,000 puntos HSBC"
+                onChange={(v) => set({ title: v })}
+              />
+              <BannerInput
+                label="Texto secundario (condición)"
+                value={banner.subtitle ?? ""}
+                placeholder="Al activar tu tarjeta antes del 31 de julio"
+                onChange={(v) => set({ subtitle: v })}
+              />
+            </>
+          )}
+          {banner.style === "deadline" && (
+            <>
+              <BannerInput
+                label="Frase previa"
+                value={banner.eyebrow ?? ""}
+                placeholder="Tienes hasta el"
+                onChange={(v) => set({ eyebrow: v })}
+              />
+              <BannerInput
+                label="Fecha / plazo"
+                value={banner.title ?? ""}
+                placeholder="31 de julio de 2026"
+                onChange={(v) => set({ title: v })}
+              />
+            </>
+          )}
+          {banner.style === "stat" && (
+            <>
+              <BannerInput
+                label="Número / dato grande"
+                value={banner.stat ?? ""}
+                placeholder="9.65%"
+                onChange={(v) => set({ stat: v })}
+              />
+              <BannerInput
+                label="Qué es ese dato"
+                value={banner.title ?? ""}
+                placeholder="Tasa inicial desde"
+                onChange={(v) => set({ title: v })}
+              />
+              <BannerInput
+                label="Texto secundario (condición)"
+                value={banner.subtitle ?? ""}
+                placeholder="Con aforo hasta el 70%"
+                onChange={(v) => set({ subtitle: v })}
+              />
+            </>
+          )}
+          {banner.style === "benefits" && (
+            <>
+              <BannerInput
+                label="Encabezado"
+                value={banner.title ?? ""}
+                placeholder="Tu tarjeta incluye"
+                onChange={(v) => set({ title: v })}
+              />
+              <BannerTextarea
+                label="Beneficios (uno por línea)"
+                value={(banner.items ?? []).join("\n")}
+                placeholder={"Sin anualidad el primer año\n2x puntos en restaurantes"}
+                onChange={(v) => set({ items: v.split("\n") })}
+              />
+            </>
+          )}
+          {banner.style === "coupon" && (
+            <>
+              <BannerInput
+                label="Instrucción (arriba)"
+                value={banner.eyebrow ?? ""}
+                placeholder="Usa el código"
+                onChange={(v) => set({ eyebrow: v })}
+              />
+              <BannerInput
+                label="Código"
+                value={banner.stat ?? ""}
+                placeholder="PROMO2026"
+                onChange={(v) => set({ stat: v })}
+              />
+              <BannerInput
+                label="Vigencia / condición"
+                value={banner.subtitle ?? ""}
+                placeholder="Vigente hasta el 31 de julio de 2026"
+                onChange={(v) => set({ subtitle: v })}
+              />
+            </>
+          )}
+          {banner.style === "steps" && (
+            <>
+              <BannerInput
+                label="Encabezado"
+                value={banner.title ?? ""}
+                placeholder="Actívala en 3 pasos"
+                onChange={(v) => set({ title: v })}
+              />
+              <BannerTextarea
+                label="Pasos (uno por línea, en orden)"
+                value={(banner.items ?? []).join("\n")}
+                placeholder={"Descarga la app HSBC México\nEntra a Tarjetas\nPresiona Activar"}
+                onChange={(v) => set({ items: v.split("\n") })}
+              />
+            </>
+          )}
+          {banner.style === "notice" && (
+            <>
+              <BannerInput
+                label="Aviso (negritas)"
+                value={banner.title ?? ""}
+                placeholder="Aviso importante"
+                onChange={(v) => set({ title: v })}
+              />
+              <BannerTextarea
+                label="Detalle"
+                value={banner.subtitle ?? ""}
+                placeholder="A partir del 1 de agosto cambia el número de atención telefónica."
+                onChange={(v) => set({ subtitle: v })}
+              />
+            </>
+          )}
+          {banner.style === "contact" && (
+            <>
+              <BannerInput
+                label="Encabezado"
+                value={banner.title ?? ""}
+                placeholder="¿Necesitas ayuda?"
+                onChange={(v) => set({ title: v })}
+              />
+              <BannerTextarea
+                label="Líneas de contacto (una por línea)"
+                value={(banner.items ?? []).join("\n")}
+                placeholder={"Llámanos al 55 5721 3390\nLunes a viernes · 9:00 a 18:00 h"}
+                onChange={(v) => set({ items: v.split("\n") })}
+              />
+            </>
+          )}
+          {banner.style === "image" && (
+            <>
+              <BannerInput
+                label="Texto principal"
+                value={banner.title ?? ""}
+                placeholder="Disfruta tus beneficios"
+                onChange={(v) => set({ title: v })}
+              />
+              <BannerInput
+                label="Texto secundario"
+                value={banner.subtitle ?? ""}
+                placeholder="Tu tarjeta llega con todo listo para estrenarse."
+                onChange={(v) => set({ subtitle: v })}
+              />
+              <BannerImageTools
+                banner={banner}
+                heroImageUrl={heroImageUrl}
+                brief={brief}
+                set={set}
+              />
+            </>
+          )}
+
+          {/* Acciones del banner, con texto (más claras que íconos sueltos). */}
+          <div className="flex items-center justify-between border-t border-neutral-100 pt-2.5">
+            <button
+              type="button"
+              disabled={suggesting}
+              onClick={() => onResuggest(banner.style)}
+              title="La IA vuelve a redactar el texto desde el brief (la imagen se conserva)"
+              className="text-brand-700 border-brand-200 hover:bg-brand-50 inline-flex items-center gap-1.5 rounded-md border bg-white px-2.5 py-1.5 text-[11px] font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {suggesting ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Sparkles className="h-3 w-3" />
+              )}
+              Re-sugerir texto con IA
+            </button>
+            <button
+              type="button"
+              onClick={onRemove}
+              className="inline-flex items-center gap-1 rounded-md border border-neutral-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-neutral-500 transition hover:border-red-200 hover:text-red-600"
+            >
+              <X className="h-3 w-3" />
+              Quitar banner
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
