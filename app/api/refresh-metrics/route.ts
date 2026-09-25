@@ -2,7 +2,8 @@ import { revalidatePath } from "next/cache";
 import { runMetricsSnapshot, pruneOldSnapshots } from "@/lib/snapshot/metrics";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+// 180s: la lectura de ClickHouse reintenta hasta 3 veces (ver lib/core/retry).
+export const maxDuration = 180;
 
 /**
  * Refresh endpoint for the metrics snapshot.

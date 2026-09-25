@@ -2,7 +2,8 @@
  * Sync engine: Kublau ClickHouse → Supabase `notifications_cache`.
  *
  * Runs from:
- *  - Vercel Cron (`/api/sync` GET, scheduled daily at 06:00 UTC in vercel.json)
+ *  - Vercel Cron (`/api/sync` GET, scheduled daily at 07:10 UTC in vercel.json —
+ *    fuera de la ventana de refresco de Kublau de las 6:00)
  *  - Manual button (`/api/sync` POST from the dashboard)
  *  - CLI script (`pnpm sync:run`)
  *
@@ -17,6 +18,8 @@
 
 import { getClickhouseClient } from "@/lib/adapters/clickhouse-kublau/client";
 import { getSupabaseAdmin } from "@/lib/adapters/supabase/admin";
+import { dedupeById } from "@/lib/core/notifications/dedupe";
+import { withRetry } from "@/lib/core/retry";
 
 interface RawKublauRow {
   id: string;
@@ -128,13 +131,26 @@ export async function runSync(kind: "cron" | "manual"): Promise<SyncResult> {
   const runId = run.id as string;
 
   try {
-    // 1. Read everything from ClickHouse Kublau.
+    // 1. Read everything from ClickHouse Kublau (con reintento: la primera
+    //    lectura puede caer en la ventana de refresco de Kublau).
     const ch = getClickhouseClient();
-    const result = await ch.query({
-      query: `SELECT ${KUBLAU_SELECT} FROM blazer_query_401`,
-      format: "JSON",
-    });
-    const { data: rows } = (await result.json()) as { data: RawKublauRow[] };
+    const rows = await withRetry(
+      async () => {
+        const result = await ch.query({
+          query: `SELECT ${KUBLAU_SELECT} FROM blazer_query_401`,
+          format: "JSON",
+        });
+        return ((await result.json()) as { data: RawKublauRow[] }).data;
+      },
+      {
+        delaysMs: [5_000, 15_000],
+        onRetry: (e, n) =>
+          console.warn(
+            `[sync] lectura de ClickHouse falló, intento ${n}:`,
+            e instanceof Error ? e.message : e,
+          ),
+      },
+    );
 
     if (rows.length === 0) {
       throw new Error("Kublau returned 0 rows — refusing to wipe cache.");
@@ -162,14 +178,21 @@ export async function runSync(kind: "cron" | "manual"): Promise<SyncResult> {
       synced_at: syncedAtIso,
     }));
 
+    // Kublau a veces devuelve la misma fila dos veces; si caen en el mismo
+    // lote, el upsert aborta todo el sync. Ver lib/core/notifications/dedupe.
+    const { rows: unique, duplicates } = dedupeById(mapped);
+    if (duplicates > 0) {
+      console.warn(`[sync] ${duplicates} fila(s) con id repetido descartadas antes del upsert`);
+    }
+
     // 2. Upsert in chunks. PostgREST has a per-request size cap (typically
     //    1 MB by default), and html_body alone can run 50-100 KB per row, so
     //    we use small chunks. 25 keeps each request comfortably under the
     //    limit while still cutting the round-trip count by ~30x vs single
     //    inserts.
     const CHUNK = 25;
-    for (let i = 0; i < mapped.length; i += CHUNK) {
-      const chunk = mapped.slice(i, i + CHUNK);
+    for (let i = 0; i < unique.length; i += CHUNK) {
+      const chunk = unique.slice(i, i + CHUNK);
       const { error } = await supabase
         .from("notifications_cache")
         .upsert(chunk, { onConflict: "id" });
@@ -183,10 +206,10 @@ export async function runSync(kind: "cron" | "manual"): Promise<SyncResult> {
     const durationMs = Date.now() - startedAtMs;
     await supabase
       .from("sync_runs")
-      .update({ finished_at: finishedAtIso, rows_synced: rows.length })
+      .update({ finished_at: finishedAtIso, rows_synced: unique.length })
       .eq("id", runId);
 
-    return { rowsSynced: rows.length, durationMs };
+    return { rowsSynced: unique.length, durationMs };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     // Best-effort: record the error and re-throw.

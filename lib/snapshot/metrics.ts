@@ -6,7 +6,7 @@
  * the latest snapshot — so transient Kublau outages don't break the dashboard.
  *
  * Refresh paths:
- *  - daily Vercel cron at 06:00 UTC
+ *  - daily Vercel cron at 07:25 UTC (ver vercel.json: escalonado después del sync)
  *  - manual user-triggered POST /api/refresh-metrics
  */
 
@@ -14,6 +14,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { supabaseAdminEnv } from "@/lib/env";
 import { kublauMetricsSource } from "@/lib/adapters/clickhouse-kublau/metrics-source";
 import { listTemplatesForAnalysis } from "@/lib/adapters/clickhouse-kublau/notification-source";
+import { withRetry } from "@/lib/core/retry";
 import type {
   MetricsSummary,
   PieceMetrics,
@@ -110,13 +111,27 @@ export async function runMetricsSnapshot(): Promise<{
 }> {
   const startedAt = Date.now();
 
-  const [summary, pieces, weeklyByProduct, weeklyByMovement, templates] = await Promise.all([
-    kublauMetricsSource.summary(),
-    kublauMetricsSource.listPieceMetrics({ limit: 500 }),
-    kublauMetricsSource.weeklyByProduct(),
-    kublauMetricsSource.weeklyByMovement(),
-    listTemplatesForAnalysis(),
-  ]);
+  // Con reintento: del 7 al 25-sep-2026 el cron de las 6:00 UTC falló en
+  // silencio todos los días mientras que a mano funcionaba. Un segundo
+  // intento unos segundos después cubre la ventana de refresco de Kublau.
+  const [summary, pieces, weeklyByProduct, weeklyByMovement, templates] = await withRetry(
+    () =>
+      Promise.all([
+        kublauMetricsSource.summary(),
+        kublauMetricsSource.listPieceMetrics({ limit: 500 }),
+        kublauMetricsSource.weeklyByProduct(),
+        kublauMetricsSource.weeklyByMovement(),
+        listTemplatesForAnalysis(),
+      ]),
+    {
+      delaysMs: [5_000, 15_000],
+      onRetry: (e, n) =>
+        console.warn(
+          `[metrics] lectura de ClickHouse falló, intento ${n}:`,
+          e instanceof Error ? e.message : e,
+        ),
+    },
+  );
 
   const payload: MetricsSnapshotData = {
     summary,

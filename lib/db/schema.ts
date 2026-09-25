@@ -156,7 +156,7 @@ export const qaNotes = pgTable("qa_notes", {
  * hitting ClickHouse directly — so a Kublau outage doesn't take the page down.
  *
  * Refreshed by:
- *  - the daily Vercel cron at 06:00 UTC
+ *  - the daily Vercel cron at 07:25 UTC
  *  - a manual "Refrescar" button in the UI (POST /api/refresh-metrics)
  *
  * `data` holds the raw ClickHouse responses as JSON; the app re-runs insight
