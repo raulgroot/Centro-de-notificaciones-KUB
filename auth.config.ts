@@ -47,10 +47,15 @@ export const authConfig = {
       // the route handler, so NextAuth must let them through. Without this,
       // every Vercel Cron request would 307 to /login and the schedule would
       // silently fail — exactly the bug that left notifications_cache stale.
-      if (pathname === "/api/sync") return true;
-      if (pathname === "/api/refresh-metrics") return true;
-      if (pathname === "/api/sync-campaigns") return true;
-      if (pathname === "/api/qa/check-batches") return true;
+      // GET only: Vercel Cron always uses GET. The POST variants (manual
+      // "Refrescar" buttons in the dashboard) must keep requiring a session,
+      // otherwise anyone could trigger syncs anonymously via POST.
+      if (request.method === "GET") {
+        if (pathname === "/api/sync") return true;
+        if (pathname === "/api/refresh-metrics") return true;
+        if (pathname === "/api/sync-campaigns") return true;
+        if (pathname === "/api/qa/check-batches") return true;
+      }
       // Everything else requires auth
       return isLoggedIn;
     },

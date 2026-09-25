@@ -1,4 +1,5 @@
 import { revalidatePath } from "next/cache";
+import { rejectUnauthorizedCron } from "@/lib/cron-auth";
 import { runMetricsSnapshot, pruneOldSnapshots } from "@/lib/snapshot/metrics";
 
 export const dynamic = "force-dynamic";
@@ -16,13 +17,8 @@ export const maxDuration = 180;
  * shows the fresh data.
  */
 export async function GET(request: Request) {
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    const auth = request.headers.get("authorization");
-    if (auth !== `Bearer ${cronSecret}`) {
-      return Response.json({ error: "Unauthorized" }, { status: 401 });
-    }
-  }
+  const unauthorized = rejectUnauthorizedCron(request);
+  if (unauthorized) return unauthorized;
   return runAndReturn();
 }
 

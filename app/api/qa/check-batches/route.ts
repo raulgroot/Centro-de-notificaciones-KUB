@@ -19,11 +19,12 @@
  * Idempotente: si el cron corre 2× sobre el mismo item ya ready, la query
  * de items pendientes lo excluye automáticamente.
  *
- * Auth: la ruta queda gated por auth.config.ts en el mismo allowlist que
- * /api/sync (cron-only).
+ * Auth: GET exige el Bearer `CRON_SECRET` (igual que /api/sync); POST exige
+ * sesión vía middleware. La exención de auth.config.ts solo aplica a GET.
  */
 
 import { NextResponse, type NextRequest } from "next/server";
+import { rejectUnauthorizedCron } from "@/lib/cron-auth";
 import { kublauSendsSource } from "@/lib/adapters/clickhouse-kublau/sends-source";
 import {
   createNotification,
@@ -106,7 +107,20 @@ async function runCheck(): Promise<Stats> {
   };
 }
 
-export async function GET(_req: NextRequest) {
+export async function GET(req: NextRequest) {
+  const unauthorized = rejectUnauthorizedCron(req);
+  if (unauthorized) return unauthorized;
+  return runAndReturn();
+}
+
+// También aceptamos POST por si en el futuro queremos disparar a mano
+// desde un botón "Refrescar ahora" de la UI. El middleware exige sesión
+// para POST (la exención de auth.config.ts es solo para GET).
+export async function POST() {
+  return runAndReturn();
+}
+
+async function runAndReturn() {
   try {
     const stats = await runCheck();
     return NextResponse.json({ ok: true, stats });
@@ -117,7 +131,3 @@ export async function GET(_req: NextRequest) {
     );
   }
 }
-
-// También aceptamos POST por si en el futuro queremos disparar a mano
-// desde un botón "Refrescar ahora" de la UI.
-export const POST = GET;

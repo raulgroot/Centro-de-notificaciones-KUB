@@ -1,4 +1,5 @@
 import { revalidateTag } from "next/cache";
+import { rejectUnauthorizedCron } from "@/lib/cron-auth";
 import { runSync } from "@/lib/sync/notifications";
 
 export const dynamic = "force-dynamic";
@@ -28,13 +29,8 @@ function bustCaches(): void {
  *   this handler).
  */
 export async function GET(request: Request) {
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    const auth = request.headers.get("authorization");
-    if (auth !== `Bearer ${cronSecret}`) {
-      return Response.json({ error: "Unauthorized" }, { status: 401 });
-    }
-  }
+  const unauthorized = rejectUnauthorizedCron(request);
+  if (unauthorized) return unauthorized;
   try {
     const result = await runSync("cron");
     bustCaches();

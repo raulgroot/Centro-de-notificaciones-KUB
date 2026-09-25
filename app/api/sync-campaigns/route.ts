@@ -1,5 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { syncCampaignLoadsFromAsana } from "@/lib/adapters/asana/sync";
+import { rejectUnauthorizedCron } from "@/lib/cron-auth";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -13,13 +14,8 @@ export const maxDuration = 120;
  * Returns a summary so the UI can show "X importadas, Y omitidas por falta de due date".
  */
 export async function GET(request: Request) {
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    const auth = request.headers.get("authorization");
-    if (auth !== `Bearer ${cronSecret}`) {
-      return Response.json({ error: "Unauthorized" }, { status: 401 });
-    }
-  }
+  const unauthorized = rejectUnauthorizedCron(request);
+  if (unauthorized) return unauthorized;
   return runAndReturn();
 }
 
