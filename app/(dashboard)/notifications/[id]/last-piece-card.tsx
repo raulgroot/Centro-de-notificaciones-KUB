@@ -39,7 +39,7 @@ export function LastPieceCard({
       <div className="space-y-4 rounded-lg border border-neutral-200 bg-white p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+            <div className="text-xs font-semibold tracking-wider text-neutral-500 uppercase">
               Última pieza enviada
             </div>
             <p className="mt-1 text-xs text-neutral-500">
@@ -50,7 +50,7 @@ export function LastPieceCard({
             <button
               type="button"
               onClick={() => setStage("hidden")}
-              className="inline-flex items-center gap-1 rounded-md border border-neutral-300 bg-white px-2 py-1 text-[11px] font-medium text-neutral-700 transition hover:bg-neutral-50"
+              className="inline-flex items-center gap-1 rounded-md border border-neutral-300 bg-white px-2 py-1 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50"
             >
               <EyeOff className="h-3 w-3" />
               Ocultar
@@ -80,14 +80,14 @@ export function LastPieceCard({
         {stage === "revealed" && (
           <div className="overflow-hidden rounded-lg border border-amber-300">
             {/* Persistent warning banner. */}
-            <div className="flex items-center gap-2 bg-amber-100 px-3 py-2 text-[11px] font-semibold tracking-wide text-amber-900">
+            <div className="flex items-center gap-2 bg-amber-100 px-3 py-2 text-xs font-semibold tracking-wide text-amber-900">
               <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
               <span className="uppercase">Modo revisión</span>
               <span className="font-normal text-amber-800 normal-case">
                 · Interacción deshabilitada · No hagas clic en links ni botones
               </span>
             </div>
-            <div className="flex flex-wrap items-center justify-between gap-2 border-y border-amber-200 bg-amber-50/60 px-3 py-1.5 text-[11px] text-neutral-600">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-y border-amber-200 bg-amber-50/60 px-3 py-1.5 text-xs text-neutral-600">
               <span>
                 {recipientMasked ? (
                   <>

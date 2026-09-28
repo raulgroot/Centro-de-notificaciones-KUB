@@ -80,7 +80,7 @@ function CampaignSection({
       </header>
 
       <table className="w-full text-sm">
-        <thead className="border-b border-neutral-200 text-left text-[11px] tracking-wider text-neutral-500 uppercase">
+        <thead className="border-b border-neutral-200 text-left text-xs tracking-wider text-neutral-500 uppercase">
           <tr>
             <th className="py-2 pr-2 font-semibold">#</th>
             <th className="py-2 pr-2 font-semibold">Label</th>
@@ -320,7 +320,7 @@ function MilestoneFormRow({
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
-        {error && <div className="mt-1 text-[11px] text-red-700">{error}</div>}
+        {error && <div className="mt-1 text-xs text-red-700">{error}</div>}
       </td>
     </tr>
   );
@@ -341,14 +341,14 @@ function DeleteButton({ id }: { id: string }) {
               setConfirming(false);
             })
           }
-          className="rounded bg-red-600 px-1.5 py-0.5 text-[11px] font-medium text-white hover:bg-red-700"
+          className="rounded bg-red-600 px-1.5 py-0.5 text-xs font-medium text-white hover:bg-red-700"
         >
           {isPending ? "…" : "Sí"}
         </button>
         <button
           type="button"
           onClick={() => setConfirming(false)}
-          className="rounded px-1.5 py-0.5 text-[11px] font-medium text-neutral-500 hover:bg-neutral-100"
+          className="rounded px-1.5 py-0.5 text-xs font-medium text-neutral-500 hover:bg-neutral-100"
         >
           No
         </button>
@@ -375,7 +375,7 @@ function TriggerBadge({ type }: { type: MilestoneTriggerType }) {
   };
   return (
     <span
-      className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium tracking-wider uppercase ${styles[type]}`}
+      className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium tracking-wider uppercase ${styles[type]}`}
     >
       {type}
     </span>

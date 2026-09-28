@@ -72,7 +72,7 @@ export default async function AlertasPage() {
 
       {/* Activos */}
       <section>
-        <h2 className="mb-3 text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+        <h2 className="mb-3 text-xs font-semibold tracking-wider text-neutral-500 uppercase">
           Sin leer ({unread.length})
         </h2>
         {unread.length === 0 ? (
@@ -96,7 +96,7 @@ export default async function AlertasPage() {
       {/* Historial */}
       {readNotifs.length > 0 && (
         <section>
-          <h2 className="mb-3 text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+          <h2 className="mb-3 text-xs font-semibold tracking-wider text-neutral-500 uppercase">
             Leídas ({readNotifs.length})
           </h2>
           <ul className="space-y-2">
@@ -116,7 +116,7 @@ export default async function AlertasPage() {
       {/* Batches activos */}
       {batches.length > 0 && (
         <section className="border-t border-neutral-200 pt-6">
-          <h2 className="mb-3 text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+          <h2 className="mb-3 text-xs font-semibold tracking-wider text-neutral-500 uppercase">
             QA guardados ({batches.length})
           </h2>
           <ul className="space-y-2">
@@ -188,7 +188,7 @@ function NotifCard({
         <div className="text-sm font-medium text-neutral-900">
           Pieza lista para revisar: <span className="font-semibold">{themeName ?? "—"}</span>
         </div>
-        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-neutral-500">
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-neutral-500">
           {sentAt && (
             <span className="inline-flex items-center gap-1">
               <Clock className="h-3 w-3" />

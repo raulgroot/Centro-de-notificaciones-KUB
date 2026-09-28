@@ -705,9 +705,7 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                             >
                               {o.label}
                             </span>
-                            <span className="text-[11px] leading-tight text-neutral-500">
-                              {o.help}
-                            </span>
+                            <span className="text-xs leading-tight text-neutral-500">{o.help}</span>
                           </button>
                         );
                       })}
@@ -733,7 +731,7 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                         >
                           Otro
                         </span>
-                        <span className="text-[11px] leading-tight text-neutral-500">
+                        <span className="text-xs leading-tight text-neutral-500">
                           Describe el objetivo a tu manera.
                         </span>
                       </button>
@@ -765,7 +763,7 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                       className="focus:border-brand-600 focus:ring-brand-600/15 w-full rounded-lg border border-neutral-300 bg-white px-3.5 py-3 text-sm placeholder:text-neutral-400 focus:ring-2 focus:outline-none"
                     />
                     <div className="mt-1.5 flex items-center justify-between gap-3">
-                      <p className="text-[11px] text-neutral-500">
+                      <p className="text-xs text-neutral-500">
                         Mínimo 10 caracteres.{" "}
                         <span className="text-neutral-400">
                           ({(brief.topic ?? "").trim().length})
@@ -777,7 +775,7 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                         type="button"
                         onClick={onImproveTopic}
                         disabled={busy.improveTopic || (brief.topic ?? "").trim().length < 3}
-                        className="text-brand-700 hover:bg-brand-50 border-brand-200 inline-flex shrink-0 items-center gap-1.5 rounded-md border bg-white px-2.5 py-1.5 text-[11px] font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
+                        className="text-brand-700 hover:bg-brand-50 border-brand-200 inline-flex shrink-0 items-center gap-1.5 rounded-md border bg-white px-2.5 py-1.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
                         title="Claude reescribe tu texto más claro, sin inventar montos ni fechas"
                       >
                         {busy.improveTopic ? (
@@ -788,7 +786,7 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                         {busy.improveTopic ? "Mejorando…" : "Mejorar con IA"}
                       </button>
                     </div>
-                    <p className="mt-1 text-[10px] text-neutral-400">
+                    <p className="mt-1 text-xs text-neutral-400">
                       La IA solo aclara tu redacción. No inventa datos que no hayas escrito.
                     </p>
 
@@ -809,7 +807,7 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                           <p className="text-xs font-medium text-neutral-700">
                             ¿Te llegó la solicitud en un archivo?
                           </p>
-                          <p className="mt-0.5 text-[11px] text-neutral-500">
+                          <p className="mt-0.5 text-xs text-neutral-500">
                             Sube o arrastra una foto, PDF, PowerPoint o texto y la IA extrae la
                             información por ti. No inventa datos: solo usa lo que viene en el
                             archivo.
@@ -819,7 +817,7 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                           type="button"
                           onClick={() => extractInputRef.current?.click()}
                           disabled={busy.extract}
-                          className="text-brand-700 hover:bg-brand-50 border-brand-200 inline-flex shrink-0 items-center gap-1.5 rounded-md border bg-white px-3 py-2 text-[11px] font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
+                          className="text-brand-700 hover:bg-brand-50 border-brand-200 inline-flex shrink-0 items-center gap-1.5 rounded-md border bg-white px-3 py-2 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {busy.extract ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -841,10 +839,10 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                       </div>
                       {lastExtract && (
                         <div className="mt-2.5 rounded-md border border-emerald-200 bg-emerald-50/70 px-3 py-2">
-                          <p className="text-[11px] font-medium text-emerald-800">
+                          <p className="text-xs font-medium text-emerald-800">
                             ✓ Extraído de “{lastExtract.filename}”
                           </p>
-                          <p className="mt-0.5 text-[11px] text-emerald-700">
+                          <p className="mt-0.5 text-xs text-emerald-700">
                             {lastExtract.summary}
                             {lastExtract.filledTags.length > 0 && (
                               <>
@@ -854,7 +852,7 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                               </>
                             )}
                           </p>
-                          <p className="mt-0.5 text-[10px] text-emerald-600">
+                          <p className="mt-0.5 text-xs text-emerald-600">
                             Revisa el texto de arriba — tú tienes la última palabra.
                           </p>
                         </div>
@@ -876,7 +874,7 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                       mostramos un textarea editable para no perder ese dato. */}
                     {brief.keyInfo && brief.keyInfo.trim() !== "" && (
                       <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50/60 p-3">
-                        <div className="mb-1.5 text-[11px] font-semibold tracking-wider text-amber-700 uppercase">
+                        <div className="mb-1.5 text-xs font-semibold tracking-wider text-amber-700 uppercase">
                           Información clave (formato libre, draft anterior)
                         </div>
                         <textarea
@@ -885,12 +883,12 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                           rows={3}
                           className="w-full rounded border border-amber-200 bg-white px-2.5 py-2 text-xs placeholder:text-neutral-400 focus:border-amber-400 focus:ring-2 focus:ring-amber-300/30 focus:outline-none"
                         />
-                        <p className="mt-1 text-[10px] text-amber-700">
+                        <p className="mt-1 text-xs text-amber-700">
                           Esta info se manda al AI tal cual, junto con los chips de arriba.
                         </p>
                       </div>
                     )}
-                    <p className="mt-3 text-[11px] text-neutral-500">
+                    <p className="mt-3 text-xs text-neutral-500">
                       Puedes saltar este paso si no aplica.
                     </p>
                   </WizardStep>
@@ -930,9 +928,7 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                             >
                               {a.label}
                             </span>
-                            <span className="text-[11px] leading-tight text-neutral-500">
-                              {a.help}
-                            </span>
+                            <span className="text-xs leading-tight text-neutral-500">{a.help}</span>
                           </button>
                         );
                       })}
@@ -956,7 +952,7 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                         >
                           Otro
                         </span>
-                        <span className="text-[11px] leading-tight text-neutral-500">
+                        <span className="text-xs leading-tight text-neutral-500">
                           Describe la audiencia a tu manera.
                         </span>
                       </button>
@@ -994,7 +990,7 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                           <span className="block text-sm font-semibold text-neutral-900">
                             Aplicar overlay HSBC World Elite
                           </span>
-                          <span className="mt-0.5 block text-[11px] leading-tight text-neutral-500">
+                          <span className="mt-0.5 block text-xs leading-tight text-neutral-500">
                             Activa el tono, vocabulario y reglas de marca del segmento World Elite
                             en la generación y en la revisión.
                           </span>
@@ -1003,7 +999,7 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
 
                       {brief.isPremier && (
                         <div className="mt-3 pl-7">
-                          <span className="text-[11px] font-medium text-neutral-600">
+                          <span className="text-xs font-medium text-neutral-600">
                             Pilar dominante (opcional)
                           </span>
                           <div className="mt-1.5 flex flex-wrap gap-1.5">
@@ -1060,9 +1056,7 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                             >
                               {u.label}
                             </span>
-                            <span className="text-[11px] leading-tight text-neutral-500">
-                              {u.help}
-                            </span>
+                            <span className="text-xs leading-tight text-neutral-500">{u.help}</span>
                           </button>
                         );
                       })}
@@ -1103,7 +1097,7 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                       <ArrowLeft className="h-3.5 w-3.5" />
                       Atrás
                     </button>
-                    <div className="flex items-center gap-1.5 text-[11px] text-neutral-500">
+                    <div className="flex items-center gap-1.5 text-xs text-neutral-500">
                       {isPending && <Loader2 className="h-3 w-3 animate-spin" />}
                       Paso {stepIdx + 1} de {WIZARD_STEPS.length}
                     </div>
@@ -1171,7 +1165,7 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
       {!briefOpen && (
         <>
           <div className="flex shrink-0 items-center justify-between gap-2 border-b border-neutral-200 bg-white px-5 py-2">
-            <div className="flex items-center gap-1.5 text-[11px] text-neutral-500">
+            <div className="flex items-center gap-1.5 text-xs text-neutral-500">
               {isPending && <Loader2 className="h-3 w-3 animate-spin" />}
               {isPending ? "Guardando…" : "Guardado automáticamente"}
             </div>
@@ -1234,7 +1228,7 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
             {/* COPY — left column when 2-col, half width */}
             <section className="overflow-y-auto border-r border-neutral-200 bg-white">
               <div className="p-6">
-                <h2 className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+                <h2 className="text-xs font-semibold tracking-wider text-neutral-500 uppercase">
                   Copy editable
                 </h2>
                 <div className="mt-4 space-y-4">
@@ -1315,7 +1309,7 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
 
                 {/* Image picker */}
                 <div className="mt-8 rounded-lg border border-neutral-200 bg-neutral-50/60 p-4">
-                  <div className="flex items-center gap-2 text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+                  <div className="flex items-center gap-2 text-xs font-semibold tracking-wider text-neutral-500 uppercase">
                     <ImageIcon className="h-3.5 w-3.5" />
                     Imagen del hero
                   </div>
@@ -1331,13 +1325,13 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                         <div className="text-xs font-medium text-neutral-700">
                           {heroImage.alt || "Sin descripción"}
                         </div>
-                        <div className="mt-0.5 text-[11px] text-neutral-500">
+                        <div className="mt-0.5 text-xs text-neutral-500">
                           Fuente: {heroImage.source}
                         </div>
                         <button
                           type="button"
                           onClick={() => setHeroImage(null)}
-                          className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-rose-600 hover:underline"
+                          className="mt-1.5 inline-flex items-center gap-1 text-xs text-rose-600 hover:underline"
                         >
                           <X className="h-3 w-3" />
                           Quitar
@@ -1378,7 +1372,7 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                       o cuando ya tienes la imagen lista (Adobe, captura, etc.). */}
                   <div className="mt-2 flex items-center gap-2">
                     <div className="h-px flex-1 bg-neutral-200" />
-                    <span className="text-[10px] font-medium tracking-wider text-neutral-400 uppercase">
+                    <span className="text-xs font-medium tracking-wider text-neutral-400 uppercase">
                       o
                     </span>
                     <div className="h-px flex-1 bg-neutral-200" />
@@ -1415,6 +1409,9 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                           key={img.id}
                           type="button"
                           onClick={() => pickImage(img)}
+                          aria-label={
+                            img.title ? `Usar esta imagen: ${img.title}` : "Usar esta imagen"
+                          }
                           className="hover:ring-brand-600 group relative overflow-hidden rounded border border-neutral-200 transition hover:ring-2"
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1445,7 +1442,7 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                 }`}
               >
                 <div
-                  className={`text-[11px] font-semibold tracking-wider uppercase ${
+                  className={`text-xs font-semibold tracking-wider uppercase ${
                     previewDark ? "text-neutral-400" : "text-neutral-500"
                   }`}
                 >
@@ -1455,7 +1452,7 @@ export function DraftEditor({ draft }: { draft: NotificationDraft }) {
                   type="button"
                   onClick={() => setPreviewDark((v) => !v)}
                   title={previewDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
-                  className={`inline-flex h-7 items-center gap-1 rounded-md border px-2 text-[11px] font-medium transition ${
+                  className={`inline-flex h-7 items-center gap-1 rounded-md border px-2 text-xs font-medium transition ${
                     previewDark
                       ? "border-neutral-600 bg-neutral-800 text-neutral-200 hover:bg-neutral-700"
                       : "border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50"
@@ -1556,15 +1553,15 @@ function CopyField({
   return (
     <div className="rounded-md border border-neutral-200 bg-white p-3">
       <div className="flex items-center justify-between">
-        <label className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+        <label className="text-xs font-semibold tracking-wider text-neutral-500 uppercase">
           {label}
         </label>
         <div className="flex items-center gap-2">
-          {hint && <span className="text-[10px] text-neutral-400">{hint}</span>}
+          {hint && <span className="text-xs text-neutral-400">{hint}</span>}
           <button
             type="button"
             onClick={() => setShowRefine((v) => !v)}
-            className="hover:text-brand-700 inline-flex items-center gap-1 text-[11px] font-medium text-neutral-600 transition"
+            className="hover:text-brand-700 inline-flex items-center gap-1 text-xs font-medium text-neutral-600 transition"
           >
             <Sparkles className="h-3 w-3" />
             Refinar
@@ -1604,7 +1601,7 @@ function CopyField({
               setInstruction("");
             }}
             disabled={refining || !instruction.trim()}
-            className="bg-brand-600 hover:bg-brand-700 inline-flex h-8 items-center gap-1 rounded-md px-2.5 text-[11px] font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60"
+            className="bg-brand-600 hover:bg-brand-700 inline-flex h-8 items-center gap-1 rounded-md px-2.5 text-xs font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60"
           >
             {refining ? (
               <Loader2 className="h-3 w-3 animate-spin" />
@@ -1768,12 +1765,12 @@ function BannersSection({
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-neutral-900">Banners del email</span>
               {banners.length > 0 && (
-                <span className="bg-brand-50 text-brand-700 border-brand-200 rounded-full border px-2 py-0.5 text-[10px] font-semibold">
+                <span className="bg-brand-50 text-brand-700 border-brand-200 rounded-full border px-2 py-0.5 text-xs font-semibold">
                   {banners.length}
                 </span>
               )}
             </div>
-            <p className="text-[11px] text-neutral-500">
+            <p className="text-xs text-neutral-500">
               Bloques visuales entre el cuerpo y el botón. Opcional.
             </p>
           </div>
@@ -1782,7 +1779,7 @@ function BannersSection({
           <button
             type="button"
             onClick={() => setGalleryOpen(true)}
-            className="bg-brand-600 hover:bg-brand-700 inline-flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-[11px] font-semibold text-white transition"
+            className="bg-brand-600 hover:bg-brand-700 inline-flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold text-white transition"
           >
             <Plus className="h-3 w-3" />
             Agregar
@@ -1800,7 +1797,7 @@ function BannersSection({
         )}
         {proposal && (
           <div className="border-brand-200 bg-brand-50/40 rounded-md border p-3">
-            <div className="text-brand-700 flex items-center gap-1.5 text-[11px] font-semibold tracking-wider uppercase">
+            <div className="text-brand-700 flex items-center gap-1.5 text-xs font-semibold tracking-wider uppercase">
               <Sparkles className="h-3 w-3" />
               Sugerencia de la IA
             </div>
@@ -1810,7 +1807,7 @@ function BannersSection({
               <button
                 type="button"
                 onClick={onAcceptProposal}
-                className="bg-brand-600 hover:bg-brand-700 inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[11px] font-semibold text-white transition"
+                className="bg-brand-600 hover:bg-brand-700 inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold text-white transition"
               >
                 <Check className="h-3 w-3" />
                 Agregar a la pieza
@@ -1818,7 +1815,7 @@ function BannersSection({
               <button
                 type="button"
                 onClick={onDismissProposal}
-                className="inline-flex items-center gap-1 rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-[11px] font-medium text-neutral-600 transition hover:bg-neutral-50"
+                className="inline-flex items-center gap-1 rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-xs font-medium text-neutral-600 transition hover:bg-neutral-50"
               >
                 <X className="h-3 w-3" />
                 Descartar
@@ -1869,7 +1866,7 @@ function BannersSection({
                 <button
                   type="button"
                   onClick={() => setGalleryOpen(false)}
-                  className="inline-flex shrink-0 items-center gap-1 rounded-md border border-neutral-300 bg-white px-2.5 py-1 text-[11px] font-medium text-neutral-600 transition hover:bg-neutral-50"
+                  className="inline-flex shrink-0 items-center gap-1 rounded-md border border-neutral-300 bg-white px-2.5 py-1 text-xs font-medium text-neutral-600 transition hover:bg-neutral-50"
                 >
                   <X className="h-3 w-3" />
                   Cancelar
@@ -1890,7 +1887,7 @@ function BannersSection({
                     {suggesting ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
                     {s.label}
                   </div>
-                  <div className="mt-0.5 px-1 pb-0.5 text-[11px] text-neutral-500">{s.help}</div>
+                  <div className="mt-0.5 px-1 pb-0.5 text-xs text-neutral-500">{s.help}</div>
                 </button>
               ))}
             </div>
@@ -1979,14 +1976,14 @@ function BannerEditor({
         className="flex w-full cursor-pointer items-center justify-between gap-2 px-3 py-2.5 transition hover:bg-neutral-50"
       >
         <div className="flex min-w-0 items-center gap-2">
-          <span className="bg-brand-600 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white">
+          <span className="bg-brand-600 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white">
             {index + 1}
           </span>
           <span className="shrink-0 text-xs font-semibold text-neutral-800">
             {styleInfo?.label ?? banner.style}
           </span>
           {!open && summary && (
-            <span className="truncate text-[11px] text-neutral-400">— {summary}</span>
+            <span className="truncate text-xs text-neutral-400">— {summary}</span>
           )}
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
@@ -2000,6 +1997,7 @@ function BannerEditor({
                 }}
                 disabled={index === 0}
                 title="Subir"
+                aria-label={`Subir banner ${index + 1}`}
                 className="rounded p-1 text-neutral-400 transition hover:text-neutral-700 disabled:opacity-30"
               >
                 <ChevronUp className="h-3.5 w-3.5" />
@@ -2012,6 +2010,7 @@ function BannerEditor({
                 }}
                 disabled={index === total - 1}
                 title="Bajar"
+                aria-label={`Bajar banner ${index + 1}`}
                 className="rounded p-1 text-neutral-400 transition hover:text-neutral-700 disabled:opacity-30"
               >
                 <ChevronDown className="h-3.5 w-3.5" />
@@ -2209,7 +2208,7 @@ function BannerEditor({
               disabled={suggesting}
               onClick={() => onResuggest(banner.style)}
               title="La IA vuelve a redactar el texto desde el brief (la imagen se conserva)"
-              className="text-brand-700 border-brand-200 hover:bg-brand-50 inline-flex items-center gap-1.5 rounded-md border bg-white px-2.5 py-1.5 text-[11px] font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
+              className="text-brand-700 border-brand-200 hover:bg-brand-50 inline-flex items-center gap-1.5 rounded-md border bg-white px-2.5 py-1.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
             >
               {suggesting ? (
                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -2221,7 +2220,7 @@ function BannerEditor({
             <button
               type="button"
               onClick={onRemove}
-              className="inline-flex items-center gap-1 rounded-md border border-neutral-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-neutral-500 transition hover:border-red-200 hover:text-red-600"
+              className="inline-flex items-center gap-1 rounded-md border border-neutral-200 bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-500 transition hover:border-red-200 hover:text-red-600"
             >
               <X className="h-3 w-3" />
               Quitar banner
@@ -2308,7 +2307,7 @@ function BannerImageTools({
 
   return (
     <div>
-      <label className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+      <label className="text-xs font-semibold tracking-wider text-neutral-500 uppercase">
         Imagen
       </label>
       <div className="mt-1.5 flex flex-wrap items-center gap-2">
@@ -2324,7 +2323,7 @@ function BannerImageTools({
           type="button"
           onClick={onGenerateAI}
           disabled={busyImg !== null}
-          className="text-brand-700 border-brand-200 hover:bg-brand-50 inline-flex items-center gap-1.5 rounded-md border bg-white px-2.5 py-1.5 text-[11px] font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
+          className="text-brand-700 border-brand-200 hover:bg-brand-50 inline-flex items-center gap-1.5 rounded-md border bg-white px-2.5 py-1.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
           title="Genera una imagen con Nano Banana usando el prompt editorial del brief"
         >
           {busyImg === "gen" ? (
@@ -2338,7 +2337,7 @@ function BannerImageTools({
           type="button"
           onClick={() => setSearchOpen((v) => !v)}
           disabled={busyImg !== null}
-          className="inline-flex items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-[11px] font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:opacity-50"
         >
           <Search className="h-3 w-3" />
           Unsplash
@@ -2347,7 +2346,7 @@ function BannerImageTools({
           type="button"
           onClick={() => imgInputRef.current?.click()}
           disabled={busyImg !== null}
-          className="inline-flex items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-[11px] font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:opacity-50"
         >
           <Upload className="h-3 w-3" />
           Subir
@@ -2356,7 +2355,7 @@ function BannerImageTools({
           <button
             type="button"
             onClick={() => set({ imageUrl: heroImageUrl, imageAlt: "Imagen del hero" })}
-            className="inline-flex items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-[11px] font-medium text-neutral-700 transition hover:bg-neutral-50"
+            className="inline-flex items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50"
           >
             <ImageIcon className="h-3 w-3" />
             Usar hero
@@ -2366,7 +2365,7 @@ function BannerImageTools({
           <button
             type="button"
             onClick={() => set({ imageUrl: undefined, imageAlt: undefined })}
-            className="inline-flex items-center gap-1 text-[11px] font-medium text-neutral-500 transition hover:text-red-600"
+            className="inline-flex items-center gap-1 text-xs font-medium text-neutral-500 transition hover:text-red-600"
           >
             <X className="h-3 w-3" />
             Quitar imagen
@@ -2406,7 +2405,7 @@ function BannerImageTools({
               type="button"
               onClick={() => void onSearch()}
               disabled={busyImg !== null || !query.trim()}
-              className="bg-brand-600 hover:bg-brand-700 inline-flex h-8 items-center gap-1 rounded-md px-2.5 text-[11px] font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60"
+              className="bg-brand-600 hover:bg-brand-700 inline-flex h-8 items-center gap-1 rounded-md px-2.5 text-xs font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60"
             >
               {busyImg === "search" ? (
                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -2428,6 +2427,9 @@ function BannerImageTools({
                   }}
                   className="hover:ring-brand-500 overflow-hidden rounded border border-neutral-200 transition hover:ring-2"
                   title={r.alt}
+                  aria-label={
+                    r.alt ? `Usar esta foto en el banner: ${r.alt}` : "Usar esta foto en el banner"
+                  }
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={r.thumbUrl} alt={r.alt} className="h-16 w-full object-cover" />
@@ -2438,7 +2440,7 @@ function BannerImageTools({
         </div>
       )}
 
-      {imgError && <p className="mt-1 text-[11px] text-red-600">{imgError}</p>}
+      {imgError && <p className="mt-1 text-xs text-red-600">{imgError}</p>}
 
       {/* Layout: tarjeta con margen vs imagen a todo el alto (full-bleed). */}
       <label className="mt-2.5 flex cursor-pointer items-center gap-2">
@@ -2453,7 +2455,7 @@ function BannerImageTools({
         </span>
       </label>
 
-      <p className="mt-1.5 text-[10px] text-neutral-400">
+      <p className="mt-1.5 text-xs text-neutral-400">
         Generar usa Nano Banana con el prompt editorial (reglas de marca HSBC). También puedes
         buscar en Unsplash, subir PNG/JPG/WebP (≤3 MB) o reusar la imagen del hero.
       </p>
@@ -2474,7 +2476,7 @@ function BannerTextarea({
 }) {
   return (
     <div>
-      <label className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+      <label className="text-xs font-semibold tracking-wider text-neutral-500 uppercase">
         {label}
       </label>
       <textarea
@@ -2501,7 +2503,7 @@ function BannerInput({
 }) {
   return (
     <div>
-      <label className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+      <label className="text-xs font-semibold tracking-wider text-neutral-500 uppercase">
         {label}
       </label>
       <input
@@ -2760,7 +2762,7 @@ function KeyInfoChips({
       )}
 
       {explicit.size === 0 && (
-        <p className="text-[11px] text-neutral-500">
+        <p className="text-xs text-neutral-500">
           Si no aplica nada, sigue al siguiente paso. El AI escribirá la notificación sin amarrarse
           a datos específicos.
         </p>
@@ -2772,7 +2774,7 @@ function KeyInfoChips({
 function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
-      <span className="text-[11px] font-medium text-neutral-600">{label}</span>
+      <span className="text-xs font-medium text-neutral-600">{label}</span>
       {children}
     </div>
   );
@@ -2818,11 +2820,11 @@ function WizardImagePicker({
             <div className="font-medium text-neutral-800">
               {heroImage.alt || "Imagen seleccionada"}
             </div>
-            <div className="text-[11px] text-neutral-500">Fuente: {heroImage.source}</div>
+            <div className="text-xs text-neutral-500">Fuente: {heroImage.source}</div>
             <button
               type="button"
               onClick={onClear}
-              className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-rose-600 hover:underline"
+              className="mt-1.5 inline-flex items-center gap-1 text-xs text-rose-600 hover:underline"
             >
               <X className="h-3 w-3" />
               Quitar
@@ -2853,7 +2855,7 @@ function WizardImagePicker({
       {tab === "search" && <UnsplashPanel onPick={onPick} onError={onError} />}
       {tab === "prompt" && <ImagePromptPanel brief={brief} onPick={onPick} onError={onError} />}
 
-      <p className="text-[11px] text-neutral-500">
+      <p className="text-xs text-neutral-500">
         Puedes saltar este paso y agregar la imagen después desde el editor.
       </p>
     </div>
@@ -3028,6 +3030,7 @@ function UnsplashPanel({
               key={img.id}
               type="button"
               onClick={() => pick(img)}
+              aria-label={img.alt ? `Usar esta imagen: ${img.alt}` : "Usar esta imagen"}
               className="hover:ring-brand-600 group relative overflow-hidden rounded border border-neutral-200 transition hover:ring-2"
               title={img.attribution}
             >
@@ -3039,7 +3042,7 @@ function UnsplashPanel({
       )}
 
       {results.length === 0 && !busy && (
-        <p className="text-[11px] text-neutral-500">
+        <p className="text-xs text-neutral-500">
           Las imágenes vienen de Unsplash. Si no encuentras nada, prueba en inglés (suele dar
           mejores resultados).
         </p>
@@ -3154,7 +3157,7 @@ function ImagePromptPanel({
         <div className="mb-2 flex items-center justify-between gap-2">
           <div>
             <div className="text-brand-800 text-sm font-semibold">✨ Generar con Nano Banana</div>
-            <div className="text-[11px] text-neutral-600">
+            <div className="text-xs text-neutral-600">
               2 variaciones distintas (editorial / contextual). ~10–20 seg.
             </div>
           </div>
@@ -3191,12 +3194,12 @@ function ImagePromptPanel({
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={img.url} alt={img.altSummary} className="h-32 w-full object-cover" />
                 {img.variationName && (
-                  <div className="absolute top-1 left-1 rounded bg-black/65 px-1.5 py-0.5 text-[9px] font-semibold tracking-wider text-white uppercase">
+                  <div className="absolute top-1 left-1 rounded bg-black/65 px-1.5 py-0.5 text-xs font-semibold tracking-wider text-white uppercase">
                     {img.variationName}
                   </div>
                 )}
                 <div className="bg-brand-600/0 group-hover:bg-brand-600/15 absolute inset-0 flex items-center justify-center transition">
-                  <span className="rounded bg-white/95 px-2 py-0.5 text-[10px] font-semibold text-neutral-900 opacity-0 transition group-hover:opacity-100">
+                  <span className="rounded bg-white/95 px-2 py-0.5 text-xs font-semibold text-neutral-900 opacity-0 transition group-hover:opacity-100">
                     Usar esta
                   </span>
                 </div>
@@ -3206,7 +3209,7 @@ function ImagePromptPanel({
         )}
       </div>
 
-      <div className="text-center text-[10px] tracking-widest text-neutral-400 uppercase">
+      <div className="text-center text-xs tracking-widest text-neutral-400 uppercase">
         o copia el prompt y úsalo en otro generador
       </div>
 
@@ -3222,7 +3225,7 @@ function ImagePromptPanel({
                   setActiveVar(v.id);
                   setCopied(false);
                 }}
-                className={`rounded px-2.5 py-1 text-[11px] font-medium transition ${
+                className={`rounded px-2.5 py-1 text-xs font-medium transition ${
                   activeVar === v.id
                     ? "bg-white text-neutral-900 shadow-sm"
                     : "text-neutral-600 hover:text-neutral-900"
@@ -3236,17 +3239,17 @@ function ImagePromptPanel({
           <button
             type="button"
             onClick={onCopy}
-            className="inline-flex h-6 items-center gap-1 rounded border border-neutral-300 bg-white px-2 text-[10px] font-medium text-neutral-600 transition hover:bg-neutral-50"
+            className="inline-flex h-6 items-center gap-1 rounded border border-neutral-300 bg-white px-2 text-xs font-medium text-neutral-600 transition hover:bg-neutral-50"
           >
             {copied ? "✓ Copiado" : "Copiar"}
           </button>
         </div>
-        <div className="mb-1.5 text-[10px] text-neutral-500">{activeVariation.description}</div>
+        <div className="mb-1.5 text-xs text-neutral-500">{activeVariation.description}</div>
         <textarea
           readOnly
           value={prompt}
           rows={12}
-          className="w-full resize-none rounded border border-neutral-200 bg-white px-3 py-2 font-mono text-[11px] leading-relaxed text-neutral-700"
+          className="w-full resize-none rounded border border-neutral-200 bg-white px-3 py-2 font-mono text-xs leading-relaxed text-neutral-700"
         />
       </div>
 
@@ -3268,7 +3271,7 @@ function ImagePromptPanel({
 
       {/* Atajos a generadores */}
       <div className="rounded-lg border border-neutral-200 bg-white p-3">
-        <div className="mb-2 text-[11px] font-medium text-neutral-600">
+        <div className="mb-2 text-xs font-medium text-neutral-600">
           O abre directo un generador (te copiamos el prompt y lo abrimos en nueva pestaña — solo
           pega con Cmd+V):
         </div>
@@ -3297,7 +3300,7 @@ function ImagePromptPanel({
         </div>
       </div>
 
-      <p className="text-[11px] text-neutral-500">
+      <p className="text-xs text-neutral-500">
         Cuando tengas la imagen generada, vuelve aquí, ve a la pestaña <strong>Subir mía</strong> y
         súbela.
       </p>

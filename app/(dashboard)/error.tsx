@@ -43,7 +43,7 @@ export default function DashboardError({
         </p>
 
         {error.digest && (
-          <p className="mt-3 font-mono text-[10px] text-neutral-400">ref: {error.digest}</p>
+          <p className="mt-3 font-mono text-xs text-neutral-400">ref: {error.digest}</p>
         )}
 
         {/* En cualquier ambiente mostramos el mensaje del error porque eso
@@ -54,7 +54,7 @@ export default function DashboardError({
             <summary className="cursor-pointer font-semibold text-neutral-700">
               Detalle del error (para debug)
             </summary>
-            <pre className="mt-2 overflow-x-auto font-mono text-[11px] whitespace-pre-wrap text-neutral-600">
+            <pre className="mt-2 overflow-x-auto font-mono text-xs whitespace-pre-wrap text-neutral-600">
               {error.message}
               {process.env.NODE_ENV !== "production" && error.stack ? `\n\n${error.stack}` : ""}
             </pre>

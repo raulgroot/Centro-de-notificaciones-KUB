@@ -14,7 +14,7 @@ const cleanPieceName = (s: string): string => {
 export function PiecesTable({ pieces }: { pieces: PieceMetrics[] }) {
   return (
     <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
-      <header className="grid grid-cols-12 gap-4 border-b border-neutral-200 bg-neutral-50/60 px-5 py-2.5 text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+      <header className="grid grid-cols-12 gap-4 border-b border-neutral-200 bg-neutral-50/60 px-5 py-2.5 text-xs font-semibold tracking-wider text-neutral-500 uppercase">
         <div className="col-span-5">Pieza</div>
         <div className="col-span-1">Producto</div>
         <div className="col-span-1 text-right">Enviado</div>

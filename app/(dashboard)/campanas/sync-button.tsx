@@ -65,7 +65,7 @@ function SyncResultPanel({ result }: { result: SyncResult }) {
           <div>
             <strong>Error en la sincronización:</strong> {result.error ?? "desconocido"}
             {result.error?.includes("ASANA_TOKEN_INVALID") && (
-              <div className="mt-1 text-[11px] text-red-700">
+              <div className="mt-1 text-xs text-red-700">
                 El PAT está mal o expiró. Verifica el valor en{" "}
                 <code className="rounded bg-red-100 px-1">.env.local</code>.
               </div>
@@ -94,7 +94,7 @@ function SyncResultPanel({ result }: { result: SyncResult }) {
           {totalImported === 1 ? "" : "s"} · <strong>{updated}</strong> actualizada
           {updated === 1 ? "" : "s"}.
           {importedFromName > 0 && (
-            <div className="mt-1 text-[11px] text-emerald-800">
+            <div className="mt-1 text-xs text-emerald-800">
               {importedFromName === 1
                 ? "1 fecha obtenida del nombre del task (sin due_date en Asana)."
                 : `${importedFromName} fechas obtenidas del nombre del task (sin due_date en Asana).`}
@@ -114,17 +114,17 @@ function SyncResultPanel({ result }: { result: SyncResult }) {
                       href={m.permalinkUrl}
                       target="_blank"
                       rel="noreferrer noopener"
-                      className="shrink-0 text-[11px] underline hover:no-underline"
+                      className="shrink-0 text-xs underline hover:no-underline"
                     >
                       abrir
                     </a>
                   </li>
                 ))}
                 {missing.length > 5 && (
-                  <li className="text-[11px] italic">y {missing.length - 5} más…</li>
+                  <li className="text-xs italic">y {missing.length - 5} más…</li>
                 )}
               </ul>
-              <div className="mt-1 text-[11px]">
+              <div className="mt-1 text-xs">
                 Pídele a Uriel que les agregue due date en Asana y vuelve a sincronizar.
               </div>
             </div>

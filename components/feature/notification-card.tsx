@@ -87,7 +87,7 @@ export function NotificationCard({ n }: { n: NotificationRecord }) {
           })()
         )}
         <span
-          className={`absolute top-2 right-2 inline-flex items-center gap-1 rounded-full border ${styles.border} bg-white/80 px-2 py-0.5 text-[10px] font-semibold tracking-wider uppercase backdrop-blur ${styles.text}`}
+          className={`absolute top-2 right-2 inline-flex items-center gap-1 rounded-full border ${styles.border} bg-white/80 px-2 py-0.5 text-xs font-semibold tracking-wider uppercase backdrop-blur ${styles.text}`}
         >
           <span className={`inline-block h-1.5 w-1.5 rounded-full ${styles.dot}`} />
           {status.label}
@@ -107,7 +107,7 @@ export function NotificationCard({ n }: { n: NotificationRecord }) {
             {n.subject || "—"}
           </h3>
         </Link>
-        <p className="line-clamp-1 text-[11px] text-neutral-500" title={n.themeName}>
+        <p className="line-clamp-1 text-xs text-neutral-500" title={n.themeName}>
           {n.themeName}
         </p>
 
@@ -137,7 +137,7 @@ export function NotificationCard({ n }: { n: NotificationRecord }) {
             </Tag>
           ))}
           {(n.products.length > 2 || n.movements.length > 1) && (
-            <span className="text-[10px] text-neutral-400">
+            <span className="text-xs text-neutral-400">
               +{n.products.length - 2 + (n.movements.length - 1)}
             </span>
           )}
@@ -148,7 +148,7 @@ export function NotificationCard({ n }: { n: NotificationRecord }) {
           button captures clicks instead of navigating to the detail page.
           The "Última enviada" link lives in the detail page (Enlaces a
           Kublau section), not here — to keep the card listing breezy. */}
-      <div className="relative z-[2] flex items-center justify-between gap-2 border-t border-neutral-100 px-3.5 py-2 text-[11px] text-neutral-500">
+      <div className="relative z-[2] flex items-center justify-between gap-2 border-t border-neutral-100 px-3.5 py-2 text-xs text-neutral-500">
         <span title={toIso(n.lastSentAt) ?? "Nunca enviada"}>
           {n.lastSentAt ? `Enviada ${relativeDate(n.lastSentAt)}` : "Sin enviar"}
         </span>
@@ -157,7 +157,7 @@ export function NotificationCard({ n }: { n: NotificationRecord }) {
             href={n.templatePreviewLink}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 rounded-md border border-neutral-200 bg-white px-2 py-1 text-[11px] font-medium text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 hover:text-neutral-900"
+            className="inline-flex items-center gap-1 rounded-md border border-neutral-200 bg-white px-2 py-1 text-xs font-medium text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 hover:text-neutral-900"
             title="Abrir preview del template en Kublau"
           >
             <Eye className="h-3 w-3" />
@@ -176,7 +176,7 @@ function Tag({ children, kind }: { children: React.ReactNode; kind: "product" | 
   } as const;
   return (
     <span
-      className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${styles[kind]}`}
+      className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ${styles[kind]}`}
     >
       {children}
     </span>
@@ -188,7 +188,7 @@ function StageChip({ stage }: { stage: LifecycleStage }) {
   const Icon = STAGE_ICON[stage];
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-semibold ${s.bg} ${s.text} ${s.border}`}
+      className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs font-semibold ${s.bg} ${s.text} ${s.border}`}
       title={`Etapa: ${STAGE_LABEL[stage]}`}
     >
       <Icon className="h-3 w-3" />
@@ -205,7 +205,7 @@ function Flag({ children, tone }: { children: React.ReactNode; tone: "amber" | "
   } as const;
   return (
     <span
-      className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${tones[tone]}`}
+      className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ${tones[tone]}`}
     >
       {children}
     </span>

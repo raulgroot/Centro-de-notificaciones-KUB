@@ -68,7 +68,7 @@ export function RefreshNowButton() {
         )}
         {pending ? "Revisando…" : "Refrescar ahora"}
       </button>
-      {result && <span className="text-[11px] text-neutral-500">{result}</span>}
+      {result && <span className="text-xs text-neutral-500">{result}</span>}
     </div>
   );
 }

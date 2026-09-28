@@ -98,7 +98,7 @@ export default async function MetricsPage() {
             />
           </div>
           <section>
-            <h2 className="mb-2 text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+            <h2 className="mb-2 text-xs font-semibold tracking-wider text-neutral-500 uppercase">
               Performance por pieza
             </h2>
             <PiecesTable pieces={snapshot.data.pieces} />

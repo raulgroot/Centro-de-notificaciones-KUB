@@ -27,7 +27,7 @@ export default async function DraftEditPage({ params }: { params: Params }) {
           <div className="h-4 w-px bg-neutral-300" aria-hidden />
           <div className="min-w-0">
             <div className="truncate text-sm font-semibold text-neutral-900">{draft.name}</div>
-            <div className="text-[11px] text-neutral-500">Borrador · guardado automáticamente</div>
+            <div className="text-xs text-neutral-500">Borrador · guardado automáticamente</div>
           </div>
         </div>
       </header>

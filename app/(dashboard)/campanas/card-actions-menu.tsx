@@ -162,7 +162,7 @@ export function CardActionsMenu({
             </div>
           )}
           {error && (
-            <div className="border-t border-red-200 bg-red-50 p-2 text-[11px] text-red-700">
+            <div className="border-t border-red-200 bg-red-50 p-2 text-xs text-red-700">
               {error}
             </div>
           )}

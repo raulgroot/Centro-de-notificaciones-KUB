@@ -95,7 +95,7 @@ export function SidebarNav({ email, signOutAction }: SidebarNavProps) {
                   <div className="truncate text-xs font-semibold text-white">
                     {prettyName(email)}
                   </div>
-                  <div className="truncate text-[11px] text-white/60">{email}</div>
+                  <div className="truncate text-xs text-white/60">{email}</div>
                 </div>
                 {signOutAction && (
                   <form action={signOutAction}>

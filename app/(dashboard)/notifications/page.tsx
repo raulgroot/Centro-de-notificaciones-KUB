@@ -246,7 +246,7 @@ function ListBody({
   return (
     <>
       <header className="flex items-center justify-between border-b border-neutral-200 px-5 py-2.5">
-        <div className="grid flex-1 grid-cols-12 gap-4 text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+        <div className="grid flex-1 grid-cols-12 gap-4 text-xs font-semibold tracking-wider text-neutral-500 uppercase">
           <div className="col-span-6">Asunto / Theme</div>
           <div className="col-span-4">Etiquetas</div>
           <div className="col-span-1 text-right">Actualizada</div>

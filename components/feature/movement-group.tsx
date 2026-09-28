@@ -108,7 +108,7 @@ function ProductSection({ subgroup }: { subgroup: ProductSubgroup }) {
     <div className="border-b border-neutral-100 last:border-b-0">
       <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-5 pt-4 pb-2">
         <h3 className="text-sm font-semibold text-neutral-800">{subgroup.product}</h3>
-        <span className="text-[11px] text-neutral-500">
+        <span className="text-xs text-neutral-500">
           {subgroup.summary.total.toLocaleString("es-MX")}
         </span>
         <Summary summary={subgroup.summary} compact />
@@ -162,7 +162,7 @@ function Summary({
 
   return (
     <div
-      className={`hidden shrink-0 items-center sm:flex ${compact ? "gap-2 text-[10px]" : "gap-3 text-[11px]"}`}
+      className={`hidden shrink-0 items-center sm:flex ${compact ? "gap-2 text-xs" : "gap-3 text-xs"}`}
     >
       {chips.map((c) => (
         <span key={c.label} className={`inline-flex items-center gap-1.5 ${c.text}`}>

@@ -32,7 +32,7 @@ export default async function CreationPage() {
         <EmptyState />
       ) : (
         <section className="overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm">
-          <header className="border-b border-neutral-200 px-5 py-2.5 text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+          <header className="border-b border-neutral-200 px-5 py-2.5 text-xs font-semibold tracking-wider text-neutral-500 uppercase">
             Borradores
           </header>
           <ul className="divide-y divide-neutral-100">
@@ -52,7 +52,7 @@ export default async function CreationPage() {
                         {d.name || "Sin nombre"}
                       </span>
                       {d.status === "shared" && (
-                        <span className="shrink-0 rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
+                        <span className="shrink-0 rounded bg-emerald-50 px-1.5 py-0.5 text-xs font-medium text-emerald-700">
                           compartido
                         </span>
                       )}
@@ -111,7 +111,7 @@ function NewDraftForm() {
       <div className="min-w-[260px] flex-1">
         <label
           htmlFor="draft-name"
-          className="block text-[11px] font-semibold tracking-wider text-neutral-500 uppercase"
+          className="block text-xs font-semibold tracking-wider text-neutral-500 uppercase"
         >
           Nombre del draft
         </label>

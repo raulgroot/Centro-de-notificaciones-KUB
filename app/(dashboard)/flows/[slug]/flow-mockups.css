@@ -404,57 +404,6 @@
   opacity: 0.5;
   margin: 0 1px;
 }
-.flow-rules-panel {
-  margin-top: 0;
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  background: var(--color-surface);
-  overflow: hidden;
-}
-.flow-rules-toggle {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 20px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--color-text);
-  transition: background 0.15s;
-}
-.flow-rules-toggle:hover {
-  background: var(--color-surface-hover);
-}
-.flow-rules-toggle > svg:first-child {
-  color: #B98900;
-  flex-shrink: 0;
-}
-.flow-rules-chevron {
-  margin-left: auto;
-  transition: transform 0.25s ease;
-  color: var(--color-text-secondary);
-}
-.flow-rules-toggle.open .flow-rules-chevron {
-  transform: rotate(180deg);
-}
-.flow-rules-content {
-  max-height: 0;
-  overflow: hidden;
-  transition: max-height 0.3s ease, padding 0.3s ease;
-  padding: 0 20px;
-}
-.flow-rules-content.open {
-  max-height: 600px;
-  padding: 0 20px 20px;
-}
-.flow-rules-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 16px;
-}
 .flow-rule-group {
   background: var(--color-bg);
   border: 1px solid var(--color-border);
@@ -1855,8 +1804,8 @@
   line-height: 1.6;
   padding: 12px 16px;
   background: rgba(2, 111, 255, 0.08);
-  border-left: 3px solid #026FFF;
-  border-radius: 0 8px 8px 0;
+  border: 1px solid rgba(2, 111, 255, 0.3);
+  border-radius: 8px;
 }
 .flow-pres-thumbs {
   display: flex;

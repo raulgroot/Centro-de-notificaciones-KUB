@@ -61,7 +61,7 @@ export default async function NotificationDetailPage({ params }: { params: Param
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         <Card>
-          <div className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+          <div className="text-xs font-semibold tracking-wider text-neutral-500 uppercase">
             Identificación
           </div>
           <DetailField label="ID">
@@ -79,7 +79,7 @@ export default async function NotificationDetailPage({ params }: { params: Param
         </Card>
 
         <Card>
-          <div className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+          <div className="text-xs font-semibold tracking-wider text-neutral-500 uppercase">
             Configuración
           </div>
           <DetailField label="Flags">
@@ -105,7 +105,7 @@ export default async function NotificationDetailPage({ params }: { params: Param
         </Card>
 
         <Card>
-          <div className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+          <div className="text-xs font-semibold tracking-wider text-neutral-500 uppercase">
             Mensajería
           </div>
           <DetailField label="Asunto del correo">
@@ -140,7 +140,7 @@ export default async function NotificationDetailPage({ params }: { params: Param
 
       {(n.themeLink || n.templateLink || n.templatePreviewLink || n.postmarkUrl) && (
         <Card>
-          <div className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+          <div className="text-xs font-semibold tracking-wider text-neutral-500 uppercase">
             Enlaces a Kublau
           </div>
           <div className="mt-3 flex flex-col gap-2">
@@ -170,9 +170,7 @@ function Card({ children }: { children: React.ReactNode }) {
 function DetailField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
-        {label}
-      </div>
+      <div className="text-xs font-semibold tracking-wider text-neutral-500 uppercase">{label}</div>
       <div className="mt-1.5">{children}</div>
     </div>
   );

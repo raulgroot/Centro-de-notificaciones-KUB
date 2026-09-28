@@ -19,7 +19,7 @@ export function RawDataSection({ children }: { children: React.ReactNode }) {
         aria-expanded={open}
       >
         <div>
-          <div className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+          <div className="text-xs font-semibold tracking-wider text-neutral-500 uppercase">
             Datos crudos
           </div>
           <div className="mt-0.5 text-xs text-neutral-500">

@@ -47,7 +47,7 @@ export function NotificationRow({ n }: { n: NotificationRecord }) {
           </Tag>
         ))}
         {(n.products.length > 2 || n.movements.length > 1) && (
-          <span className="text-[10px] text-neutral-400">
+          <span className="text-xs text-neutral-400">
             +{n.products.length - 2 + (n.movements.length - 1)}
           </span>
         )}
@@ -70,7 +70,7 @@ function Tag({ children, kind }: { children: React.ReactNode; kind: "product" | 
   } as const;
   return (
     <span
-      className={`inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium ${styles[kind]}`}
+      className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ${styles[kind]}`}
     >
       {children}
     </span>
@@ -85,7 +85,7 @@ function Pill({ children, tone }: { children: React.ReactNode; tone: "amber" | "
   } as const;
   return (
     <span
-      className={`inline-flex shrink-0 items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${tones[tone]}`}
+      className={`inline-flex shrink-0 items-center rounded px-1.5 py-0.5 text-xs font-medium ${tones[tone]}`}
     >
       {children}
     </span>

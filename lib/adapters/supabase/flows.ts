@@ -9,6 +9,7 @@
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { supabaseAdminEnv } from "@/lib/env";
+import { sanitizeMockupHtml, sanitizeRuleHtml } from "@/lib/core/flows/sanitize-html";
 
 let _client: SupabaseClient | null = null;
 function client(): SupabaseClient {
@@ -80,7 +81,12 @@ const mapFlow = (r: RawFlow): Flow => ({
   subtitle: r.subtitle,
   description: r.description,
   accentColor: r.accent_color ?? "#DB0011",
-  rules: r.rules ?? [],
+  // Los items se inyectan como HTML en la página: se sanitizan aquí, en el
+  // borde, para que ningún consumidor reciba HTML crudo de la BD.
+  rules: (r.rules ?? []).map((rule) => ({
+    ...rule,
+    items: (rule.items ?? []).map(sanitizeRuleHtml),
+  })),
   active: r.active,
   sortOrder: r.sort_order,
 });
@@ -94,7 +100,7 @@ const mapStep = (r: RawFlowStep): FlowStep => ({
   keyPoints: r.key_points ?? [],
   userAction: r.user_action,
   mockupImageUrl: r.mockup_image_url,
-  mockupHtml: r.mockup_html,
+  mockupHtml: r.mockup_html ? sanitizeMockupHtml(r.mockup_html) : null,
 });
 
 export async function listFlows(): Promise<Flow[]> {

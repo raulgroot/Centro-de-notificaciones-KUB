@@ -70,9 +70,7 @@ function Section({
   return (
     <section className="space-y-3">
       <header>
-        <h2 className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
-          {title}
-        </h2>
+        <h2 className="text-xs font-semibold tracking-wider text-neutral-500 uppercase">{title}</h2>
         {description && <p className="mt-1 text-xs text-neutral-500">{description}</p>}
       </header>
       <div>{children}</div>
@@ -101,11 +99,17 @@ function InsightHeader({
     <div className="mb-3 flex items-center gap-2">
       <div
         className="flex h-7 w-7 items-center justify-center rounded-md"
-        style={{ background: `${iconColor}1A`, color: iconColor }}
+        // iconColor es un token (var(--color-*)); el fondo es ese mismo tono
+        // al 10%. color-mix en lugar de pegarle "1A" al hex, que solo
+        // funcionaba con colores literales.
+        style={{
+          background: `color-mix(in srgb, ${iconColor} 10%, transparent)`,
+          color: iconColor,
+        }}
       >
         <Icon className="h-3.5 w-3.5" />
       </div>
-      <span className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+      <span className="text-xs font-semibold tracking-wider text-neutral-500 uppercase">
         {label}
       </span>
     </div>
@@ -127,7 +131,7 @@ function Subtle({ children }: { children: React.ReactNode }) {
 function DeltaBadge({ pct }: { pct: number }) {
   if (!Number.isFinite(pct)) {
     return (
-      <span className="inline-flex items-center gap-0.5 rounded bg-emerald-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700">
+      <span className="inline-flex items-center gap-0.5 rounded bg-emerald-50 px-1.5 py-0.5 text-xs font-medium text-emerald-700">
         nuevo
       </span>
     );
@@ -136,14 +140,14 @@ function DeltaBadge({ pct }: { pct: number }) {
   const negative = pct < 0;
   if (!positive && !negative) {
     return (
-      <span className="inline-flex items-center gap-0.5 rounded bg-neutral-100 px-1.5 py-0.5 text-[11px] font-medium text-neutral-600">
+      <span className="inline-flex items-center gap-0.5 rounded bg-neutral-100 px-1.5 py-0.5 text-xs font-medium text-neutral-600">
         sin cambio
       </span>
     );
   }
   return (
     <span
-      className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] font-medium ${
+      className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs font-medium ${
         positive ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
       }`}
     >
@@ -195,7 +199,7 @@ function WeeklySection({ weekly }: { weekly: WeeklyMomentum }) {
   return (
     <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
       <Card>
-        <InsightHeader Icon={TrendingUp} iconColor="#2563eb" label="Esta semana" />
+        <InsightHeader Icon={TrendingUp} iconColor="var(--color-blue-600)" label="Esta semana" />
         <BigNumber>{numberFmt.format(weekly.current.total)}</BigNumber>
         <Subtle>
           correos enviados en {weekly.current.label}
@@ -210,7 +214,7 @@ function WeeklySection({ weekly }: { weekly: WeeklyMomentum }) {
       <DeltaPairCard
         title="Producto que más creció"
         Icon={Flame}
-        iconColor="#f97316"
+        iconColor="var(--color-orange-500)"
         emptyText="Ningún producto subió esta semana."
         delta={weekly.topGrowingProduct}
         direction="up"
@@ -218,7 +222,7 @@ function WeeklySection({ weekly }: { weekly: WeeklyMomentum }) {
       <DeltaPairCard
         title="Producto que más cayó"
         Icon={Snowflake}
-        iconColor="#0891b2"
+        iconColor="var(--color-cyan-600)"
         emptyText="Ningún producto cayó esta semana."
         delta={weekly.topFallingProduct}
         direction="down"
@@ -226,7 +230,7 @@ function WeeklySection({ weekly }: { weekly: WeeklyMomentum }) {
       <DeltaPairCard
         title="Movimiento que más creció"
         Icon={TrendingUp}
-        iconColor="#16a34a"
+        iconColor="var(--color-green-600)"
         emptyText="Ningún movimiento subió esta semana."
         delta={weekly.topGrowingMovement}
         direction="up"
@@ -234,7 +238,7 @@ function WeeklySection({ weekly }: { weekly: WeeklyMomentum }) {
       <DeltaPairCard
         title="Movimiento que más cayó"
         Icon={TrendingDown}
-        iconColor="#dc2626"
+        iconColor="var(--color-red-600)"
         emptyText="Ningún movimiento cayó esta semana."
         delta={weekly.topFallingMovement}
         direction="down"
@@ -283,7 +287,11 @@ function WinnersSection({ winners }: { winners: WinnersInsights }) {
   return (
     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
       <Card>
-        <InsightHeader Icon={Crown} iconColor="#ca8a04" label="Mejor pieza por open rate" />
+        <InsightHeader
+          Icon={Crown}
+          iconColor="var(--color-yellow-600)"
+          label="Mejor pieza por open rate"
+        />
         {winners.bestByOpenRate ? (
           <>
             <BigNumber>{pctFmt.format(winners.bestByOpenRate.openRate)}</BigNumber>
@@ -301,7 +309,11 @@ function WinnersSection({ winners }: { winners: WinnersInsights }) {
       </Card>
 
       <Card>
-        <InsightHeader Icon={Award} iconColor="#0891b2" label="Mejor producto por engagement" />
+        <InsightHeader
+          Icon={Award}
+          iconColor="var(--color-cyan-600)"
+          label="Mejor producto por engagement"
+        />
         {winners.bestProductByOpenRate ? (
           <>
             <BigNumber>{winners.bestProductByOpenRate.product}</BigNumber>
@@ -316,14 +328,18 @@ function WinnersSection({ winners }: { winners: WinnersInsights }) {
       </Card>
 
       <Card className="md:col-span-2">
-        <InsightHeader Icon={Sparkles} iconColor="#7c3aed" label="Top 3 por click rate" />
+        <InsightHeader
+          Icon={Sparkles}
+          iconColor="var(--color-violet-600)"
+          label="Top 3 por click rate"
+        />
         {winners.topByClickRate.length === 0 ? (
           <Subtle>No hay piezas con suficiente volumen para comparar.</Subtle>
         ) : (
           <ol className="mt-1 space-y-2">
             {winners.topByClickRate.map((p, i) => (
               <li key={`${p.piece}-${i}`} className="flex items-baseline gap-3 text-sm">
-                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-[11px] font-semibold text-neutral-700">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-xs font-semibold text-neutral-700">
                   {i + 1}
                 </span>
                 <span className="min-w-0 flex-1 truncate text-neutral-800">
@@ -365,7 +381,11 @@ function AttentionSection({ attention }: { attention: AttentionInsights }) {
     <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
       {attention.lowOpenRate.length > 0 && (
         <Card>
-          <InsightHeader Icon={AlertTriangle} iconColor="#dc2626" label="Open rate < 10%" />
+          <InsightHeader
+            Icon={AlertTriangle}
+            iconColor="var(--color-red-600)"
+            label="Open rate < 10%"
+          />
           <p className="text-sm text-neutral-700">
             <strong>{attention.lowOpenRate.length}</strong>{" "}
             {attention.lowOpenRate.length === 1 ? "pieza" : "piezas"} con open rate bajo —
@@ -391,7 +411,11 @@ function AttentionSection({ attention }: { attention: AttentionInsights }) {
 
       {attention.zeroOpens.length > 0 && (
         <Card>
-          <InsightHeader Icon={AlertTriangle} iconColor="#dc2626" label="Piezas con 0 opens" />
+          <InsightHeader
+            Icon={AlertTriangle}
+            iconColor="var(--color-red-600)"
+            label="Piezas con 0 opens"
+          />
           <p className="text-sm text-neutral-700">
             <strong>{attention.zeroOpens.length}</strong>{" "}
             {attention.zeroOpens.length === 1 ? "pieza" : "piezas"} sin un solo open — destinatarios
@@ -414,7 +438,11 @@ function AttentionSection({ attention }: { attention: AttentionInsights }) {
 
       {attention.outOfTimeRate > 0.05 && (
         <Card>
-          <InsightHeader Icon={AlertTriangle} iconColor="#f59e0b" label="Clicks fuera de tiempo" />
+          <InsightHeader
+            Icon={AlertTriangle}
+            iconColor="var(--color-amber-500)"
+            label="Clicks fuera de tiempo"
+          />
           <BigNumber>{pctFmt.format(attention.outOfTimeRate)}</BigNumber>
           <Subtle>
             de los envíos generan clicks fuera del periodo válido (RSR). Indica posible UX confuso
@@ -427,7 +455,7 @@ function AttentionSection({ attention }: { attention: AttentionInsights }) {
         <Card>
           <InsightHeader
             Icon={AlertTriangle}
-            iconColor="#f59e0b"
+            iconColor="var(--color-amber-500)"
             label="Peores piezas en clicks fuera de tiempo"
           />
           <ul className="space-y-1.5">
@@ -456,14 +484,18 @@ function HealthSection({ health }: { health: OperationalHealth }) {
   return (
     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
       <Card>
-        <InsightHeader Icon={HeartPulse} iconColor="#0891b2" label="Última sincronización" />
+        <InsightHeader
+          Icon={HeartPulse}
+          iconColor="var(--color-cyan-600)"
+          label="Última sincronización"
+        />
         <BigNumber>{health.lastSyncedLabel}</BigNumber>
         {health.lastSyncedAt && <Subtle>{health.lastSyncedAt.toLocaleString("es-MX")}</Subtle>}
       </Card>
       <Card>
         <InsightHeader
           Icon={HeartPulse}
-          iconColor="#16a34a"
+          iconColor="var(--color-green-600)"
           label="Templates modificados (7 días)"
         />
         <BigNumber>{numberFmt.format(health.templatesUpdatedLast7Days)}</BigNumber>
@@ -483,25 +515,25 @@ function HealthSection({ health }: { health: OperationalHealth }) {
 function QAQueueSection({ qa }: { qa: QAQueueInsight }) {
   return (
     <Card>
-      <InsightHeader Icon={ListChecks} iconColor="#7c3aed" label="Cola de QA" />
+      <InsightHeader Icon={ListChecks} iconColor="var(--color-violet-600)" label="Cola de QA" />
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-md border border-amber-200 bg-amber-50 p-3">
           <div className="text-2xl font-bold text-amber-900 tabular-nums">
             {numberFmt.format(qa.pending.length)}
           </div>
-          <div className="text-[11px] text-amber-700">Pendientes de envío</div>
+          <div className="text-xs text-amber-700">Pendientes de envío</div>
         </div>
         <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3">
           <div className="text-2xl font-bold text-emerald-900 tabular-nums">
             {numberFmt.format(qa.readyForReview.length)}
           </div>
-          <div className="text-[11px] text-emerald-700">Listos para QA</div>
+          <div className="text-xs text-emerald-700">Listos para QA</div>
         </div>
       </div>
       <Subtle>Templates editados en los últimos {qa.windowDays} días.</Subtle>
       {qa.pending.length > 0 && (
         <div className="mt-3">
-          <div className="text-[11px] font-semibold tracking-wider text-amber-700 uppercase">
+          <div className="text-xs font-semibold tracking-wider text-amber-700 uppercase">
             Recién editados, sin enviar todavía
           </div>
           <ul className="mt-1.5 space-y-1">
@@ -523,7 +555,7 @@ function QAQueueSection({ qa }: { qa: QAQueueInsight }) {
 function ZombiesSection({ zombies }: { zombies: ZombiesInsight }) {
   return (
     <Card>
-      <InsightHeader Icon={Ghost} iconColor="#6b7280" label="Templates zombi" />
+      <InsightHeader Icon={Ghost} iconColor="var(--color-gray-500)" label="Templates zombi" />
       <BigNumber>{numberFmt.format(zombies.totalZombies)}</BigNumber>
       <Subtle>
         templates con tema activo que no se han enviado en {zombies.thresholdDays}+ días
@@ -569,7 +601,11 @@ function TopOpensSection({ topOpens }: { topOpens: TopOpensInsight }) {
   }
   return (
     <Card>
-      <InsightHeader Icon={Eye} iconColor="#16a34a" label="Top 10 piezas más efectivas" />
+      <InsightHeader
+        Icon={Eye}
+        iconColor="var(--color-green-600)"
+        label="Top 10 piezas más efectivas"
+      />
       <p className="text-sm text-neutral-700">
         Ordenadas por <strong>open rate</strong> (mínimo 100 envíos). Para cada pieza muestro los{" "}
         <strong>subjects probables</strong> del catálogo y una hipótesis del por qué funcionan. Open
@@ -582,14 +618,14 @@ function TopOpensSection({ topOpens }: { topOpens: TopOpensInsight }) {
             className="rounded-md border border-neutral-200 bg-neutral-50/60 p-3"
           >
             <div className="flex items-baseline gap-3">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-[11px] font-semibold text-emerald-700">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-semibold text-emerald-700">
                 {i + 1}
               </span>
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium text-neutral-900" title={e.piece}>
                   {cleanPieceLabel(e.piece)}
                 </div>
-                <div className="mt-0.5 text-[11px] text-neutral-500">
+                <div className="mt-0.5 text-xs text-neutral-500">
                   <span className="font-medium">{e.product}</span> · {numberFmt.format(e.opened)}{" "}
                   opens de {numberFmt.format(e.sent)} envíos
                 </div>
@@ -599,7 +635,7 @@ function TopOpensSection({ topOpens }: { topOpens: TopOpensInsight }) {
                   {pctFmt.format(e.openRate)}
                 </div>
                 {e.vsAverage >= 1.1 && (
-                  <div className="text-[11px] text-emerald-600 tabular-nums">
+                  <div className="text-xs text-emerald-600 tabular-nums">
                     {e.vsAverage.toFixed(1)}× promedio
                   </div>
                 )}
@@ -607,7 +643,7 @@ function TopOpensSection({ topOpens }: { topOpens: TopOpensInsight }) {
             </div>
             {e.candidateSubjects.length > 0 && (
               <div className="mt-2.5 pl-9">
-                <div className="text-[10px] font-semibold tracking-wider text-neutral-500 uppercase">
+                <div className="text-xs font-semibold tracking-wider text-neutral-500 uppercase">
                   Subjects probables
                 </div>
                 <ul className="mt-1 space-y-1">
@@ -624,7 +660,7 @@ function TopOpensSection({ topOpens }: { topOpens: TopOpensInsight }) {
             )}
             {e.candidateSubjects.length === 0 && (
               <div className="mt-2.5 pl-9">
-                <div className="text-[10px] tracking-wider text-neutral-400 italic">
+                <div className="text-xs tracking-wider text-neutral-400 italic">
                   No encontré subjects con suficiente parecido al nombre de la pieza.
                 </div>
               </div>
@@ -686,15 +722,19 @@ function SubjectsSection({ subjects }: { subjects: SubjectInsight }) {
   return (
     <div className="space-y-3">
       <Card>
-        <InsightHeader Icon={Type} iconColor="#db2777" label="Patrones en los subjects" />
+        <InsightHeader
+          Icon={Type}
+          iconColor="var(--color-pink-600)"
+          label="Patrones en los subjects"
+        />
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
           {stats.map((s) => (
             <div key={s.label} className="rounded-md border border-neutral-200 bg-neutral-50 p-3">
-              <div className="text-[11px] font-medium tracking-wider text-neutral-500 uppercase">
+              <div className="text-xs font-medium tracking-wider text-neutral-500 uppercase">
                 {s.label}
               </div>
               <div className="mt-1 text-lg font-bold text-neutral-900 tabular-nums">{s.value}</div>
-              <div className="mt-0.5 text-[11px] text-neutral-500">{s.hint}</div>
+              <div className="mt-0.5 text-xs text-neutral-500">{s.hint}</div>
             </div>
           ))}
         </div>
@@ -728,7 +768,7 @@ function SubjectSamplesCard({
 }) {
   return (
     <Card>
-      <InsightHeader Icon={MailQuestion} iconColor="#db2777" label={title} />
+      <InsightHeader Icon={MailQuestion} iconColor="var(--color-pink-600)" label={title} />
       <Subtle>{description}</Subtle>
       <ul className="mt-3 space-y-2">
         {samples.map((s) => (
@@ -765,7 +805,7 @@ function VolumeAnomaliesSection({ anomalies }: { anomalies: VolumeAnomalyInsight
         <Card>
           <InsightHeader
             Icon={TrendingDown}
-            iconColor="#dc2626"
+            iconColor="var(--color-red-600)"
             label="Caídas drásticas (esta semana)"
           />
           <Subtle>Bajaron 30%+ vs su promedio de 4 semanas.</Subtle>
@@ -788,7 +828,11 @@ function VolumeAnomaliesSection({ anomalies }: { anomalies: VolumeAnomalyInsight
       )}
       {anomalies.spikes.length > 0 && (
         <Card>
-          <InsightHeader Icon={Zap} iconColor="#f59e0b" label="Picos atípicos (esta semana)" />
+          <InsightHeader
+            Icon={Zap}
+            iconColor="var(--color-amber-500)"
+            label="Picos atípicos (esta semana)"
+          />
           <Subtle>Subieron 50%+ vs su promedio de 4 semanas.</Subtle>
           <ul className="mt-3 space-y-2">
             {anomalies.spikes.map((a) => (

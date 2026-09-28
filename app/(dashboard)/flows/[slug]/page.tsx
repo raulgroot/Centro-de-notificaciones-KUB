@@ -52,7 +52,7 @@ export default async function FlowDetailPage({ params }: { params: Params }) {
       {/* Rules section */}
       {flow.rules.length > 0 && (
         <section>
-          <h2 className="mb-3 text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+          <h2 className="mb-3 text-xs font-semibold tracking-wider text-neutral-500 uppercase">
             Reglas y restricciones
           </h2>
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
@@ -81,7 +81,7 @@ export default async function FlowDetailPage({ params }: { params: Params }) {
 
       {/* Steps */}
       <section>
-        <h2 className="mb-3 text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+        <h2 className="mb-3 text-xs font-semibold tracking-wider text-neutral-500 uppercase">
           Paso a paso ({steps.length})
         </h2>
         <ol className="space-y-5">
@@ -111,7 +111,7 @@ export default async function FlowDetailPage({ params }: { params: Params }) {
 
                   {step.keyPoints.length > 0 && (
                     <div className="mt-4">
-                      <div className="flex items-center gap-1.5 text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+                      <div className="flex items-center gap-1.5 text-xs font-semibold tracking-wider text-neutral-500 uppercase">
                         <ListChecks className="h-3.5 w-3.5" />
                         Puntos clave
                       </div>
@@ -190,7 +190,7 @@ function Mockup({
   // Placeholder when no mockup is provided.
   return (
     <div
-      className="flex h-48 w-full items-center justify-center rounded-xl border border-dashed border-neutral-300 bg-neutral-50/60 text-[11px] text-neutral-400"
+      className="flex h-48 w-full items-center justify-center rounded-xl border border-dashed border-neutral-300 bg-neutral-50/60 text-xs text-neutral-400"
       style={{ borderColor: `${accentColor}33` }}
     >
       <span>Mockup pendiente</span>

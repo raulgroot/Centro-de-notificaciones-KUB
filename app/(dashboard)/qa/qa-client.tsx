@@ -51,7 +51,7 @@ function StatusPill({ status }: { status: Status }) {
   const { label, tone, Icon } = STATUS_META[status];
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium ${tone}`}
+      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${tone}`}
     >
       <Icon className="h-3 w-3" />
       {label}
@@ -124,7 +124,7 @@ export function QAClient() {
           <div>
             <label
               htmlFor="qa-date"
-              className="block text-[11px] font-semibold tracking-wider text-neutral-600 uppercase"
+              className="block text-xs font-semibold tracking-wider text-neutral-600 uppercase"
             >
               Fecha de subida de cambios
             </label>
@@ -137,7 +137,7 @@ export function QAClient() {
               onChange={(e) => setReferenceDate(e.target.value)}
               className="focus:border-brand-600 focus:ring-brand-600/15 mt-1 h-9 rounded-md border border-neutral-300 bg-white px-3 text-sm focus:ring-2 focus:outline-none"
             />
-            <p className="mt-1 text-[11px] text-neutral-500">
+            <p className="mt-1 text-xs text-neutral-500">
               Cualquier envío después de esta fecha cuenta como &ldquo;listo&rdquo;.
             </p>
           </div>
@@ -145,7 +145,7 @@ export function QAClient() {
           <div>
             <label
               htmlFor="qa-file"
-              className="block text-[11px] font-semibold tracking-wider text-neutral-600 uppercase"
+              className="block text-xs font-semibold tracking-wider text-neutral-600 uppercase"
             >
               Archivo Excel
             </label>
@@ -171,16 +171,16 @@ export function QAClient() {
                 }}
               />
               {fileName && (
-                <span className="truncate font-mono text-[11px] text-neutral-500">{fileName}</span>
+                <span className="truncate font-mono text-xs text-neutral-500">{fileName}</span>
               )}
             </div>
-            <p className="mt-1 text-[11px] text-neutral-500">
+            <p className="mt-1 text-xs text-neutral-500">
               Primera columna con el{" "}
-              <code className="rounded bg-neutral-100 px-1 py-0.5 text-[10px]">
+              <code className="rounded bg-neutral-100 px-1 py-0.5 text-xs">
                 NOMBRE DE THEME/TRIGGER
               </code>
-              . Si traes <code className="text-[10px]">FECHA DE MODIFICACIÓN</code> en otra columna,
-              esa fecha pisa la global por fila.
+              . Si traes <code className="text-xs">FECHA DE MODIFICACIÓN</code> en otra columna, esa
+              fecha pisa la global por fila.
             </p>
           </div>
 
@@ -364,9 +364,7 @@ function SaveBatchPanel({
             </button>
           </div>
           {error && (
-            <div className="mt-2 rounded-md bg-red-50 px-2 py-1 text-[11px] text-red-700">
-              {error}
-            </div>
+            <div className="mt-2 rounded-md bg-red-50 px-2 py-1 text-xs text-red-700">{error}</div>
           )}
         </div>
       </div>
@@ -417,7 +415,7 @@ function ResultsTable({
       <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="border-b border-neutral-200 bg-neutral-50 text-left text-[11px] tracking-wider text-neutral-600 uppercase">
+            <thead className="border-b border-neutral-200 bg-neutral-50 text-left text-xs tracking-wider text-neutral-600 uppercase">
               <tr>
                 <th className="px-4 py-2 font-semibold">Nombre del theme</th>
                 <th className="px-4 py-2 font-semibold">Fecha de modificación</th>
@@ -432,9 +430,7 @@ function ResultsTable({
                   <td className="px-4 py-2.5 align-top">
                     <div className="font-medium text-neutral-900">{r.themeName}</div>
                     {r.subject && (
-                      <div className="mt-0.5 truncate text-[11px] text-neutral-500">
-                        {r.subject}
-                      </div>
+                      <div className="mt-0.5 truncate text-xs text-neutral-500">{r.subject}</div>
                     )}
                   </td>
                   <td className="px-4 py-2.5 align-top text-xs whitespace-nowrap text-neutral-600">
@@ -479,7 +475,7 @@ function PreviewDrawer({ row, onClose }: { row: QARow; onClose: () => void }) {
         <header className="flex items-start justify-between gap-4 border-b border-neutral-200 px-5 py-4">
           <div className="min-w-0 flex-1">
             <h2 className="truncate text-base font-semibold text-neutral-900">{row.themeName}</h2>
-            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-neutral-600">
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-600">
               <StatusPill status={row.status} />
               {row.lastSentAt && (
                 <span>

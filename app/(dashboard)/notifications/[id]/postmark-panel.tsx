@@ -116,7 +116,7 @@ export async function PostmarkPanel({
 
       {messages.length > 0 && (
         <div className="mt-4">
-          <div className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+          <div className="text-xs font-semibold tracking-wider text-neutral-500 uppercase">
             Últimos envíos en Postmark
           </div>
           <div className="mt-2 overflow-hidden rounded-md border border-neutral-200">
@@ -133,7 +133,7 @@ export async function PostmarkPanel({
                 {messages.slice(0, 5).map((m) => (
                   <tr key={m.messageId}>
                     <td className="px-3 py-2 text-neutral-700">{dtFmt.format(m.receivedAt)}</td>
-                    <td className="px-3 py-2 font-mono text-[11px] text-neutral-600">
+                    <td className="px-3 py-2 font-mono text-xs text-neutral-600">
                       {maskEmail(m.to[0]?.email)}
                     </td>
                     <td className="px-3 py-2">
@@ -149,7 +149,7 @@ export async function PostmarkPanel({
             </table>
           </div>
           {totalCount > 5 && (
-            <p className="mt-2 text-[11px] text-neutral-500">
+            <p className="mt-2 text-xs text-neutral-500">
               Mostrando 5 de {totalCount.toLocaleString("en-US")} envíos en los últimos{" "}
               {POSTMARK_LOOKBACK_DAYS} días.
             </p>
@@ -178,7 +178,7 @@ function SectionTitle({ status }: { status?: VerificationStatus }) {
   const meta = status ? VERIFICATION_LABELS[status] : null;
   return (
     <div className="flex items-center justify-between gap-3">
-      <div className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+      <div className="text-xs font-semibold tracking-wider text-neutral-500 uppercase">
         Postmark · Verificación de envíos
       </div>
       {meta && (
@@ -207,9 +207,7 @@ function SectionTitle({ status }: { status?: VerificationStatus }) {
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-md border border-neutral-200 bg-neutral-50/60 px-3 py-2.5">
-      <div className="text-[10px] font-semibold tracking-wider text-neutral-500 uppercase">
-        {label}
-      </div>
+      <div className="text-xs font-semibold tracking-wider text-neutral-500 uppercase">{label}</div>
       <div className="mt-1 text-sm font-semibold text-neutral-900">{value}</div>
     </div>
   );
@@ -224,7 +222,7 @@ function StatusPill({ status }: { status: string }) {
   const bad = status === "Bounced" || status === "SpamComplaint";
   return (
     <span
-      className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${
+      className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ${
         ok
           ? "bg-emerald-50 text-emerald-700"
           : bad
@@ -242,7 +240,7 @@ export function PostmarkPanelSkeleton() {
   return (
     <SectionCard>
       <div className="flex items-center justify-between gap-3">
-        <div className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">
+        <div className="text-xs font-semibold tracking-wider text-neutral-500 uppercase">
           Postmark · Verificación de envíos
         </div>
         <div className="h-5 w-24 animate-pulse rounded-full bg-neutral-100" />

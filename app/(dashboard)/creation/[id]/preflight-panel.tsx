@@ -58,19 +58,19 @@ function FindingCard({ finding }: { finding: Finding }) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
             {finding.field && (
-              <span className="rounded bg-white/70 px-1.5 py-0.5 text-[10px] font-semibold tracking-wider text-neutral-600 uppercase">
+              <span className="rounded bg-white/70 px-1.5 py-0.5 text-xs font-semibold tracking-wider text-neutral-600 uppercase">
                 {finding.field}
               </span>
             )}
             {finding.discriminatory && (
-              <span className="rounded bg-rose-600 px-1.5 py-0.5 text-[10px] font-bold tracking-wider text-white uppercase">
+              <span className="rounded bg-rose-600 px-1.5 py-0.5 text-xs font-bold tracking-wider text-white uppercase">
                 Alto riesgo
               </span>
             )}
           </div>
           <p className="mt-1 text-xs leading-relaxed text-neutral-700">{finding.message}</p>
           {finding.match && (
-            <p className="mt-1 text-[11px] text-neutral-500">
+            <p className="mt-1 text-xs text-neutral-500">
               Encontrado: <span className="font-mono text-neutral-700">“{finding.match}”</span>
             </p>
           )}
@@ -120,6 +120,7 @@ export function PreflightPanel({
           <button
             type="button"
             onClick={onClose}
+            aria-label="Cerrar revisión de marca"
             className="rounded-md p-1 text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-600"
           >
             <X className="h-4 w-4" />
@@ -151,7 +152,7 @@ export function PreflightPanel({
               return (
                 <span
                   key={sev}
-                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
                     n > 0 ? meta.badge : "bg-neutral-100 text-neutral-400"
                   }`}
                 >

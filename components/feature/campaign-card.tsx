@@ -7,7 +7,7 @@
 import type { CampaignDefinition } from "@/lib/adapters/supabase/campaigns";
 import type { CampaignTimelineView, MilestoneState } from "@/lib/core/campaigns/timeline";
 import type { MilestoneVerification } from "@/lib/core/campaigns/verification";
-import { AlertTriangle, Check, ExternalLink, HelpCircle } from "lucide-react";
+import { AlertTriangle, Check, ExternalLink, HelpCircle, X } from "lucide-react";
 import { CardActionsMenu } from "@/app/(dashboard)/campanas/card-actions-menu";
 
 const monthsShort = [
@@ -70,7 +70,7 @@ export function CampaignCard({
       }`}
     >
       {missedCount > 0 && (
-        <div className="mb-3 inline-flex items-center gap-1.5 rounded-md bg-rose-50 px-2.5 py-1 text-[11px] font-semibold text-rose-700">
+        <div className="mb-3 inline-flex items-center gap-1.5 rounded-md bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700">
           <AlertTriangle className="h-3 w-3" />
           {missedCount === 1
             ? "1 milestone no se envió"
@@ -79,7 +79,7 @@ export function CampaignCard({
       )}
       {staleData && missedCount === 0 && (
         <div
-          className="mb-3 inline-flex items-center gap-1.5 rounded-md bg-neutral-100 px-2.5 py-1 text-[11px] font-medium text-neutral-600"
+          className="mb-3 inline-flex items-center gap-1.5 rounded-md bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600"
           title="Esta cohort no es la más reciente; los envíos en cache podrían pertenecer a un cohort posterior."
         >
           <HelpCircle className="h-3 w-3" />
@@ -118,7 +118,7 @@ export function CampaignCard({
                 href={load.asanaUrl}
                 target="_blank"
                 rel="noreferrer noopener"
-                className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-[#F06A6A] hover:underline"
+                className="mt-0.5 inline-flex items-center gap-1 text-xs text-[#F06A6A] hover:underline"
               >
                 <ExternalLink className="h-3 w-3" />
                 Ver en Asana
@@ -133,7 +133,7 @@ export function CampaignCard({
       <div className="mt-4 rounded-lg border border-dashed border-neutral-300 bg-neutral-50/60 p-4">
         {next ? (
           <>
-            <div className="text-[10px] font-semibold tracking-wider text-neutral-500 uppercase">
+            <div className="text-xs font-semibold tracking-wider text-neutral-500 uppercase">
               Próxima notificación
             </div>
             <div className="mt-1 text-xl font-semibold text-neutral-900">
@@ -156,7 +156,7 @@ export function CampaignCard({
           </>
         ) : (
           <>
-            <div className="text-[10px] font-semibold tracking-wider text-neutral-500 uppercase">
+            <div className="text-xs font-semibold tracking-wider text-neutral-500 uppercase">
               Estado
             </div>
             <div className="mt-1 text-lg font-semibold text-neutral-900">
@@ -192,7 +192,7 @@ export function CampaignCard({
             style={{ width: `${progressPercent}%`, background: accent }}
           />
         </div>
-        <div className="mt-1.5 flex justify-between text-[11px] text-neutral-500">
+        <div className="mt-1.5 flex justify-between text-xs text-neutral-500">
           <span>{fmtShort(load.loadDate)}</span>
           <span>{fmtShort(endDate)}</span>
         </div>
@@ -217,7 +217,7 @@ export function CampaignCard({
       {/* Conditional / event-based milestones */}
       {view.conditional.length > 0 && (
         <div className="mt-5 border-t border-neutral-100 pt-4">
-          <div className="text-[10px] font-semibold tracking-wider text-neutral-500 uppercase">
+          <div className="text-xs font-semibold tracking-wider text-neutral-500 uppercase">
             Disparadores fuera del timeline
           </div>
           <ul className="mt-2 space-y-1">
@@ -232,7 +232,7 @@ export function CampaignCard({
                   <span className="font-medium">{m.label}</span>
                   <span className="text-neutral-500"> · {m.description}</span>
                 </div>
-                <span className="shrink-0 rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium tracking-wider text-neutral-600 uppercase">
+                <span className="shrink-0 rounded bg-neutral-100 px-1.5 py-0.5 text-xs font-medium tracking-wider text-neutral-600 uppercase">
                   {m.triggerType === "event" ? "evento" : "manual"}
                 </span>
               </li>
@@ -274,17 +274,17 @@ function TimelineDot({
   const isMissed = verification?.status === "missed";
   const isVerifiedSent = verification?.status === "sent";
 
-  const dotColor = isMissed ? "#e11d48" /* rose-600 */ : accent;
+  const dotColor = isMissed ? "var(--color-rose-600)" : accent;
   const fill = isMissed || state === "done" || isVerifiedSent ? dotColor : "transparent";
   const ring = isMissed
-    ? `0 0 0 3px #fecdd3` /* rose-200 */
+    ? `0 0 0 3px var(--color-rose-200)`
     : state === "current"
       ? `0 0 0 3px ${accent}33`
       : state === "next"
         ? `inset 0 0 0 2px ${accent}`
         : state === "done"
           ? "none"
-          : `inset 0 0 0 1.5px #d4d4d4`;
+          : `inset 0 0 0 1.5px var(--color-neutral-300)`;
 
   const dotStyle: React.CSSProperties = {
     background: fill,
@@ -302,28 +302,26 @@ function TimelineDot({
         style={dotStyle}
       >
         {isVerifiedSent && <Check className="h-2.5 w-2.5 text-white" strokeWidth={3} />}
-        {isMissed && <span className="text-[8px] leading-none font-bold text-white">!</span>}
+        {isMissed && <X className="h-2.5 w-2.5 text-white" strokeWidth={3} aria-hidden />}
       </div>
       <div
-        className={`mt-1.5 text-[11px] font-medium ${
-          isMissed ? "text-rose-700" : "text-neutral-700"
-        }`}
+        className={`mt-1.5 text-xs font-medium ${isMissed ? "text-rose-700" : "text-neutral-700"}`}
       >
         {date}
       </div>
       {/* Verification subtitle under each dot */}
       {verification?.status === "sent" && verification.actualSentAt && (
-        <div className="mt-0.5 text-[10px] text-emerald-700" aria-label="Enviada">
+        <div className="mt-0.5 text-xs text-emerald-700" aria-label="Enviada">
           ✓ Enviada
         </div>
       )}
       {verification?.status === "missed" && (
-        <div className="mt-0.5 text-[10px] font-semibold text-rose-700">No enviada</div>
+        <div className="mt-0.5 text-xs font-semibold text-rose-700">No enviada</div>
       )}
       {withConnector && (
         <div
           className="absolute top-[7px] right-[calc(-50%+12px)] left-[calc(50%+12px)] h-px"
-          style={{ background: state === "done" ? accent : "#e5e5e5" }}
+          style={{ background: state === "done" ? accent : "var(--color-neutral-200)" }}
           aria-hidden
         />
       )}

@@ -45,7 +45,7 @@ export function DeleteDraftButton({ id, name }: { id: string; name: string }) {
       disabled={pending}
       title={confirming ? `Click otra vez para borrar "${name}"` : "Borrar draft"}
       aria-label={confirming ? "Confirmar borrar" : "Borrar"}
-      className={`inline-flex h-7 items-center gap-1 rounded-md border px-2 text-[11px] font-medium transition ${
+      className={`inline-flex h-7 items-center gap-1 rounded-md border px-2 text-xs font-medium transition ${
         confirming
           ? "border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100"
           : "border-transparent text-neutral-400 hover:border-neutral-200 hover:bg-neutral-100 hover:text-rose-600"

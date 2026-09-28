@@ -3,6 +3,7 @@
 @theme {
   --color-brand-50: #e6f0ff;
   --color-brand-100: #b3d4ff;
+  --color-brand-300: #80b8ff;
   --color-brand-500: #339aff;
   --color-brand-600: #006bff;
   --color-brand-700: #0052cc;
@@ -21,4 +22,39 @@ body {
   color: var(--foreground);
   font-family:
     -apple-system, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/*
+ * Superficies del navegador teñidas con la marca. En @layer base para que
+ * cualquier utility de Tailwind en un componente puntual siga ganando.
+ */
+@layer base {
+  :root {
+    accent-color: var(--color-brand-600);
+  }
+
+  ::selection {
+    background-color: var(--color-brand-100);
+    color: var(--foreground);
+  }
+
+  /*
+   * Foco de teclado visible y consistente en todo control. Solo
+   * :focus-visible (teclado), así el clic con mouse no deja anillo.
+   * :where() = especificidad 0: los inputs que ya traen su propio
+   * focus:ring conservan el suyo.
+   */
+  :where(
+      a,
+      button,
+      summary,
+      select,
+      [role="button"],
+      [tabindex]:not([tabindex="-1"]),
+      input[type="checkbox"],
+      input[type="radio"]
+    ):focus-visible {
+    outline: 2px solid var(--color-brand-600);
+    outline-offset: 2px;
+  }
 }
